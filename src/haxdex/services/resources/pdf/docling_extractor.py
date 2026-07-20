@@ -57,9 +57,7 @@ def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
     log.info(f"Checking if model {model_name} is available...")
     result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
     if model_name not in result.stdout:
-        log.info(
-            f"Model {model_name} not found. Pulling (this might take a while)..."
-        )
+        log.info(f"Model {model_name} not found. Pulling (this might take a while)...")
         subprocess.run(["ollama", "pull", model_name], check=True)
         log.info(f"Model {model_name} pulled successfully.")
 
@@ -86,10 +84,10 @@ def parse_spatial_tags(raw_xml: str, page_num: int) -> list[DocTag]:
     doc = DoclingDocument.load_from_doctags(doctag_document=doc_tags)
 
     tag_counter = 1
-    for item, level in doc.iterate_items(
-            included_content_layers=set(ContentLayer), with_groups=True):
-        tag_name = (str(item.label.value) if hasattr(item, "label")
-                    and item.label else type(item).__name__)
+    for item, level in doc.iterate_items(included_content_layers=set(ContentLayer),
+                                         with_groups=True):
+        tag_name = (str(item.label.value)
+                    if hasattr(item, "label") and item.label else type(item).__name__)
         text_content = getattr(item, "text", "")
 
         bbox = None
@@ -136,23 +134,19 @@ class DoclingExtractor:
         base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         payload = {
-            "model":
-            self.model_name,
+            "model": self.model_name,
             "messages": [{
                 "role": "user",
                 "content": "Convert this page to docling.",
                 "images": [base64_image],
             }],
-            "stream":
-            False,
+            "stream": False,
             "options": {
                 "temperature": 0
             },
         }
 
-        response = requests.post(self.ollama_url,
-                                 json=payload,
-                                 timeout=self.timeout)
+        response = requests.post(self.ollama_url, json=payload, timeout=self.timeout)
         response.raise_for_status()
 
         return response.json().get("message", {}).get("content", "")

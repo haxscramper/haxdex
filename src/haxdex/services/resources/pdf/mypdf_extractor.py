@@ -44,7 +44,8 @@ def _extract_block_text(block: dict) -> str:
                 spans = line.get("spans")
                 if isinstance(spans, list):
                     span_text = "".join(
-                        str(span.get("text", "")) for span in spans
+                        str(span.get("text", ""))
+                        for span in spans
                         if isinstance(span, dict)).strip()
                     if span_text:
                         line_texts.append(span_text)
@@ -151,8 +152,7 @@ def _attach_table_nested(
         nested_counter += 1
 
 
-def _extend_parent_bbox(parent: DocTag,
-                        nested_bbox: BoundingBox | None) -> None:
+def _extend_parent_bbox(parent: DocTag, nested_bbox: BoundingBox | None) -> None:
     if nested_bbox is None:
         return
 
@@ -167,10 +167,8 @@ def _extend_parent_bbox(parent: DocTag,
 
     x0 = min(parent.bbox.x, nested_bbox.x)
     y0 = min(parent.bbox.y, nested_bbox.y)
-    x1 = max(parent.bbox.x + parent.bbox.width,
-             nested_bbox.x + nested_bbox.width)
-    y1 = max(parent.bbox.y + parent.bbox.height,
-             nested_bbox.y + nested_bbox.height)
+    x1 = max(parent.bbox.x + parent.bbox.width, nested_bbox.x + nested_bbox.width)
+    y1 = max(parent.bbox.y + parent.bbox.height, nested_bbox.y + nested_bbox.height)
 
     parent.bbox = BoundingBox(
         x=x0,
@@ -350,31 +348,26 @@ def _infer_tag_name_from_page_box(box: dict, page_text: str) -> str:
 # --- Page dimension extraction ---
 
 
-def _extract_page_dimensions(
-    page_chunk: dict, ) -> tuple[float | None, float | None]:
+def _extract_page_dimensions(page_chunk: dict,) -> tuple[float | None, float | None]:
     width = page_chunk.get("width")
     height = page_chunk.get("height")
 
-    if (isinstance(width, (int, float)) and isinstance(height, (int, float))
-            and width > 0 and height > 0):
+    if (isinstance(width, (int, float)) and isinstance(height, (int, float)) and
+            width > 0 and height > 0):
         return float(width), float(height)
 
     metadata = page_chunk.get("metadata", {})
     if isinstance(metadata, dict):
         width = metadata.get("width")
         height = metadata.get("height")
-        if (isinstance(width,
-                       (int, float)) and isinstance(height, (int, float))
-                and width > 0 and height > 0):
+        if (isinstance(width, (int, float)) and isinstance(height, (int, float)) and
+                width > 0 and height > 0):
             return float(width), float(height)
 
-    file_path = metadata.get("file_path") if isinstance(metadata,
-                                                        dict) else None
-    page_number = metadata.get("page_number") if isinstance(metadata,
-                                                            dict) else None
+    file_path = metadata.get("file_path") if isinstance(metadata, dict) else None
+    page_number = metadata.get("page_number") if isinstance(metadata, dict) else None
 
-    if isinstance(file_path, str) and isinstance(page_number,
-                                                 int) and page_number > 0:
+    if isinstance(file_path, str) and isinstance(page_number, int) and page_number > 0:
         with fitz.open(file_path) as pdf:
             page = pdf[page_number - 1]
             rect = page.rect
@@ -557,10 +550,8 @@ class MyPDFExtractor:
                 )
             except Exception as e:
                 captured = (out.getvalue() + err.getvalue()).strip()
-                raise RuntimeError(
-                    f"pymupdf4llm failed on page {page_num}: {e}" +
-                    (f"\n--- captured output ---\n{captured}"
-                     if captured else "")) from e
+                raise RuntimeError(f"pymupdf4llm failed on page {page_num}: {e}" + (
+                    f"\n--- captured output ---\n{captured}" if captured else "")) from e
 
         if not chunks:
             return MyPDFPage(

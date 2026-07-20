@@ -10,8 +10,7 @@ class BoundingBox(BaseModel):
 
 
 class DocTag(BaseModel):
-    id: str = Field(
-        description="Unique ID for GUI selection, e.g., 'page1-tag4'")
+    id: str = Field(description="Unique ID for GUI selection, e.g., 'page1-tag4'")
     tag_name: str = Field(description="e.g., 'h1', 'p', 'table'")
     bbox: Optional[BoundingBox] = None
     text: Optional[str] = ""

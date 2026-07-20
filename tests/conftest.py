@@ -77,6 +77,7 @@ def db(request, tmp_path) -> IndexDatabase:
         hash_cache=HashCache(database_path=sqlite_path),
     )
 
+
 class MockFlmServerResource(FlmServerResource):
 
     def __init__(self,
@@ -112,8 +113,12 @@ def runtime(db, tmp_path) -> Generator[IndexRuntime, None, None]:
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] + [MockFlmServerResource()],
-        indexer_types=[t(config=t.config_model(), database=cache_database) for t in DEFAULT_INDEXER_TYPES],
+        resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] +
+        [MockFlmServerResource()],
+        indexer_types=[
+            t(config=t.config_model(), database=cache_database)
+            for t in DEFAULT_INDEXER_TYPES
+        ],
     )
 
     yield rt

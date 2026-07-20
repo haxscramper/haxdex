@@ -14,6 +14,7 @@ from haxdex.services.core.db_impl.schema import SchemaMixin
 from haxdex.services.core.db_impl.search import SearchMixin
 from haxdex.services.core.db_impl.storage import StorageMixin
 
+
 def get_cache_connection(database_path: Path):
     database_path.parent.mkdir(exist_ok=True, parents=True)
     engine = create_engine(
@@ -30,6 +31,7 @@ def get_cache_connection(database_path: Path):
         cursor.close()
 
     return engine
+
 
 class IndexDatabase(
         GraphvizMixin,
