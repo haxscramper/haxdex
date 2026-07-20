@@ -6,10 +6,10 @@ from typing import Any
 
 from beartype.typing import cast
 from pydantic import BaseModel
-from index_service.services.core.db import IndexDatabase
-from index_service.services.core.job_types import BaseConverter, BaseIndexer, BaseResource, RunContext
-from index_service.services.core.types import FileHash, ConverterOutput, FileRef, IndexDocument, IndexerOutput
-from index_service.services.core.job_runtime import IndexRuntime
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_types import BaseConverter, BaseIndexer, BaseResource, RunContext
+from haxdex.services.core.types import FileHash, ConverterOutput, FileRef, IndexDocument, IndexerOutput
+from haxdex.services.core.job_runtime import IndexRuntime
 
 
 def _touch(path: Path) -> None:

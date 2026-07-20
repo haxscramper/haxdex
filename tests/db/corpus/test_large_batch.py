@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from index_service.services.core.db import IndexDatabase
-from index_service.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexerResult
-from index_service.services.core.types import FileRef
-from index_service.services.core.job_runtime import IndexRuntime
-from index_service.services.pydantic_utils import first_by_field_value
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexerResult
+from haxdex.services.core.types import FileRef
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.pydantic_utils import first_by_field_value
 
 
 def test_large_batch_indexing(db: IndexDatabase, tmp_path: Path,

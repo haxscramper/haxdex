@@ -18,11 +18,11 @@ test_gui:
 # "tests/test_search.py::test_full_text_search"
 
 index:
-    uv run src/index_service/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
 
 profile_index:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-index.json -- \
-      python src/index_service/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+      python src/haxdex/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 
 # --indexer file_summary \
@@ -43,31 +43,31 @@ profile_index:
 # --indexer pdf_pages \
 
 schema:
-    uv run src/index_service/cli/cli.py schema "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py schema "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 
 flat_query_view: schema
-    uv run src/index_service/cli/cli.py flat_query_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py flat_query_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
 
 file_tree: schema
-    uv run src/index_service/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
 
 profile_file_tree: schema
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-tree-view.json -- \
-      python src/index_service/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+      python src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 visual_trash: schema
-    uv run src/index_service/cli/cli.py visual "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py visual "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 do_act: schema
-    uv run src/index_service/cli/cli.py do_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py do_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 undo_act: schema
-    uv run src/index_service/cli/cli.py undo_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py undo_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 
 gammaray_file_tree: schema
-    uv run gammaray $(uv run which python) src/index_service/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run gammaray $(uv run which python) src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 
 
 run_arango:

@@ -7,15 +7,15 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-from index_service.services.core.db import IndexDatabase
-from index_service.services.core.job_runtime import (
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_runtime import (
     IndexRuntime,)
-from index_service.services.core.job_types import (
+from haxdex.services.core.job_types import (
     BaseIndexer,
     BaseResource,
     RunContext,
 )
-from index_service.services.core.types import FileRef, IndexDocument, IndexerOutput
+from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
 
 # ── helpers ──────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 [project]
-name = "index-service"
+name = "haxdex"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -52,7 +52,7 @@ dependencies = [
 ]
 
 [project.scripts]
-index-service = "index_service:main"
+index-service = "haxdex:main"
 
 [build-system]
 requires = ["hatchling"]

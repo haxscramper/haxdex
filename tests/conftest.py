@@ -6,17 +6,17 @@ import shutil
 import pytest
 from beartype.typing import Any, Generator
 
-from index_service.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
-from index_service.services.core.db import IndexDatabase
-from index_service.services.core.job_runtime import IndexRuntime
-from index_service.services.core.job_types import BaseResource, RunContext
-from index_service.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource
-from index_service.services.resources.text_summary import (
+from haxdex.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.core.job_types import BaseResource, RunContext
+from haxdex.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource
+from haxdex.services.resources.text_summary import (
     SummarizeRequest,
     TextSummaryResource,
     TextSummaryResult,
 )
-from index_service.services.utils import get_custom_traceback_handler, stfu_logs
+from haxdex.services.utils import get_custom_traceback_handler, stfu_logs
 import logging
 
 log = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def pytest_configure(config: Any) -> None:
     "nodoc"
     stfu_logs()
 
-    logging.getLogger("index_service.services.core.job_runtime").setLevel(logging.INFO)
+    logging.getLogger("haxdex.services.core.job_runtime").setLevel(logging.INFO)
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -95,7 +95,7 @@ class MockFlmServerResource(FlmServerResource):
 
 @pytest.fixture
 def runtime(db) -> Generator[IndexRuntime, None, None]:
-    from index_service.services.default_job_types import (
+    from haxdex.services.default_job_types import (
         DEFAULT_CONVERTER_TYPES,
         DEFAULT_INDEXER_TYPES,
         DEFAULT_RESOURCE_TYPES,

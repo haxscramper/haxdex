@@ -11,7 +11,7 @@ import pytest
 from pytestqt.qtbot import QtBot
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtTest import QSignalSpy
-from index_service.gui.widgets.directory_view import BaseDirDelegate, MixedTreeTileView, TileDelegate, attr_label
+from haxdex.gui.widgets.directory_view import BaseDirDelegate, MixedTreeTileView, TileDelegate, attr_label
 
 
 class SynNode:

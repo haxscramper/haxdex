@@ -1,15 +1,15 @@
 import json
 from pathlib import Path
 
-from index_service.services.core.db import IndexDatabase
-from index_service.services.core.indexing_flow import run_indexing_per_root_plan
-from index_service.services.core.job_types import RunContext
-from index_service.services.core.types import FileRef
-from index_service.services.core.job_runtime import IndexRuntime
-from index_service.services.indexers.chunk_indexing.file_embedding import EmbeddingChunk, FileEmbeddingIndexerResult
-from index_service.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
-from index_service.services.indexers.full_document.full_document_types import Heading
-from index_service.services.pydantic_utils import dump_with_type, first_by_field_value
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
+from haxdex.services.core.job_types import RunContext
+from haxdex.services.core.types import FileRef
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.indexers.chunk_indexing.file_embedding import EmbeddingChunk, FileEmbeddingIndexerResult
+from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
+from haxdex.services.indexers.full_document.full_document_types import Heading
+from haxdex.services.pydantic_utils import dump_with_type, first_by_field_value
 import logging
 
 log = logging.getLogger(__name__)

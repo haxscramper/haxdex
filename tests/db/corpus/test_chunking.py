@@ -1,4 +1,4 @@
-from index_service.services.indexers.chunk_indexing.chunking import (
+from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkUnit,
     Chunker,
@@ -6,7 +6,7 @@ from index_service.services.indexers.chunk_indexing.chunking import (
     chunks_to_multidoc,
 )
 
-import index_service.services.indexers.full_document.full_document_types as fd
+import haxdex.services.indexers.full_document.full_document_types as fd
 
 
 def _build_docs(blocks, file_hash):

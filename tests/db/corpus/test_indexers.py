@@ -8,20 +8,20 @@ from beartype.typing import Any, TypeVar, cast
 from pydantic import BaseModel
 import glom
 
-from index_service.services.converters.file_size_converter import FileSizeConverterResult
-from index_service.services.core.db import IndexDatabase
-from index_service.services.indexers.chunk_indexing.chunking import ChunkDocument, ChunkFile, ChunkLink
-from index_service.services.indexers.chunk_indexing.file_summary import FileSummaryIndexerResult
-from index_service.services.indexers.file_size import FileSizeIndexer, FileSizeIndexerResult
-from index_service.services.indexers.file_stats import FileStatsIndexerResult
-from index_service.services.core.types import FileHash, FileRef, IndexerOutput
-from index_service.services.core.job_runtime import IndexRuntime
-from index_service.services.indexers.chunk_indexing.full_text import FullTextIndexerResult
+from haxdex.services.converters.file_size_converter import FileSizeConverterResult
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.indexers.chunk_indexing.chunking import ChunkDocument, ChunkFile, ChunkLink
+from haxdex.services.indexers.chunk_indexing.file_summary import FileSummaryIndexerResult
+from haxdex.services.indexers.file_size import FileSizeIndexer, FileSizeIndexerResult
+from haxdex.services.indexers.file_stats import FileStatsIndexerResult
+from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.indexers.chunk_indexing.full_text import FullTextIndexerResult
 import logging
 import functools
 
-from index_service.services.pydantic_utils import dump_with_type, first_by_field_value
-from index_service.services.resources.text_summary import SummaryChunk
+from haxdex.services.pydantic_utils import dump_with_type, first_by_field_value
+from haxdex.services.resources.text_summary import SummaryChunk
 
 log = logging.getLogger(__name__)
 
