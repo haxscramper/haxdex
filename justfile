@@ -3,7 +3,10 @@ test:
         --log-level=DEBUG \
         --capture=tee-sys \
         --disable-warnings \
-        "tests/gui/test_execute_actions.py" > test_results.tmp.log 2>&1
+        > test_results.tmp.log 2>&1
+
+
+#        "tests/gui/test_execute_actions.py" 
 
 [env("DISPLAY", ":2")]
 test_gui:

@@ -1,0 +1,3 @@
+[submodule "src/haxdex/services/resources/wdv3_jax"]
+	path = src/haxdex/services/resources/wdv3_jax
+	url = https://github.com/SmilingWolf/wdv3-jax.git

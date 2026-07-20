@@ -245,6 +245,8 @@ fabric.properties
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
+tests/db/corpus/__pycache__/
+**/__pycache__
 __pycache__/
 *.py[cod]
 *$py.class
@@ -461,3 +463,6 @@ CMakeLists.txt.user*
 *_qmlcache.qrc
 
 # End of https://www.toptal.com/developers/gitignore/api/python,qt,pycharm,intellij,c++,cmake
+**/__pycache__
+
+
