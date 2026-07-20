@@ -3,8 +3,10 @@ from pathlib import Path
 import re
 import shutil
 
+from haxdex.services.core.hash_cache import HashCache
 import pytest
 from beartype.typing import Any, Generator
+from haxdex.services.core.db import get_cache_connection
 
 from haxdex.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
 from haxdex.services.core.db import IndexDatabase
@@ -56,21 +58,24 @@ def _safe_name(raw: str) -> str:
 
 
 @pytest.fixture
-def db(request) -> IndexDatabase:
+def db(request, tmp_path) -> IndexDatabase:
     db_name = f"index_test_{_safe_name(request.node.name)}"
+    sqlite_path = tmp_path / "hash_cache.sqlite"
+
     IndexDatabase.reset_database(
         host=ARANGO_HOST,
         db_name=db_name,
         username=ARANGO_USER,
         password=ARANGO_PASSWORD,
     )
+
     return IndexDatabase(
         host=ARANGO_HOST,
         db_name=db_name,
         username=ARANGO_USER,
         password=ARANGO_PASSWORD,
+        hash_cache=HashCache(database_path=sqlite_path),
     )
-
 
 class MockFlmServerResource(FlmServerResource):
 
@@ -94,21 +99,21 @@ class MockFlmServerResource(FlmServerResource):
 
 
 @pytest.fixture
-def runtime(db) -> Generator[IndexRuntime, None, None]:
+def runtime(db, tmp_path) -> Generator[IndexRuntime, None, None]:
     from haxdex.services.default_job_types import (
-        DEFAULT_CONVERTER_TYPES,
         DEFAULT_INDEXER_TYPES,
         DEFAULT_RESOURCE_TYPES,
     )
 
     ctx = RunContext(db)
 
+    cache_database = get_cache_connection(Path(tmp_path))
+
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        resource_types=[t() for t in DEFAULT_RESOURCE_TYPES] + [MockFlmServerResource()],
-        indexer_types=[t(should_load_cache=False) for t in DEFAULT_INDEXER_TYPES],
-        converter_types=[t() for t in DEFAULT_CONVERTER_TYPES],
+        resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] + [MockFlmServerResource()],
+        indexer_types=[t(config=t.config_model(), database=cache_database) for t in DEFAULT_INDEXER_TYPES],
     )
 
     yield rt

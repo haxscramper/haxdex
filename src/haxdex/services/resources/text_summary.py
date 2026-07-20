@@ -9,6 +9,7 @@ log = logging.getLogger(__name__)
 
 from haxdex.services.core.job_types import (
     BaseResource,
+    BaseResourceConfig,
     RunContext,
 )
 from haxdex.services.core.types import MultiDocumentModel
@@ -54,26 +55,25 @@ class TextSummaryResult(MultiDocumentModel, extra="forbid"):
     edge_type: ClassVar[Any] = ChunkLink
 
 
+class TextSummaryResourceConfig(BaseResourceConfig, extra="forbid"):
+    model: str = "gemma4-it:e4b"
+    chunk: ChunkConfig = Field(default_factory=lambda: ChunkConfig(
+        unit=ChunkUnit.TOKENS,
+        max_size=12_000,
+        start_overlap_max=200,
+        encoding_name="o200k_base",
+    ))
+
+
 class TextSummaryResource(BaseResource):
     resource_key = "text_summary"
     required_resources = ("flm_server",)
+    config_model = TextSummaryResourceConfig
 
-    def __init__(
-        self,
-        model: str = "gemma4-it:e4b",
-        context_window_tokens: int = 16_000,
-        output_reserve_tokens: int = 4_000,
-        chunk_overlap_tokens: int = 200,
-        encoding_name: str = "o200k_base",
-    ) -> None:
-        self._model = model
-        self._chunk_token_size = context_window_tokens - output_reserve_tokens
-        self._config = ChunkConfig(
-            unit=ChunkUnit.TOKENS,
-            max_size=self._chunk_token_size,
-            start_overlap_max=chunk_overlap_tokens,
-            encoding_name=encoding_name,
-        )
+    config: TextSummaryResourceConfig
+
+    def __init__(self, config: TextSummaryResourceConfig) -> None:
+        super().__init__(config=config)
 
     def _resolve_flm(self, resources: dict[str, BaseResource]) -> FlmServerResource:
         flm = resources.get("flm_server")
@@ -95,7 +95,7 @@ class TextSummaryResource(BaseResource):
         flm_response = flm.handle(
             ctx=ctx,
             request=FlmRequest(
-                model=self._model,
+                model=self.config.model,
                 messages=[
                     FlmMessage(role="system", content=system_prompt),
                     FlmMessage(role="user", content=text),
@@ -112,7 +112,7 @@ class TextSummaryResource(BaseResource):
         resources: dict[str, BaseResource],
     ) -> TextSummaryResult:
         flm = self._resolve_flm(resources)
-        chunker = Chunker(self._config)
+        chunker = Chunker(self.config.chunk)
         chunks = chunker.chunk_text(request.text, request.file_hash)
 
         summ: dict[str, str] = {}

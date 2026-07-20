@@ -125,22 +125,6 @@ class IndexService():
 
         self.ctx = RunContext(self.db)
 
-    def get_cache_connection(self, database_path: Path):
-        engine = create_engine(
-            URL.create("sqlite", database=str(database_path)),
-            connect_args={"check_same_thread": False},
-        )
-
-        @event.listens_for(engine, "connect")
-        def configure_sqlite(dbapi_connection, _connection_record) -> None:
-            cursor = dbapi_connection.cursor()
-            cursor.execute("PRAGMA busy_timeout = 30000")
-            cursor.execute("PRAGMA journal_mode = WAL")
-            cursor.execute("PRAGMA synchronous = NORMAL")
-            cursor.close()
-
-        return engine
-
     def setup_runtime_logging(self, log_cfg: LoggingConfig) -> tuple[Path, Path, Path]:
         run_text_dir = get_xdg_cache_dir(["logs", "run", "text"])
         run_json_dir = get_xdg_cache_dir(["logs", "run", "json"])

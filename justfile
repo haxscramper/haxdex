@@ -1,3 +1,4 @@
+[env("DISPLAY", ":2")]
 test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
@@ -74,6 +75,6 @@ gammaray_file_tree: schema
 
 
 run_arango:
-    docker run -d -e ARANGO_ROOT_PASSWORD="test" -p 8529:8529 arangodb/enterprise:3.12.9.1 \
+    docker run -d -e ARANGO_ROOT_PASSWORD="test" --network host arangodb/enterprise:3.12.9.1 \
         --server.session-timeout 360000 \
         --vector-index
