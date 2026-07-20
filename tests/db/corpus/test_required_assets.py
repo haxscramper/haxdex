@@ -7,8 +7,8 @@ from typing import Any
 from beartype.typing import cast
 from pydantic import BaseModel
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseConverter, BaseIndexer, BaseResource, RunContext
-from haxdex.services.core.types import FileHash, ConverterOutput, FileRef, IndexDocument, IndexerOutput
+from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex.services.core.types import FileHash, FileRef, IndexDocument, IndexerOutput
 from haxdex.services.core.job_runtime import IndexRuntime
 
 

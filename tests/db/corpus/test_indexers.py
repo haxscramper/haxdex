@@ -8,7 +8,6 @@ from beartype.typing import Any, TypeVar, cast
 from pydantic import BaseModel
 import glom
 
-from haxdex.services.converters.file_size_converter import FileSizeConverterResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.indexers.chunk_indexing.chunking import ChunkDocument, ChunkFile, ChunkLink
 from haxdex.services.indexers.chunk_indexing.file_summary import FileSummaryIndexerResult
