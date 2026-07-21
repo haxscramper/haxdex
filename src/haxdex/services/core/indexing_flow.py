@@ -106,6 +106,7 @@ def run_indexing_per_root_plan(
             log.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
             return
 
+        assert path_cfg.root_path.is_absolute(), str(path_cfg.root_path)
         assert path_cfg.root_path.exists(), str(path_cfg.root_path)
 
         root = db.add_root(path_cfg.name, path_cfg.root_path)

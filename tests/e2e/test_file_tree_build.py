@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from tests.utils import init_index_service, init_file_tree_config
 
 
@@ -18,3 +19,12 @@ def test_e2e_tree_build(stable_test_dir: Path):
     index.service.run_index()
 
     tree_config = init_file_tree_config(index)
+
+    assert tree_config.cfg.file_tree_view
+    core = FileTreeQueryCore(
+        ctx=tree_config.service.ctx,
+        file_tree_view=tree_config.cfg.file_tree_view,
+        db=tree_config.service.db,
+        cfg=tree_config.cfg,
+        indexer_instances=tree_config.service.indexer_instances,
+    )

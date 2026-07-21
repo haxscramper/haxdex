@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 
 
 @beartype
-class FileTreeQueryWindow(QMainWindow):
+class FileTreeQueryCore:
 
     def __init__(
         self,
@@ -53,17 +53,10 @@ class FileTreeQueryWindow(QMainWindow):
         db: IndexDatabase,
         cfg: AppConfig,
         indexer_instances: Sequence[BaseIndexer],
-        builders: Sequence[WidgetBuilder],
-        parent: QWidget | None = None,
     ) -> None:
-        super().__init__(parent)
-
         assert file_tree_view
 
         self.cfg = cfg
-
-        QCoreApplication.setOrganizationName("haxscramper")
-        QCoreApplication.setApplicationName("haxdex-tree-view")
 
         self.columns: list[FileTreeColumnSpec] = [
             FileNameColumnSpec(),
@@ -92,13 +85,10 @@ class FileTreeQueryWindow(QMainWindow):
                 db=db,
                 root_directories=[file_tree_view.reference_dir],
                 indexers=indexer_instances,
-                columns=self.columns + [
-                    FileDuplicateColumnSpec(None),
-                ],
+                columns=self.columns + [FileDuplicateColumnSpec(None)],
                 cache_path=cfg.file_tree_view.reference_tree_cache_path,
                 user_edit_path=cfg.file_tree_view.user_edit_path,
             )
-
             self.columns.append(FileDuplicateColumnSpec(reference_tree=reference_tree[0]))
 
         nodes = build_file_tree(
@@ -111,15 +101,74 @@ class FileTreeQueryWindow(QMainWindow):
             user_edit_path=cfg.file_tree_view.user_edit_path,
         )
 
-        model = FileTreeModel(
+        self.model = FileTreeModel(
             columns=self.columns,
             nodes=nodes,
-            parent=self,
+        )
+        self.model.dataChanged.connect(self._user_data_changed)
+
+    def first_hash(self) -> FileHash | None:
+        first_index = self.model.first_index_with_hash()
+        if not first_index.isValid():
+            return None
+
+        return FileHash(hash=first_index.data(CustomModelRole.HashRole.value))
+
+    def _user_data_changed(
+        self,
+        topLeft: QModelIndex,
+        bottomRight: QModelIndex,
+        roles: list[int],
+    ) -> None:
+        column = self.columns[topLeft.column()]
+        node = cast(FileTreeNode, topLeft.internalPointer())
+        log.info(
+            f"user entered custom data for column {column.getColumnData(topLeft)} for {node.root} {node.root_relative}"
         )
 
-        model.dataChanged.connect(self._user_data_changed)
+        if node.root is None:
+            raise ValueError(
+                f"Cannot store user edit for path {node.path.as_posix()} because root name is missing"
+            )
 
-        self.columns = self.columns
+        store_user_column_edit(
+            user_edit_path=self.cfg.file_tree_view.user_edit_path,
+            root=node.root,
+            relative=node.root_relative,
+            column=column,
+            data=node.columns[column.column_name],
+        )
+
+
+@beartype
+class FileTreeQueryWindow(QMainWindow):
+
+    def __init__(
+        self,
+        ctx: RunContext,
+        file_tree_view: FileTreeViewConfig,
+        db: IndexDatabase,
+        cfg: AppConfig,
+        indexer_instances: Sequence[BaseIndexer],
+        builders: Sequence[WidgetBuilder],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.cfg = cfg
+
+        QCoreApplication.setOrganizationName("haxscramper")
+        QCoreApplication.setApplicationName("haxdex-tree-view")
+
+        self.core = FileTreeQueryCore(
+            ctx=ctx,
+            file_tree_view=file_tree_view,
+            db=db,
+            cfg=cfg,
+            indexer_instances=indexer_instances,
+        )
+
+        self.columns = self.core.columns
         self.regions: list[FileTreeRegion] = []
         self.region_widgets: list[QWidget] = []
 
@@ -143,13 +192,12 @@ class FileTreeQueryWindow(QMainWindow):
         self.main_splitter.setStretchFactor(0, 2)
         self.main_splitter.setStretchFactor(1, 1)
 
-        self._add_region(model)
+        self._add_region(self.core.model)
 
         self.restore_ui_state()
-        first_index = model.first_index_with_hash()
-        if first_index.isValid():
-            self.preview_pane.show_hash(
-                FileHash(hash=first_index.data(CustomModelRole.HashRole.value)))
+        first_hash = self.core.first_hash()
+        if first_hash is not None:
+            self.preview_pane.show_hash(first_hash)
 
     def _refresh_named_queries(self) -> None:
         for region in self.regions:
@@ -157,34 +205,15 @@ class FileTreeQueryWindow(QMainWindow):
 
     def _add_action_region(self, actions: ActionListModel) -> ActionListView:
         log.info("add action list view")
-        view = ActionListView(actions,
-                              parent=self.region_splitter,
-                              action_file=self.cfg.action_file)
+        view = ActionListView(
+            actions,
+            parent=self.region_splitter,
+            action_file=self.cfg.action_file,
+        )
         view.file_hash_activated.connect(self.preview_pane.show_hash)
         self.region_splitter.addWidget(view)
         self.region_widgets.append(view)
         return view
-
-    def _user_data_changed(self, topLeft: QModelIndex, bottomRight: QModelIndex,
-                           roles: list[int]):
-        column = self.columns[topLeft.column()]
-        node = cast(FileTreeNode, topLeft.internalPointer())
-        log.info(
-            f"user entered custom data for column {column.getColumnData(topLeft)} for {node.root} {node.root_relative}"
-        )
-
-        if node.root is None:
-            raise ValueError(
-                f"Cannot store user edit for path {node.path.as_posix()} because root name is missing"
-            )
-
-        store_user_column_edit(
-            user_edit_path=self.cfg.file_tree_view.user_edit_path,
-            root=node.root,
-            relative=node.root_relative,
-            column=column,
-            data=node.columns[column.column_name],
-        )
 
     def _add_region(self, model: AbstractColumnItemModel) -> FileTreeRegion:
         region = FileTreeRegion(
@@ -248,13 +277,12 @@ class FileTreeQueryWindow(QMainWindow):
         if header_state is not None and self.regions:
             self.regions[0].tree_view.header().restoreState(header_state)
 
-        # Splitters must be restored explicitly
         main_splitter_state = settings.value("splitter/main")
         if main_splitter_state is not None and not self.main_splitter.restoreState(
                 main_splitter_state):
-            self.main_splitter.setSizes([800, 400])  # fallback 2:1
+            self.main_splitter.setSizes([800, 400])
         elif main_splitter_state is None:
-            self.main_splitter.setSizes([800, 400])  # default 2:1 on first run
+            self.main_splitter.setSizes([800, 400])
 
         region_splitter_state = settings.value("splitter/region")
         if region_splitter_state is not None:
@@ -264,8 +292,6 @@ class FileTreeQueryWindow(QMainWindow):
         settings = get_settings()
         settings.setValue("window/geometry", self.saveGeometry())
         settings.setValue("window/state", self.saveState())
-
-        # Save splitters explicitly
         settings.setValue("splitter/main", self.main_splitter.saveState())
         settings.setValue("splitter/region", self.region_splitter.saveState())
 

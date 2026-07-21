@@ -51,16 +51,23 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
 class FileTreeServiceConfig():
     service: IndexService
     root_dir: Path
+    cfg: AppConfig
 
 
 def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     assert index.cfg.index
+    cfg = index.cfg.model_copy(update=dict(
+        index=None,
+        file_tree_view=FileTreeViewConfig(root_dirs=index.cfg.index.paths[0].paths),
+    ))
+
     service = IndexService(
-        cfg=index.cfg.model_copy(update=dict(
-            index=None,
-            file_tree_view=FileTreeViewConfig(root_dirs=index.cfg.index.paths[0].paths),
-        )),
+        cfg=cfg,
         only_short_curcuit_checks=False,
     )
 
-    return FileTreeServiceConfig(service=service, root_dir=index.root_dir)
+    return FileTreeServiceConfig(
+        service=service,
+        root_dir=index.root_dir,
+        cfg=cfg,
+    )

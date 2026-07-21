@@ -5,27 +5,19 @@ from pydantic import BaseModel, Field, field_validator
 from pathlib import Path
 from beartype.typing import Sequence
 
+from haxdex.services.pydantic_utils import ExistingPath, ExistingDir
+
 
 class DirConfig(BaseModel, extra="forbid"):
-    path: Path
+    path: ExistingPath
     ignore: list[str] = Field(default_factory=list)
-
-    @field_validator("path")
-    @classmethod
-    def _normalize_paths(cls, value: Path) -> Path:
-        return value.expanduser().resolve().absolute()
 
 
 @dataclass(slots=True, frozen=True)
 class RootFilter:
-    root_path: Path
+    root_path: ExistingDir
     root_str: str
     ignore_spec: GitIgnoreSpec | None
-
-    @field_validator("root_path")
-    @classmethod
-    def _normalize_paths(cls, value: Path) -> Path:
-        return value.expanduser().resolve().absolute()
 
 
 def prepare_root_filters(root_directories: Sequence[DirConfig]) -> list[RootFilter]:

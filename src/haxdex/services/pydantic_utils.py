@@ -4,17 +4,16 @@ import base64
 import json
 import glom
 import math
-import types as py_types
+from pydantic import AfterValidator
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, TypeVar, Union, get_args, get_origin
+from typing import Annotated, Any, Callable, Optional, TypeVar
 
 import PIL.TiffImagePlugin
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticSerializationError
 import logging
-from haxdex.services.utils import dump_with_type
 
 log = logging.getLogger(__name__)
 
@@ -204,3 +203,47 @@ def first_by_field_value(obj: list[T], field: str, value: Any) -> Optional[T]:
         glom.Iter().first(
             lambda it: getattr(it, field) == value,  #type: ignore
             default=None))
+
+
+def _abs(p: Path) -> Path:
+    return p.expanduser().resolve()
+
+
+def _existing_file(p: Path) -> Path:
+    p = _abs(p)
+    if not p.is_file():
+        raise ValueError(f"File does not exist: {p}")
+    return p
+
+
+def _existing_dir(p: Path) -> Path:
+    p = _abs(p)
+    if not p.is_dir():
+        raise ValueError(f"Directory does not exist: {p}")
+    return p
+
+
+def _output_file(p: Path) -> Path:
+    p = _abs(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _output_dir(p: Path) -> Path:
+    p = _abs(p)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _existing_path(p: Path) -> Path:
+    p = _abs(p)
+    if not p.exists():
+        raise ValueError(f"Path does not exist: {p}")
+    return p
+
+
+ExistingPath = Annotated[Path, AfterValidator(_existing_path)]
+ExistingFile = Annotated[Path, AfterValidator(_existing_file)]
+ExistingDir = Annotated[Path, AfterValidator(_existing_dir)]
+OutputFile = Annotated[Path, AfterValidator(_output_file)]
+OutputDir = Annotated[Path, AfterValidator(_output_dir)]

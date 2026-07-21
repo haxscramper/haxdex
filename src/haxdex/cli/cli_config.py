@@ -24,6 +24,7 @@ from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 from haxdex.services.indexers.pdf_indexer import PdfIndexer
 from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
 from haxdex.services.indexers.wd_indexer import WdTagIndexer
+from haxdex.services.pydantic_utils import OutputFile, ExistingDir, ExistingPath
 from haxdex.services.resources.flm_server import FlmServerResource
 from haxdex.services.resources.pdf.pdf_extractor import PdfExtractor
 from haxdex.services.resources.wd_tagger import WdTagger
@@ -107,20 +108,13 @@ class DatabaseConfig(BaseModel):
 class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    logfile: Path | None = None
+    logfile: OutputFile | None = None
     logfile_format: Literal["text", "json"] = "text"
-
-    @field_validator("logfile")
-    @classmethod
-    def _normalize_logfile(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
 
 
 class IndexPathConfig(BaseModel, extra="forbid"):
     name: str
-    root_path: Path
+    root_path: ExistingDir
     paths: list[DirConfig]
 
 
@@ -132,33 +126,7 @@ class IndexConfig(BaseModel):
     limit_total: int | None = None
     limit_per_path: int | None = None
     max_plan_run_size: int = 256
-    media_transcribe_whisper_server: Path | None = None
-
-    @field_validator("paths", mode="before")
-    @classmethod
-    def _normalize_paths_before(cls, value: Any) -> Any:
-        if value is None:
-            return ()
-        return value
-
-    @field_validator("media_transcribe_whisper_server")
-    @classmethod
-    def _validate_whisper_server(cls, value: Path | None) -> Path | None:
-        if value is None:
-            env_value = os.environ.get("HAXDEX_MEDIA_TRANSCRIBE_WHISPER_SERVER")
-            if env_value:
-                value = Path(env_value)
-
-        if value is None:
-            return None
-
-        value = value.expanduser().resolve().absolute()
-        if not value.exists():
-            raise ValueError(f"media_transcribe_whisper_server does not exist: {value}")
-        if not os.access(value, os.X_OK):
-            raise ValueError(
-                f"media_transcribe_whisper_server is not executable: {value}")
-        return value
+    media_transcribe_whisper_server: ExistingPath | None = None
 
 
 class FlatQueryViewConfig(BaseModel, extra="forbid"):
@@ -169,10 +137,10 @@ class FlatQueryViewConfig(BaseModel, extra="forbid"):
 class FileTreeViewConfig(BaseModel, extra="forbid"):
     root_dirs: list[DirConfig]
     reference_dir: Optional[DirConfig] = None
-    reference_tree_cache_path: Path = Path("/tmp/reference_tree_cache.sqlite")
-    visual_tree_cache_path: Path = Path("/tmp/input_tree_cache.sqlite")
+    reference_tree_cache_path: OutputFile = Path("/tmp/reference_tree_cache.sqlite")
+    visual_tree_cache_path: OutputFile = Path("/tmp/input_tree_cache.sqlite")
     drop_cache_files: bool = False
-    user_edit_path: Path = Path("~/tmp/user_actions.sqlite").expanduser()
+    user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite")
 
 
 class ActionConfig(BaseModel, extra="forbid"):
@@ -186,13 +154,13 @@ class VisualConfig(BaseModel, extra="forbid"):
 class AppConfig(BaseModel, extra="forbid"):
     fuck_off__schema: str | None = Field(alias="$schema", default=None)
 
-    index_cache: Path = Field(
+    index_cache: OutputFile = Field(
         description="DB location for the indexer result cache",
         default_factory=lambda: get_xdg_cache_dir([]).joinpath("index_cache.sqlite"),
     )
 
     db: DatabaseConfig
-    hash_cache: Path = Field(
+    hash_cache: OutputFile = Field(
         description="DB location for the file hash cache",
         default_factory=lambda: get_xdg_cache_dir([]).joinpath("file_hash_cache.sqlite"),
     )
@@ -200,33 +168,20 @@ class AppConfig(BaseModel, extra="forbid"):
     common_ignore_prefix: list[str] = Field(default_factory=list)
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    action_file: Path = Field(description="JSONL file to write all collected actions")
+    action_file: OutputFile = Field(
+        description="JSONL file to write all collected actions")
 
     act: ActionConfig | None = None
 
     indexers: dict[str, BaseIndexerConfig] = Field(default_factory=dict, exclude=True)
     resources: dict[str, BaseModel] = Field(default_factory=dict, exclude=True)
-    perf_trace_file: Path | None = None
+    perf_trace_file: OutputFile | None = None
 
     # exactly one of these must be set
     index: IndexConfig | None = None
     visual: VisualConfig | None = None
     flat_query_view: FlatQueryViewConfig | None = None
     file_tree_view: FileTreeViewConfig | None = None
-
-    @field_validator("action_file")
-    @classmethod
-    def _normalize_action_file_file(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
-
-    @field_validator("perf_trace_file")
-    @classmethod
-    def _normalize_perf_trace_file(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
 
     @model_validator(mode="before")
     @classmethod
