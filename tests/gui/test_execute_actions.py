@@ -39,9 +39,19 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[Action] = [
-        MoveAction(file=FileTreeNode(path=source_move, is_directory=False),
+        MoveAction(file=FileTreeNode(
+            path=source_move,
+            is_directory=False,
+            root="root",
+            root_relative="a.txt",
+        ),
                    dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(path=source_trash, is_directory=False)),
+        TrashAction(file=FileTreeNode(
+            path=source_trash,
+            is_directory=False,
+            root="root",
+            root_relative="b.txt",
+        )),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -79,9 +89,19 @@ def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[Action] = [
-        MoveAction(file=FileTreeNode(path=source_move, is_directory=False),
+        MoveAction(file=FileTreeNode(
+            path=source_move,
+            is_directory=False,
+            root="root",
+            root_relative="resume_a.txt",
+        ),
                    dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(path=source_trash, is_directory=False)),
+        TrashAction(file=FileTreeNode(
+            path=source_trash,
+            is_directory=False,
+            root="root",
+            root_relative="resume_b.txt",
+        )),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -110,9 +130,19 @@ def test_revert_done(action_executor: ActionExecutor, stable_test_dir: Path) -> 
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[Action] = [
-        MoveAction(file=FileTreeNode(path=source_move, is_directory=False),
+        MoveAction(file=FileTreeNode(
+            path=source_move,
+            is_directory=False,
+            root="root",
+            root_relative="rev_a.txt",
+        ),
                    dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(path=source_trash, is_directory=False)),
+        TrashAction(file=FileTreeNode(
+            path=source_trash,
+            is_directory=False,
+            root="root",
+            root_relative="rev_b.txt",
+        )),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -144,7 +174,12 @@ def test_register_actions_skips_duplicate_same_type(
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     action = MoveAction(
-        file=FileTreeNode(path=source, is_directory=False),
+        file=FileTreeNode(
+            path=source,
+            is_directory=False,
+            root="root",
+            root_relative="dup_a.txt",
+        ),
         dest=str(move_dest),
     )
 

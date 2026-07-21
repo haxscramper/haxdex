@@ -101,7 +101,7 @@ def test_chain_two_indexers(
 
 def test_branching_indexers(
     db: IndexDatabase,
-    tmp_path: Path,
+    stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
     call_log: list[str] = []
@@ -160,7 +160,7 @@ def test_branching_indexers(
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=ModelD(value="D", hash="io45edgkgyjm,j345e"))
 
-    path = tmp_path / "branch.txt"
+    path = stable_test_dir / "branch.txt"
     _touch(path)
 
     ctx = RunContext(db)
@@ -176,7 +176,7 @@ def test_branching_indexers(
         resource_types=[],
     )
 
-    root = db.add_root("root", tmp_path)
+    root = db.add_root("root", stable_test_dir)
     runtime.run_indexer(
         runtime.db.as_ref(root, path),
         [
@@ -196,7 +196,7 @@ def test_branching_indexers(
 
 def test_indexer_receives_resource(
     db: IndexDatabase,
-    tmp_path: Path,
+    stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
 
@@ -229,7 +229,7 @@ def test_indexer_receives_resource(
                 result=EchoModel(echoed=response.value, hash="999"),
             )
 
-    file_path = tmp_path / "resource.txt"
+    file_path = stable_test_dir / "resource.txt"
     _touch(file_path)
 
     ctx = RunContext(db)
@@ -242,7 +242,7 @@ def test_indexer_receives_resource(
         ],
     )
 
-    root = db.add_root("root", tmp_path)
+    root = db.add_root("root", stable_test_dir)
     ref = runtime.db.as_ref(root, file_path)
     runtime.run_indexer(ref, ["echo_indexer"])
     out = runtime.get_indexer_result(ref, "echo_indexer")

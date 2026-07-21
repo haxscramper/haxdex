@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
 
+from haxdex.cli.cli_config import IndexConfig, IndexPathConfig
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_types import RunContext
 from haxdex.services.core.types import FileRef
 from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.chunk_indexing.file_embedding import EmbeddingChunk, FileEmbeddingIndexerResult
 from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
 from haxdex.services.indexers.full_document.full_document_types import Heading
@@ -17,11 +19,11 @@ corpus = Path(__file__).parent.joinpath("corpus")
 
 
 def test_full_text_search(db: IndexDatabase, runtime: IndexRuntime,
-                          tmp_path: Path) -> None:
-    path = tmp_path / "a.txt"
+                          stable_test_dir: Path) -> None:
+    path = stable_test_dir / "a.txt"
     path.write_text("alpha beta gamma")
 
-    root = db.add_root("root", tmp_path)
+    root = db.add_root("root", stable_test_dir)
     ref = runtime.db.as_ref(root, path)
     fts_name = FullTextIndexer.asset_name
     runtime.run_indexer(ref, [fts_name])
@@ -41,13 +43,14 @@ def test_full_text_search(db: IndexDatabase, runtime: IndexRuntime,
     assert hit0.file_hash == ref.hash.hash
 
 
-def test_vector_search(db: IndexDatabase, runtime: IndexRuntime, tmp_path: Path) -> None:
-    a = tmp_path / "a.txt"
-    b = tmp_path / "b.txt"
+def test_vector_search(db: IndexDatabase, runtime: IndexRuntime,
+                       stable_test_dir: Path) -> None:
+    a = stable_test_dir / "a.txt"
+    b = stable_test_dir / "b.txt"
     a.write_text("cat cat cat")
     b.write_text("network protocol packet")
 
-    root = db.add_root("root", tmp_path)
+    root = db.add_root("root", stable_test_dir)
     file_1 = db.as_ref(root, a)
     file_2 = db.as_ref(root, b)
 
@@ -93,10 +96,14 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
         db=db,
         runner=runtime,
         ctx=ctx,
-        paths=(corpus,),
+        cfg=IndexConfig(
+            paths=(IndexPathConfig(name="root",
+                                   root_path=corpus,
+                                   paths=[DirConfig(path=corpus)]),),
+            limit_total=10,
+            limit_per_path=10,
+        ),
         indexers=tuple(v.asset_name for k, v in runtime._indexer_instances.items()),
-        limit_total=10,
-        limit_per_path=10,
     )
 
     params = db.get_full_text_search_path(idx)

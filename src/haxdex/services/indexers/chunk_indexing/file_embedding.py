@@ -52,9 +52,11 @@ def _placeholder_vector(text: str) -> list[float]:
 
 
 class FileEmbeddingIndexerConfig(BaseIndexerConfig, extra="forbid"):
-    unit: ChunkUnit = ChunkUnit.CHARS
-    max_size: int = 1500
-    min_size: int = 300
+    chunk: ChunkConfig = Field(default_factory=lambda: ChunkConfig(
+        unit=ChunkUnit.CHARS,
+        max_size=1500,
+        min_size=300,
+    ))
 
 
 @beartype
@@ -63,6 +65,8 @@ class FileEmbeddingIndexer(BaseIndexer):
     result_model = FileEmbeddingIndexerResult
     required_assets = ("document_block",)
     config_model = FileEmbeddingIndexerConfig
+
+    config: FileEmbeddingIndexerConfig
 
     def get_document_type_bases(self) -> list[Any]:
         return [ChunkFile, EmbeddingChunk]
@@ -80,7 +84,7 @@ class FileEmbeddingIndexer(BaseIndexer):
     ) -> IndexerOutput:
         full_document = glom.glom(assets, "document_block.result", default=None)
         file_hash = request.get_hash_str()
-        chunker = Chunker(self._config)
+        chunker = Chunker(self.config.chunk)
 
         if isinstance(full_document, DocumentBlockIndexerResult):
             chunks = chunker.chunk_blocks(full_document.documents, full_document.edges,

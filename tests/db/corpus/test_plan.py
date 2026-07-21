@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import Engine
+from yapf.pytree.split_penalty import STAR_EXPR
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import (
@@ -16,10 +17,9 @@ from haxdex.services.core.job_types import (
     BaseResource,
     RunContext,
     BaseIndexerConfig,
+    BaseResourceConfig,
 )
-from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
-
-# ── helpers ──────────────────────────────────────────────────────
+from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput, IndexerRequest
 
 
 class _DummyResult(IndexDocument):
@@ -68,17 +68,14 @@ def _make_resource(
         exclusive = _exclusive
         required_resources = _required_resources
 
-        def handle(self, ctx, request, resources):
-            return _DummyResult()
+        def handle(self, ctx, request: IndexerRequest, resources):
+            return _DummyResult(hash=request.get_hash_str())
 
-    return _Res()
+    return _Res(config=_Res.config_model())
 
 
 def _touch(path: Path) -> None:
     path.write_text("payload")
-
-
-# ── plan structure ────────────────────────────────────────────────
 
 
 def test_plan_structure_3_files_2_indexers(
@@ -181,8 +178,9 @@ def test_plan_can_run_filter(
         def can_run(self, path: Path) -> bool:
             return path.suffix == ".txt"
 
-        def run(self, ctx, request, resources, assets):
-            return IndexerOutput(indexer_id=self.asset_name, result=_DummyResult())
+        def run(self, ctx, request: IndexerRequest, resources, assets):
+            return IndexerOutput(indexer_id=self.asset_name,
+                                 result=_DummyResult(hash=request.get_hash_str()))
 
     ctx = RunContext(db)
     rt = IndexRuntime(ctx=ctx,
@@ -202,14 +200,19 @@ def test_plan_can_run_filter(
     assert len(plan.batches[0].file_refs) == 1
 
 
-# ── exclusivity ──────────────────────────────────────────────────
-
-
-def test_exclusive_direct(db: IndexDatabase):
+def test_exclusive_direct(db: IndexDatabase, index_cache_database: Engine):
     """Two indexers directly requiring the same exclusive resource → cannot share."""
     res_r = _make_resource("R", exclusive=True)
-    idx_a = _make_indexer("a", required_resources=("R",))
-    idx_c = _make_indexer("c", required_resources=("R",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("R",),
+        index_cache_database=index_cache_database,
+    )
+    idx_c = _make_indexer(
+        "c",
+        required_resources=("R",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -221,13 +224,24 @@ def test_exclusive_direct(db: IndexDatabase):
     assert rt.can_share_batch("a", "c") is False
 
 
-def test_exclusive_transitive_different_consumers(db: IndexDatabase):
+def test_exclusive_transitive_different_consumers(
+    db: IndexDatabase,
+    index_cache_database=Engine,
+):
     """A→B→R, C→D→R (R exclusive) → B≠D → cannot share."""
     res_r = _make_resource("R", exclusive=True)
     res_b = _make_resource("B", required_resources=("R",))
     res_d = _make_resource("D", required_resources=("R",))
-    idx_a = _make_indexer("a", required_resources=("B",))
-    idx_c = _make_indexer("c", required_resources=("D",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_c = _make_indexer(
+        "c",
+        required_resources=("D",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -239,12 +253,21 @@ def test_exclusive_transitive_different_consumers(db: IndexDatabase):
     assert rt.can_share_batch("a", "c") is False
 
 
-def test_exclusive_transitive_same_consumer(db: IndexDatabase):
+def test_exclusive_transitive_same_consumer(db: IndexDatabase,
+                                            index_cache_database: Engine):
     """A→B→R, C→B→R (R exclusive) → same direct consumer B → can share."""
     res_r = _make_resource("R", exclusive=True)
     res_b = _make_resource("B", required_resources=("R",))
-    idx_a = _make_indexer("a", required_resources=("B",))
-    idx_c = _make_indexer("c", required_resources=("B",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_c = _make_indexer(
+        "c",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -256,13 +279,22 @@ def test_exclusive_transitive_same_consumer(db: IndexDatabase):
     assert rt.can_share_batch("a", "c") is True
 
 
-def test_exclusive_transitive_via_multiple_resources(db: IndexDatabase):
+def test_exclusive_transitive_via_multiple_resources(db: IndexDatabase,
+                                                     index_cache_database: Engine):
     """A→B→C→R and X→C→R (R exclusive) share same direct consumer C → can share."""
     res_r = _make_resource("R", exclusive=True)
     res_c = _make_resource("C", required_resources=("R",))
     res_b = _make_resource("B", required_resources=("C",))
-    idx_a = _make_indexer("a", required_resources=("B",))
-    idx_x = _make_indexer("x", required_resources=("C",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_x = _make_indexer(
+        "x",
+        required_resources=("C",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -274,14 +306,27 @@ def test_exclusive_transitive_via_multiple_resources(db: IndexDatabase):
     assert rt.can_share_batch("a", "x") is True
 
 
-def test_exclusive_transitive_via_multiple_indexers(db: IndexDatabase):
+def test_exclusive_transitive_via_multiple_indexers(db: IndexDatabase,
+                                                    index_cache_database: Engine):
     """A→B→R, C→B→R, D→E→R (R exclusive) → A,C compatible; A,D incompatible."""
     res_r = _make_resource("R", exclusive=True)
     res_b = _make_resource("B", required_resources=("R",))
     res_e = _make_resource("E", required_resources=("R",))
-    idx_a = _make_indexer("a", required_resources=("B",))
-    idx_c = _make_indexer("c", required_resources=("B",))
-    idx_d = _make_indexer("d", required_resources=("E",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_c = _make_indexer(
+        "c",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_d = _make_indexer(
+        "d",
+        required_resources=("E",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -295,13 +340,22 @@ def test_exclusive_transitive_via_multiple_indexers(db: IndexDatabase):
     assert rt.can_share_batch("c", "d") is False
 
 
-def test_exclusive_not_flagged_allows_sharing(db: IndexDatabase):
+def test_exclusive_not_flagged_allows_sharing(db: IndexDatabase,
+                                              index_cache_database: Engine):
     """Without exclusive=True, different direct consumers can share."""
     res_r = _make_resource("R", exclusive=False)
     res_b = _make_resource("B", required_resources=("R",))
     res_d = _make_resource("D", required_resources=("R",))
-    idx_a = _make_indexer("a", required_resources=("B",))
-    idx_c = _make_indexer("c", required_resources=("D",))
+    idx_a = _make_indexer(
+        "a",
+        required_resources=("B",),
+        index_cache_database=index_cache_database,
+    )
+    idx_c = _make_indexer(
+        "c",
+        required_resources=("D",),
+        index_cache_database=index_cache_database,
+    )
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -311,9 +365,6 @@ def test_exclusive_not_flagged_allows_sharing(db: IndexDatabase):
         resource_types=[res_r, res_b, res_d],
     )
     assert rt.can_share_batch("a", "c") is True
-
-
-# ── stateful resource (model churn) ───────────────────────────────
 
 
 class _ModelRequest(BaseModel):
@@ -330,7 +381,8 @@ class StatefulModelResource(BaseResource):
     resource_key = "model_server"
     exclusive = True
 
-    def __init__(self):
+    def __init__(self, config: BaseResourceConfig):
+        super().__init__(config=config)
         self._current_model: str | None = None
         self._load_count = 0
         self._lock = threading.Lock()
@@ -358,7 +410,13 @@ class SummaryIndexer(BaseIndexer):
     required_resources = ("model_server",)
     max_parallel = 4
 
-    def run(self, ctx, request, resources, assets):
+    def run(
+        self,
+        ctx: RunContext,
+        request: IndexerRequest,
+        resources: dict[str, BaseResource],
+        assets: dict[str, object],
+    ):
         resp = resources["model_server"].handle(
             ctx,
             _ModelRequest(model="gemma-26b", text="x"),
@@ -373,18 +431,23 @@ class SummaryIndexer(BaseIndexer):
         )
 
 
-def test_stateful_resource_no_churn_within_batch(db: IndexDatabase,
-                                                 stable_test_dir: Path):
+def test_stateful_resource_no_churn_within_batch(db: IndexDatabase, stable_test_dir: Path,
+                                                 index_cache_database: Engine):
     """20 files in one batch requesting the same model → load_model called once."""
     for i in range(20):
         (stable_test_dir / f"f{i}.txt").write_text(f"doc {i}")
 
-    model_res = StatefulModelResource()
+    model_res = StatefulModelResource(config=StatefulModelResource.config_model())
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[SummaryIndexer()],
+        indexer_types=[
+            SummaryIndexer(
+                config=SummaryIndexer.config_model(),
+                database=index_cache_database,
+            )
+        ],
         resource_types=[model_res],
     )
     root = db.add_root("root", stable_test_dir)
@@ -394,17 +457,27 @@ def test_stateful_resource_no_churn_within_batch(db: IndexDatabase,
     assert model_res.load_count == 1
 
 
-def test_stateful_resource_churn_across_models(db: IndexDatabase, stable_test_dir: Path):
+def test_stateful_resource_churn_across_models(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """Two batches requesting different models → load_model called twice."""
+
+    class DualSummaryIndexerConfig(BaseIndexerConfig, extra="forbid"):
+        model: str = "gemma-26b"
 
     class DualSummaryIndexer(BaseIndexer):
         asset_name = "dual_summary"
         result_model = _SummaryResult
         required_resources = ("model_server",)
         max_parallel = 2
+        config_model = DualSummaryIndexerConfig
 
-        def __init__(self, model: str = "gemma-26b"):
-            self._model = model
+        config: DualSummaryIndexerConfig
+
+        def __init__(self, database: Engine, config: DualSummaryIndexerConfig):
+            super().__init__(config=config, database=database)
 
         def run(self, ctx, request, resources, assets):
             resp = resources["model_server"].handle(
@@ -421,14 +494,20 @@ def test_stateful_resource_churn_across_models(db: IndexDatabase, stable_test_di
                 ),
             )
 
-    model_res = StatefulModelResource()
+    model_res = StatefulModelResource(config=StatefulModelResource.config_model())
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
         indexer_types=[
-            DualSummaryIndexer(model="gemma-26b"),
-            DualSummaryIndexer(model="llama-70b"),
+            DualSummaryIndexer(
+                config=DualSummaryIndexerConfig(model="gemma-26b"),
+                database=index_cache_database,
+            ),
+            DualSummaryIndexer(
+                config=DualSummaryIndexerConfig(model="llama-70b"),
+                database=index_cache_database,
+            ),
         ],
         resource_types=[model_res],
     )
@@ -437,7 +516,8 @@ def test_stateful_resource_churn_across_models(db: IndexDatabase, stable_test_di
     pass  # see test below
 
 
-def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_dir: Path):
+def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_dir: Path,
+                                                index_cache_database: Engine):
     """Two indexer types requesting different models from same exclusive resource."""
 
     class SummaryA(BaseIndexer):
@@ -482,12 +562,21 @@ def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_d
                 ),
             )
 
-    model_res = StatefulModelResource()
+    model_res = StatefulModelResource(config=StatefulModelResource.config_model())
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[SummaryA(), SummaryB()],
+        indexer_types=[
+            SummaryA(
+                config=SummaryA.config_model(),
+                database=index_cache_database,
+            ),
+            SummaryB(
+                config=SummaryB.config_model(),
+                database=index_cache_database,
+            ),
+        ],
         resource_types=[model_res],
     )
     root = db.add_root("root", stable_test_dir)
@@ -496,9 +585,6 @@ def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_d
 
     rt.run_indexers([ref], ["summary_a", "summary_b"])
     assert model_res.load_count == 2
-
-
-# ── parallel execution ───────────────────────────────────────────
 
 
 class _ParallelResult(IndexDocument):
@@ -510,7 +596,8 @@ class ParallelIndexer(BaseIndexer):
     result_model = _ParallelResult
     max_parallel = 4
 
-    def __init__(self):
+    def __init__(self, config: BaseIndexerConfig, database: Engine):
+        super().__init__(config=config, database=database)
         self._current = 0
         self._max_concurrent = 0
         self._lock = threading.Lock()
@@ -532,13 +619,19 @@ class ParallelIndexer(BaseIndexer):
         return self._max_concurrent
 
 
-def test_parallel_execution_respects_max_parallel(db: IndexDatabase,
-                                                  stable_test_dir: Path):
+def test_parallel_execution_respects_max_parallel(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """20 files with max_parallel=4 → at most 4 concurrent executions."""
     for i in range(20):
         (stable_test_dir / f"f{i}.txt").write_text("x")
 
-    indexer = ParallelIndexer()
+    indexer = ParallelIndexer(
+        config=ParallelIndexer.config_model(),
+        database=index_cache_database,
+    )
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
@@ -553,7 +646,11 @@ def test_parallel_execution_respects_max_parallel(db: IndexDatabase,
     assert indexer.max_concurrent == 4
 
 
-def test_parallel_execution_max_parallel_1(db: IndexDatabase, stable_test_dir: Path):
+def test_parallel_execution_max_parallel_1(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """max_parallel=1 → never more than 1 concurrent."""
 
     class SerialIndexer(ParallelIndexer):
@@ -563,7 +660,10 @@ def test_parallel_execution_max_parallel_1(db: IndexDatabase, stable_test_dir: P
     for i in range(10):
         (stable_test_dir / f"f{i}.txt").write_text("x")
 
-    indexer = SerialIndexer()
+    indexer = SerialIndexer(
+        config=SerialIndexer.config_model(),
+        database=index_cache_database,
+    )
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
@@ -578,10 +678,11 @@ def test_parallel_execution_max_parallel_1(db: IndexDatabase, stable_test_dir: P
     assert indexer.max_concurrent == 1
 
 
-# ── resource dependency resolution ───────────────────────────────
-
-
-def test_resource_dependency_chain(db: IndexDatabase, stable_test_dir: Path):
+def test_resource_dependency_chain(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """Resource B depends on resource A; indexer calls B which calls A."""
 
     class ReqA(BaseModel):
@@ -630,8 +731,16 @@ def test_resource_dependency_chain(db: IndexDatabase, stable_test_dir: Path):
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[DepIndexer()],
-        resource_types=[ResourceA(), ResourceB()],
+        indexer_types=[
+            DepIndexer(
+                config=DepIndexer.config_model(),
+                database=index_cache_database,
+            )
+        ],
+        resource_types=[
+            ResourceA(config=ResourceA.config_model()),
+            ResourceB(config=ResourceB.config_model()),
+        ],
     )
     root = db.add_root("root", stable_test_dir)
     ref = db.as_ref(root, stable_test_dir / "f.txt")
@@ -640,10 +749,11 @@ def test_resource_dependency_chain(db: IndexDatabase, stable_test_dir: Path):
     assert out.result.value == "B(A:hello)"
 
 
-# ── plan rearrangement ────────────────────────────────────────────
-
-
-def test_plan_is_inspectable_and_rearrangeable(db: IndexDatabase, stable_test_dir: Path):
+def test_plan_is_inspectable_and_rearrangeable(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """Plan can be inspected and reordered before execution."""
     for i in range(5):
         _touch(stable_test_dir / f"f{i}.txt")
@@ -652,7 +762,10 @@ def test_plan_is_inspectable_and_rearrangeable(db: IndexDatabase, stable_test_di
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[_make_indexer("a"), _make_indexer("b")],
+        indexer_types=[
+            _make_indexer("a", index_cache_database=index_cache_database),
+            _make_indexer("b", index_cache_database=index_cache_database),
+        ],
     )
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(5)]

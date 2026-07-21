@@ -184,14 +184,6 @@ class BaseIndexer(ABC):
     def can_run(self, path: Path) -> bool:
         return True
 
-    def hash_run_parameters(
-        self,
-        request: IndexerRequest,
-        resources: dict[str, object],
-        assets: dict[str, object],
-    ) -> int:
-        return 0
-
     @abstractmethod
     def run(
         self,

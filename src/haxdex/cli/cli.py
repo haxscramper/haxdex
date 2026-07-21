@@ -198,7 +198,6 @@ class IndexService():
             db=self.db,
             runner=runner,
             ctx=self.ctx,
-            paths=index_cfg.paths,
             indexers=tuple(self.cfg.indexers.keys()),
             cfg=index_cfg,
         )

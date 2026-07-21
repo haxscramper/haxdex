@@ -96,13 +96,12 @@ def run_indexing_per_root_plan(
     runner: IndexRuntime,
     ctx: RunContext,
     cfg: IndexConfig,
-    paths: tuple[IndexPathConfig, ...],
     indexers: tuple[str, ...],
 ) -> None:
     indexed_total = 0
     log.info("constructing index jobs plan")
 
-    for path_cfg in paths:
+    for path_cfg in cfg.paths:
         if cfg.limit_total is not None and cfg.limit_total <= indexed_total:
             log.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
             return

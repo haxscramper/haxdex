@@ -13,11 +13,11 @@ from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
 
 
-def _make_refs(db: IndexDatabase, tmp_path: Path, n: int) -> list[FileRef]:
-    root = db.add_root("root", tmp_path)
+def _make_refs(db: IndexDatabase, stable_test_dir: Path, n: int) -> list[FileRef]:
+    root = db.add_root("root", stable_test_dir)
     refs: list[FileRef] = []
     for i in range(n):
-        p = tmp_path / f"f_{i}.txt"
+        p = stable_test_dir / f"f_{i}.txt"
         p.write_text(f"payload-{i}")
         refs.append(db.as_ref(root, p))
     return refs
@@ -35,8 +35,11 @@ class NoopIndexer(BaseIndexer):
         return IndexerOutput(indexer_id=self.asset_name, result=SimpleResult(value="ok"))
 
 
-def test_plan_structure_and_topological_batches(db: IndexDatabase,
-                                                tmp_path: Path) -> None:
+def test_plan_structure_and_topological_batches(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+) -> None:
 
     class A(NoopIndexer):
         asset_name = "a"
@@ -45,12 +48,14 @@ def test_plan_structure_and_topological_batches(db: IndexDatabase,
         asset_name = "b"
         required_assets = ("a",)
 
-    refs = _make_refs(db, tmp_path, 3)
+    refs = _make_refs(db, stable_test_dir, 3)
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[A(), B()],
-        converter_types=[],
+        indexer_types=[
+            A(config=A.config_model(), database=index_cache_database),
+            B(config=B.config_model(), database=index_cache_database),
+        ],
         resource_types=[],
     )
 
@@ -60,19 +65,18 @@ def test_plan_structure_and_topological_batches(db: IndexDatabase,
     assert len(plan.batches[1].file_refs) == 3
 
 
-def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase,
-                                                 tmp_path: Path) -> None:
+def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase, stable_test_dir: Path,
+                                                 index_cache_database: Engine) -> None:
 
     class MP(NoopIndexer):
         asset_name = "mp"
         max_parallel = 4
 
-    refs = _make_refs(db, tmp_path, 20)
+    refs = _make_refs(db, stable_test_dir, 20)
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[MP()],
-        converter_types=[],
+        indexer_types=[MP(config=MP.config_model(), database=index_cache_database)],
         resource_types=[],
     )
 
@@ -82,7 +86,8 @@ def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase,
     assert all(len(chunk) <= 4 for chunk in plan.batches[0].sub_batches)
 
 
-def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase, tmp_path: Path,
+def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase,
+                                                  stable_test_dir: Path,
                                                   index_cache_database: Engine) -> None:
 
     class Llama(BaseResource):
@@ -125,7 +130,7 @@ def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase, tmp_path: P
 
 
 def test_exclusive_transitive_same_direct_consumer_same_window(
-        db: IndexDatabase, tmp_path: Path, index_cache_database: Engine) -> None:
+        db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -169,7 +174,7 @@ def test_exclusive_transitive_same_direct_consumer_same_window(
 
 def test_exclusive_transitive_different_direct_consumers_split(
     db: IndexDatabase,
-    tmp_path: Path,
+    stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
 
@@ -222,7 +227,7 @@ def test_exclusive_transitive_different_direct_consumers_split(
 
 def test_stateful_resource_model_load_not_churned(
     db: IndexDatabase,
-    tmp_path: Path,
+    stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
 
@@ -293,7 +298,7 @@ def test_stateful_resource_model_load_not_churned(
         resource_types=[llama, Gemma(config=Gemma.config_model())],
     )
 
-    refs = _make_refs(db, tmp_path, 12)
+    refs = _make_refs(db, stable_test_dir, 12)
     rt.run_indexers(refs, ["summary"])
     assert llama.load_count == 1
 

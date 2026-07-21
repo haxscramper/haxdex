@@ -31,9 +31,6 @@ def _heading(text: str, file_hash: str, level: int = 1) -> fd.Heading:
                     content=fd.inline_nodes_to_content([fd.StyledText(text=text)]))
 
 
-# --------------------------------------------------------------------------- #
-# Flat text
-# --------------------------------------------------------------------------- #
 def test_flat_text_splits_and_overlaps():
     cfg = ChunkConfig(unit=ChunkUnit.CHARS,
                       max_size=100,
@@ -63,9 +60,6 @@ def test_flat_text_single_chunk():
     assert chunks[0].text == "short text"
 
 
-# --------------------------------------------------------------------------- #
-# Document blocks
-# --------------------------------------------------------------------------- #
 def test_blocks_merge_multiple_sources_into_one_chunk():
     fh = "fh"
     blocks = [_para(f"paragraph body {i}", fh) for i in range(6)]
