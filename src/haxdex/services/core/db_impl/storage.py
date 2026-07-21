@@ -30,9 +30,6 @@ from haxdex.services.utils import ExceptionContextNote
 class StorageMixin:
     _db: StandardDatabase
 
-    def get_edge_name(self, indexer) -> str:
-        ...
-
     def _diagnose_document(self, document: dict[str, Any]) -> str:
         try:
             text = json.dumps(document, allow_nan=False, indent=2)

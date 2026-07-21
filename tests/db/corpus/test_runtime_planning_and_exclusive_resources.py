@@ -5,10 +5,11 @@ import time
 from pathlib import Path
 
 from pydantic import BaseModel
+from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext, BaseResourceConfig, BaseIndexerConfig
 from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
 
 
@@ -81,8 +82,8 @@ def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase,
     assert all(len(chunk) <= 4 for chunk in plan.batches[0].sub_batches)
 
 
-def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase,
-                                                  tmp_path: Path) -> None:
+def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase, tmp_path: Path,
+                                                  index_cache_database: Engine) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -109,17 +110,22 @@ def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase,
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[A(), B()],
-        converter_types=[],
-        resource_types=[Llama(), Gemma()],
+        indexer_types=[
+            A(database=index_cache_database, config=A.config_model()),
+            B(database=index_cache_database, config=B.config_model()),
+        ],
+        resource_types=[
+            Llama(config=Llama.config_model()),
+            Gemma(config=Gemma.config_model()),
+        ],
     )
 
     windows = rt.build_windows(["a", "b"])
     assert len(windows) == 2
 
 
-def test_exclusive_transitive_same_direct_consumer_same_window(db: IndexDatabase,
-                                                               tmp_path: Path) -> None:
+def test_exclusive_transitive_same_direct_consumer_same_window(
+        db: IndexDatabase, tmp_path: Path, index_cache_database: Engine) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -146,9 +152,14 @@ def test_exclusive_transitive_same_direct_consumer_same_window(db: IndexDatabase
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[Summary(), Elaborate()],
-        converter_types=[],
-        resource_types=[Llama(), Gemma()],
+        indexer_types=[
+            Summary(database=index_cache_database, config=Summary.config_model()),
+            Elaborate(database=index_cache_database, config=Elaborate.config_model()),
+        ],
+        resource_types=[
+            Llama(config=Llama.config_model()),
+            Gemma(config=Gemma.config_model()),
+        ],
     )
 
     windows = rt.build_windows(["summary", "elaborate"])
@@ -156,8 +167,11 @@ def test_exclusive_transitive_same_direct_consumer_same_window(db: IndexDatabase
     assert set(windows[0]) == {"summary", "elaborate"}
 
 
-def test_exclusive_transitive_different_direct_consumers_split(db: IndexDatabase,
-                                                               tmp_path: Path) -> None:
+def test_exclusive_transitive_different_direct_consumers_split(
+    db: IndexDatabase,
+    tmp_path: Path,
+    index_cache_database: Engine,
+) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -191,17 +205,26 @@ def test_exclusive_transitive_different_direct_consumers_split(db: IndexDatabase
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[Summary(), Extract()],
-        converter_types=[],
-        resource_types=[Llama(), Gemma(), Mistral()],
+        indexer_types=[
+            Summary(config=Summary.config_model(), database=index_cache_database),
+            Extract(config=Extract.config_model(), database=index_cache_database),
+        ],
+        resource_types=[
+            Llama(config=Llama.config_model()),
+            Gemma(config=Gemma.config_model()),
+            Mistral(config=Mistral.config_model())
+        ],
     )
 
     windows = rt.build_windows(["summary", "extract"])
     assert len(windows) == 2
 
 
-def test_stateful_resource_model_load_not_churned(db: IndexDatabase,
-                                                  tmp_path: Path) -> None:
+def test_stateful_resource_model_load_not_churned(
+    db: IndexDatabase,
+    tmp_path: Path,
+    index_cache_database: Engine,
+) -> None:
 
     class LlamaRequest(BaseModel):
         model: str
@@ -217,7 +240,8 @@ def test_stateful_resource_model_load_not_churned(db: IndexDatabase,
         resource_key = "llama"
         exclusive = True
 
-        def __init__(self):
+        def __init__(self, config: BaseResourceConfig):
+            super().__init__(config=config)
             self.current_model: str | None = None
             self.load_count = 0
             self.lock = threading.Lock()
@@ -258,13 +282,15 @@ def test_stateful_resource_model_load_not_churned(db: IndexDatabase,
                 result=SummaryResult(summary=out.text, hash="99999"),
             )
 
-    llama = Llama()
+    llama = Llama(config=Llama.config_model())
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
-        indexer_types=[SummaryIndexer()],
-        converter_types=[],
-        resource_types=[llama, Gemma()],
+        indexer_types=[
+            SummaryIndexer(config=SummaryIndexer.config_model(),
+                           database=index_cache_database)
+        ],
+        resource_types=[llama, Gemma(config=Gemma.config_model())],
     )
 
     refs = _make_refs(db, tmp_path, 12)
@@ -272,7 +298,8 @@ def test_stateful_resource_model_load_not_churned(db: IndexDatabase,
     assert llama.load_count == 1
 
 
-def test_max_parallel_execution_bound(db: IndexDatabase, tmp_path: Path) -> None:
+def test_max_parallel_execution_bound(db: IndexDatabase, stable_test_dir: Path,
+                                      index_cache_database: Engine) -> None:
 
     class PResult(IndexDocument):
         value: str
@@ -282,8 +309,8 @@ def test_max_parallel_execution_bound(db: IndexDatabase, tmp_path: Path) -> None
         result_model = PResult
         max_parallel = 4
 
-        def __init__(self):
-            super().__init__()
+        def __init__(self, config: BaseIndexerConfig, database: Engine):
+            super().__init__(config=config, database=database)
             self.active = 0
             self.peak = 0
             self.lock = threading.Lock()
@@ -298,15 +325,17 @@ def test_max_parallel_execution_bound(db: IndexDatabase, tmp_path: Path) -> None
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=PResult(value="ok", hash="...."))
 
-    idx = ParallelIndexer()
+    idx = ParallelIndexer(
+        config=ParallelIndexer.config_model(),
+        database=index_cache_database,
+    )
     rt = IndexRuntime(
         ctx=RunContext(db),
         db=db,
         indexer_types=[idx],
-        converter_types=[],
         resource_types=[],
     )
 
-    refs = _make_refs(db, tmp_path, 12)
+    refs = _make_refs(db, stable_test_dir, 12)
     rt.run_indexers(refs, ["parallel"])
     assert idx.peak == 4

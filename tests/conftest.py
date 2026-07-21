@@ -3,10 +3,13 @@ from pathlib import Path
 import re
 import shutil
 
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.dialects import sqlite
+
 from haxdex.services.core.hash_cache import HashCache
 import pytest
 from beartype.typing import Any, Generator
-from haxdex.services.core.db import get_cache_connection
+from haxdex.services.core.db import get_hash_cache_connection
 
 from haxdex.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
 from haxdex.services.core.db import IndexDatabase
@@ -57,27 +60,6 @@ def _safe_name(raw: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]+", "_", raw).lower()
 
 
-@pytest.fixture
-def db(request, tmp_path) -> IndexDatabase:
-    db_name = f"index_test_{_safe_name(request.node.name)}"
-    sqlite_path = tmp_path / "hash_cache.sqlite"
-
-    IndexDatabase.reset_database(
-        host=ARANGO_HOST,
-        db_name=db_name,
-        username=ARANGO_USER,
-        password=ARANGO_PASSWORD,
-    )
-
-    return IndexDatabase(
-        host=ARANGO_HOST,
-        db_name=db_name,
-        username=ARANGO_USER,
-        password=ARANGO_PASSWORD,
-        hash_cache=HashCache(database_path=sqlite_path),
-    )
-
-
 class MockFlmServerResource(FlmServerResource):
 
     def __init__(self,
@@ -100,7 +82,8 @@ class MockFlmServerResource(FlmServerResource):
 
 
 @pytest.fixture
-def runtime(db, tmp_path) -> Generator[IndexRuntime, None, None]:
+def runtime(db, stable_test_dir: Path,
+            index_cache_database: Engine) -> Generator[IndexRuntime, None, None]:
     from haxdex.services.default_job_types import (
         DEFAULT_INDEXER_TYPES,
         DEFAULT_RESOURCE_TYPES,
@@ -108,15 +91,13 @@ def runtime(db, tmp_path) -> Generator[IndexRuntime, None, None]:
 
     ctx = RunContext(db)
 
-    cache_database = get_cache_connection(Path(tmp_path))
-
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
         resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] +
         [MockFlmServerResource()],
         indexer_types=[
-            t(config=t.config_model(), database=cache_database)
+            t(config=t.config_model(), database=index_cache_database)
             for t in DEFAULT_INDEXER_TYPES
         ],
     )
@@ -185,6 +166,38 @@ def stable_test_dir(request: pytest.FixtureRequest) -> Path:
     final_dir.mkdir(parents=True, exist_ok=True)
 
     return final_dir
+
+
+@pytest.fixture
+def hash_cache(stable_test_dir: Path) -> HashCache:
+    sqlite_path = stable_test_dir.joinpath("hash_cache.sqlite")
+    return HashCache(database_path=sqlite_path)
+
+
+@pytest.fixture
+def index_cache_database(stable_test_dir: Path) -> Engine:
+    sqlite_path = stable_test_dir.joinpath("index_cache.sqlite")
+    return create_engine(f"sqlite+pysqlite:///{sqlite_path}", future=True)
+
+
+@pytest.fixture
+def db(request, tmp_path, hash_cache: HashCache) -> IndexDatabase:
+    db_name = f"index_test_{_safe_name(request.node.name)}"
+
+    IndexDatabase.reset_database(
+        host=ARANGO_HOST,
+        db_name=db_name,
+        username=ARANGO_USER,
+        password=ARANGO_PASSWORD,
+    )
+
+    return IndexDatabase(
+        host=ARANGO_HOST,
+        db_name=db_name,
+        username=ARANGO_USER,
+        password=ARANGO_PASSWORD,
+        hash_cache=hash_cache,
+    )
 
 
 @pytest.fixture(scope="session", autouse=True)

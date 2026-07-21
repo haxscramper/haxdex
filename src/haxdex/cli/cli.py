@@ -23,7 +23,7 @@ from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_model import load_actions
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryWindow
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
 from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
@@ -88,7 +88,7 @@ class IndexService():
             resource_cfg = self.cfg.resources[key]
             self.resource_instances.append(t(config=resource_cfg))
 
-        self.indexer_connection = self.get_cache_connection(self.cfg.index_cache)
+        self.indexer_connection = get_hash_cache_connection(self.cfg.index_cache)
         self.indexer_instances: list[BaseIndexer] = []
         for t in _INDEXER_TYPES:
             key = t.asset_name

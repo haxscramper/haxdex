@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
+from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import (
@@ -14,6 +15,7 @@ from haxdex.services.core.job_types import (
     BaseIndexer,
     BaseResource,
     RunContext,
+    BaseIndexerConfig,
 )
 from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
 
@@ -26,6 +28,7 @@ class _DummyResult(IndexDocument):
 
 def _make_indexer(
         name: str,
+        index_cache_database: Engine,
         required_resources: tuple[str, ...] = tuple(),
         required_assets=tuple(),
         max_parallel=1,
@@ -42,11 +45,14 @@ def _make_indexer(
         required_assets = _required_assets
         max_parallel = _max_parallel
 
+        def __init__(self, config: BaseIndexerConfig, database: Engine):
+            super().__init__(config=config, database=database)
+
         def run(self, ctx, request, resources, assets):
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=_DummyResult(hash=request.get_hash_str()))
 
-    return _Idx()
+    return _Idx(config=_Idx.config_model(), database=index_cache_database)
 
 
 def _make_resource(
@@ -75,19 +81,26 @@ def _touch(path: Path) -> None:
 # ── plan structure ────────────────────────────────────────────────
 
 
-def test_plan_structure_3_files_2_indexers(db: IndexDatabase, tmp_path: Path):
+def test_plan_structure_3_files_2_indexers(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """3 files × 2 independent indexers → 2 batches of 3, topological order."""
     for i in range(3):
-        _touch(tmp_path / f"f{i}.txt")
+        _touch(stable_test_dir / f"f{i}.txt")
 
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[_make_indexer("a"), _make_indexer("b")],
+        indexer_types=[
+            _make_indexer("a", index_cache_database=index_cache_database),
+            _make_indexer("b", index_cache_database=index_cache_database),
+        ],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(3)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(3)]
 
     plan = rt.create_plan(files, ["a", "b"])
     assert len(plan.batches) == 2
@@ -96,38 +109,54 @@ def test_plan_structure_3_files_2_indexers(db: IndexDatabase, tmp_path: Path):
     assert plan.batches[1].indexer_name == "b"
 
 
-def test_plan_topological_order(db: IndexDatabase, tmp_path: Path):
+def test_plan_topological_order(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """If indexer_b depends on indexer_a, plan must order a before b."""
-    _touch(tmp_path / "f.txt")
+    _touch(stable_test_dir / "f.txt")
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
         indexer_types=[
-            _make_indexer("a"),
-            _make_indexer("b", required_assets=("a",)),
+            _make_indexer("a", index_cache_database=index_cache_database),
+            _make_indexer("b",
+                          index_cache_database=index_cache_database,
+                          required_assets=("a",)),
         ],
     )
-    root = db.add_root("root", tmp_path)
-    ref = db.as_ref(root, tmp_path / "f.txt")
+    root = db.add_root("root", stable_test_dir)
+    ref = db.as_ref(root, stable_test_dir / "f.txt")
 
     plan = rt.create_plan([ref], ["a", "b"])
     assert plan.get_indexer_names() == ["a", "b"]
 
 
-def test_plan_sub_batching(db: IndexDatabase, tmp_path: Path):
+def test_plan_sub_batching(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """20 files with max_parallel=4 → 5 sub-batches of 4."""
     for i in range(20):
-        _touch(tmp_path / f"f{i}.txt")
+        _touch(stable_test_dir / f"f{i}.txt")
 
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        indexer_types=[_make_indexer("a", max_parallel=4)],
+        indexer_types=[
+            _make_indexer(
+                "a",
+                max_parallel=4,
+                index_cache_database=index_cache_database,
+            )
+        ],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(20)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
     plan = rt.create_plan(files, ["a"])
     assert len(plan.batches) == 1
@@ -136,10 +165,14 @@ def test_plan_sub_batching(db: IndexDatabase, tmp_path: Path):
     assert all(len(s) == 4 for s in subs)
 
 
-def test_plan_can_run_filter(db: IndexDatabase, tmp_path: Path):
+def test_plan_can_run_filter(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+):
     """Files that fail can_run are excluded from the batch."""
-    _touch(tmp_path / "a.txt")
-    _touch(tmp_path / "b.log")
+    _touch(stable_test_dir / "a.txt")
+    _touch(stable_test_dir / "b.log")
 
     class TxtOnly(BaseIndexer):
         asset_name = "txt_only"
@@ -152,11 +185,18 @@ def test_plan_can_run_filter(db: IndexDatabase, tmp_path: Path):
             return IndexerOutput(indexer_id=self.asset_name, result=_DummyResult())
 
     ctx = RunContext(db)
-    rt = IndexRuntime(ctx=ctx, db=db, indexer_types=[TxtOnly()])
-    root = db.add_root("root", tmp_path)
+    rt = IndexRuntime(ctx=ctx,
+                      db=db,
+                      indexer_types=[
+                          TxtOnly(
+                              config=TxtOnly.config_model(),
+                              database=index_cache_database,
+                          )
+                      ])
+    root = db.add_root("root", stable_test_dir)
     files = [
-        db.as_ref(root, tmp_path / "a.txt"),
-        db.as_ref(root, tmp_path / "b.log"),
+        db.as_ref(root, stable_test_dir / "a.txt"),
+        db.as_ref(root, stable_test_dir / "b.log"),
     ]
     plan = rt.create_plan(files, ["txt_only"])
     assert len(plan.batches[0].file_refs) == 1
@@ -333,10 +373,11 @@ class SummaryIndexer(BaseIndexer):
         )
 
 
-def test_stateful_resource_no_churn_within_batch(db: IndexDatabase, tmp_path: Path):
+def test_stateful_resource_no_churn_within_batch(db: IndexDatabase,
+                                                 stable_test_dir: Path):
     """20 files in one batch requesting the same model → load_model called once."""
     for i in range(20):
-        (tmp_path / f"f{i}.txt").write_text(f"doc {i}")
+        (stable_test_dir / f"f{i}.txt").write_text(f"doc {i}")
 
     model_res = StatefulModelResource()
     ctx = RunContext(db)
@@ -346,14 +387,14 @@ def test_stateful_resource_no_churn_within_batch(db: IndexDatabase, tmp_path: Pa
         indexer_types=[SummaryIndexer()],
         resource_types=[model_res],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(20)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
     rt.run_indexers(files, ["summary"])
     assert model_res.load_count == 1
 
 
-def test_stateful_resource_churn_across_models(db: IndexDatabase, tmp_path: Path):
+def test_stateful_resource_churn_across_models(db: IndexDatabase, stable_test_dir: Path):
     """Two batches requesting different models → load_model called twice."""
 
     class DualSummaryIndexer(BaseIndexer):
@@ -396,7 +437,7 @@ def test_stateful_resource_churn_across_models(db: IndexDatabase, tmp_path: Path
     pass  # see test below
 
 
-def test_stateful_resource_churn_across_batches(db: IndexDatabase, tmp_path: Path):
+def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_dir: Path):
     """Two indexer types requesting different models from same exclusive resource."""
 
     class SummaryA(BaseIndexer):
@@ -449,9 +490,9 @@ def test_stateful_resource_churn_across_batches(db: IndexDatabase, tmp_path: Pat
         indexer_types=[SummaryA(), SummaryB()],
         resource_types=[model_res],
     )
-    root = db.add_root("root", tmp_path)
-    _touch(tmp_path / "f.txt")
-    ref = db.as_ref(root, tmp_path / "f.txt")
+    root = db.add_root("root", stable_test_dir)
+    _touch(stable_test_dir / "f.txt")
+    ref = db.as_ref(root, stable_test_dir / "f.txt")
 
     rt.run_indexers([ref], ["summary_a", "summary_b"])
     assert model_res.load_count == 2
@@ -491,10 +532,11 @@ class ParallelIndexer(BaseIndexer):
         return self._max_concurrent
 
 
-def test_parallel_execution_respects_max_parallel(db: IndexDatabase, tmp_path: Path):
+def test_parallel_execution_respects_max_parallel(db: IndexDatabase,
+                                                  stable_test_dir: Path):
     """20 files with max_parallel=4 → at most 4 concurrent executions."""
     for i in range(20):
-        (tmp_path / f"f{i}.txt").write_text("x")
+        (stable_test_dir / f"f{i}.txt").write_text("x")
 
     indexer = ParallelIndexer()
     ctx = RunContext(db)
@@ -504,14 +546,14 @@ def test_parallel_execution_respects_max_parallel(db: IndexDatabase, tmp_path: P
         indexer_types=[indexer],
         resource_types=[],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(20)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
     rt.run_indexers(files, ["parallel_test"])
     assert indexer.max_concurrent == 4
 
 
-def test_parallel_execution_max_parallel_1(db: IndexDatabase, tmp_path: Path):
+def test_parallel_execution_max_parallel_1(db: IndexDatabase, stable_test_dir: Path):
     """max_parallel=1 → never more than 1 concurrent."""
 
     class SerialIndexer(ParallelIndexer):
@@ -519,7 +561,7 @@ def test_parallel_execution_max_parallel_1(db: IndexDatabase, tmp_path: Path):
         max_parallel = 1
 
     for i in range(10):
-        (tmp_path / f"f{i}.txt").write_text("x")
+        (stable_test_dir / f"f{i}.txt").write_text("x")
 
     indexer = SerialIndexer()
     ctx = RunContext(db)
@@ -529,8 +571,8 @@ def test_parallel_execution_max_parallel_1(db: IndexDatabase, tmp_path: Path):
         indexer_types=[indexer],
         resource_types=[],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(10)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(10)]
 
     rt.run_indexers(files, ["serial_test"])
     assert indexer.max_concurrent == 1
@@ -539,7 +581,7 @@ def test_parallel_execution_max_parallel_1(db: IndexDatabase, tmp_path: Path):
 # ── resource dependency resolution ───────────────────────────────
 
 
-def test_resource_dependency_chain(db: IndexDatabase, tmp_path: Path):
+def test_resource_dependency_chain(db: IndexDatabase, stable_test_dir: Path):
     """Resource B depends on resource A; indexer calls B which calls A."""
 
     class ReqA(BaseModel):
@@ -583,7 +625,7 @@ def test_resource_dependency_chain(db: IndexDatabase, tmp_path: Path):
                 result=DepResult(value=resp.value, hash="000"),
             )
 
-    _touch(tmp_path / "f.txt")
+    _touch(stable_test_dir / "f.txt")
     ctx = RunContext(db)
     rt = IndexRuntime(
         ctx=ctx,
@@ -591,8 +633,8 @@ def test_resource_dependency_chain(db: IndexDatabase, tmp_path: Path):
         indexer_types=[DepIndexer()],
         resource_types=[ResourceA(), ResourceB()],
     )
-    root = db.add_root("root", tmp_path)
-    ref = db.as_ref(root, tmp_path / "f.txt")
+    root = db.add_root("root", stable_test_dir)
+    ref = db.as_ref(root, stable_test_dir / "f.txt")
     rt.run_indexer(ref, ["dep_idx"])
     out = rt.get_indexer_result(ref, "dep_idx")
     assert out.result.value == "B(A:hello)"
@@ -601,10 +643,10 @@ def test_resource_dependency_chain(db: IndexDatabase, tmp_path: Path):
 # ── plan rearrangement ────────────────────────────────────────────
 
 
-def test_plan_is_inspectable_and_rearrangeable(db: IndexDatabase, tmp_path: Path):
+def test_plan_is_inspectable_and_rearrangeable(db: IndexDatabase, stable_test_dir: Path):
     """Plan can be inspected and reordered before execution."""
     for i in range(5):
-        _touch(tmp_path / f"f{i}.txt")
+        _touch(stable_test_dir / f"f{i}.txt")
 
     ctx = RunContext(db)
     rt = IndexRuntime(
@@ -612,8 +654,8 @@ def test_plan_is_inspectable_and_rearrangeable(db: IndexDatabase, tmp_path: Path
         db=db,
         indexer_types=[_make_indexer("a"), _make_indexer("b")],
     )
-    root = db.add_root("root", tmp_path)
-    files = [db.as_ref(root, tmp_path / f"f{i}.txt") for i in range(5)]
+    root = db.add_root("root", stable_test_dir)
+    files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(5)]
 
     plan = rt.create_plan(files, ["a", "b"])
     assert plan.total_runs() == 10

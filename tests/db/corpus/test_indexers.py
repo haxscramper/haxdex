@@ -7,6 +7,7 @@ import pytest
 from beartype.typing import Any, TypeVar, cast
 from pydantic import BaseModel
 import glom
+from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.indexers.chunk_indexing.chunking import ChunkDocument, ChunkFile, ChunkLink
@@ -137,15 +138,22 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
     assert link.to_ == chunk_document.hash
 
 
-def test_db_indexer_result_uniqueness(db: IndexDatabase, tmp_path: Path) -> None:
-    root = db.add_root("root", tmp_path)
-    pa = tmp_path.joinpath("a.txt")
+def test_db_indexer_result_uniqueness(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+) -> None:
+    root = db.add_root("root", stable_test_dir)
+    pa = stable_test_dir.joinpath("a.txt")
     pa.write_text("---")
-    pb = tmp_path.joinpath("b.txt")
+    pb = stable_test_dir.joinpath("b.txt")
     pb.write_text("---")
     ref_a = db.as_ref(root, pa)
     ref_b = db.as_ref(root, pb)
-    idx = FileSizeIndexer()
+    idx = FileSizeIndexer(
+        config=FileSizeIndexer.config_model(),
+        database=index_cache_database,
+    )
     db.ensure_collections([idx])
     db.truncate_all(["file_size"])
     db.store_indexer_output(
@@ -184,13 +192,6 @@ def test_db_store_derivation(db: IndexDatabase) -> None:
     )
 
     assert isinstance(key, str)
-
-
-def test_convert_files_job(runtime: IndexRuntime, sample_file: Path) -> None:
-    root = runtime.db.add_root("root", sample_file.parent)
-    out = runtime.run_converter("file_size_converter",
-                                [runtime.db.as_ref(root, sample_file)])
-    assert out.converter_id == "file_size_converter"
 
 
 def test_file_summary_indexer_with_flm(

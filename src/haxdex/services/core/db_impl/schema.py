@@ -24,9 +24,6 @@ class SchemaMixin:
     _db: StandardDatabase
     _indexer_hashes: Dict[str, set[str]]
 
-    def get_edge_name(self, indexer) -> str:
-        ...
-
     def _load_indexer_hashes_from_db(self) -> None:
         for collection in self._db.collections():  # type: ignore
             name = collection["name"]

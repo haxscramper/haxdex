@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import event, create_engine, URL
+from sqlalchemy import event, create_engine, URL, Engine
 
 from haxdex.services.core.db_impl.base import DatabaseBase
 from haxdex.services.core.db_impl.contracts import (
@@ -15,7 +15,7 @@ from haxdex.services.core.db_impl.search import SearchMixin
 from haxdex.services.core.db_impl.storage import StorageMixin
 
 
-def get_cache_connection(database_path: Path):
+def get_hash_cache_connection(database_path: Path) -> Engine:
     database_path.parent.mkdir(exist_ok=True, parents=True)
     engine = create_engine(
         URL.create("sqlite", database=str(database_path)),
@@ -41,13 +41,6 @@ class IndexDatabase(
         FileReferenceMixin,
         DatabaseBase,
 ):
-    """
-    Public database API.
-
-    Implementation details are split across ``db_impl`` modules while this
-    class preserves the original import path and public method surface.
-    """
-
     FullTextSearchAccessParams = FullTextSearchAccessParams
 
 

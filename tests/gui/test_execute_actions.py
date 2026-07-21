@@ -16,21 +16,23 @@ from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 
 
 @pytest.fixture
-def action_executor(tmp_path: Path) -> ActionExecutor:
+def action_executor(stable_test_dir: Path) -> ActionExecutor:
     config = ActionExecutionConfig(
-        trash_root=tmp_path / "trash",
-        sqlite_path=tmp_path / "ops.sqlite",
+        trash_root=stable_test_dir / "trash",
+        sqlite_path=stable_test_dir / "ops.sqlite",
         dry_run=False,
+        output_directory=stable_test_dir / "result",
     )
     executor = ActionExecutor(config=config)
     executor.init_db()
     return executor
 
 
-def test_execute_move_and_trash(action_executor: ActionExecutor, tmp_path: Path) -> None:
-    source_move = tmp_path / "a.txt"
-    source_trash = tmp_path / "b.txt"
-    move_dest = tmp_path / "moved" / "a.txt"
+def test_execute_move_and_trash(action_executor: ActionExecutor,
+                                stable_test_dir: Path) -> None:
+    source_move = stable_test_dir / "a.txt"
+    source_trash = stable_test_dir / "b.txt"
+    move_dest = stable_test_dir / "moved" / "a.txt"
 
     source_move.write_text("move", encoding="utf-8")
     source_trash.write_text("trash", encoding="utf-8")
@@ -67,10 +69,10 @@ def test_execute_move_and_trash(action_executor: ActionExecutor, tmp_path: Path)
         assert trash_file.exists()
 
 
-def test_resume_execution(action_executor: ActionExecutor, tmp_path: Path) -> None:
-    source_move = tmp_path / "resume_a.txt"
-    source_trash = tmp_path / "resume_b.txt"
-    move_dest = tmp_path / "resume_moved" / "resume_a.txt"
+def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path) -> None:
+    source_move = stable_test_dir / "resume_a.txt"
+    source_trash = stable_test_dir / "resume_b.txt"
+    move_dest = stable_test_dir / "resume_moved" / "resume_a.txt"
 
     source_move.write_text("move", encoding="utf-8")
     source_trash.write_text("trash", encoding="utf-8")
@@ -98,10 +100,10 @@ def test_resume_execution(action_executor: ActionExecutor, tmp_path: Path) -> No
     assert source_trash.exists() is False
 
 
-def test_revert_done(action_executor: ActionExecutor, tmp_path: Path) -> None:
-    source_move = tmp_path / "rev_a.txt"
-    source_trash = tmp_path / "rev_b.txt"
-    move_dest = tmp_path / "rev_moved" / "rev_a.txt"
+def test_revert_done(action_executor: ActionExecutor, stable_test_dir: Path) -> None:
+    source_move = stable_test_dir / "rev_a.txt"
+    source_trash = stable_test_dir / "rev_b.txt"
+    move_dest = stable_test_dir / "rev_moved" / "rev_a.txt"
 
     source_move.write_text("move", encoding="utf-8")
     source_trash.write_text("trash", encoding="utf-8")
@@ -133,10 +135,10 @@ def test_revert_done(action_executor: ActionExecutor, tmp_path: Path) -> None:
 
 def test_register_actions_skips_duplicate_same_type(
     action_executor: ActionExecutor,
-    tmp_path: Path,
+    stable_test_dir: Path,
 ) -> None:
-    source = tmp_path / "dup_a.txt"
-    move_dest = tmp_path / "dup_moved" / "dup_a.txt"
+    source = stable_test_dir / "dup_a.txt"
+    move_dest = stable_test_dir / "dup_moved" / "dup_a.txt"
 
     source.write_text("move", encoding="utf-8")
     move_dest.parent.mkdir(parents=True, exist_ok=True)

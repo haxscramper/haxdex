@@ -6,17 +6,24 @@ from typing import Any
 
 from beartype.typing import cast
 from pydantic import BaseModel
+from sqlalchemy import Engine
+
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex.services.core.types import FileHash, FileRef, IndexDocument, IndexerOutput
 from haxdex.services.core.job_runtime import IndexRuntime
+from tests.conftest import index_cache_database
 
 
 def _touch(path: Path) -> None:
     path.write_text("payload")
 
 
-def test_chain_two_indexers(db: IndexDatabase, tmp_path: Path) -> None:
+def test_chain_two_indexers(
+    db: IndexDatabase,
+    stable_test_dir: Path,
+    index_cache_database: Engine,
+) -> None:
     call_log: list[str] = []
 
     class RootModel(IndexDocument):
@@ -64,7 +71,7 @@ def test_chain_two_indexers(db: IndexDatabase, tmp_path: Path) -> None:
                 result=NestedModel(value="nested-value", hash="---()"),
             )
 
-    file_path = tmp_path / "doc.txt"
+    file_path = stable_test_dir / "doc.txt"
     _touch(file_path)
 
     ctx = RunContext(db)
@@ -72,11 +79,13 @@ def test_chain_two_indexers(db: IndexDatabase, tmp_path: Path) -> None:
         ctx=ctx,
         db=db,
         indexer_types=[
-            RootIndexer(),
-            NestedIndexer(),
+            RootIndexer(config=RootIndexer.config_model(), database=index_cache_database),
+            NestedIndexer(
+                config=NestedIndexer.config_model(),
+                database=index_cache_database,
+            ),
         ],
         resource_types=[],
-        converter_types=[],
     )
 
     root = db.add_root("root", file_path.parent)
@@ -90,7 +99,11 @@ def test_chain_two_indexers(db: IndexDatabase, tmp_path: Path) -> None:
     assert call_log == ["root", "nested"]
 
 
-def test_branching_indexers(db: IndexDatabase, tmp_path: Path) -> None:
+def test_branching_indexers(
+    db: IndexDatabase,
+    tmp_path: Path,
+    index_cache_database: Engine,
+) -> None:
     call_log: list[str] = []
 
     class ModelA(IndexDocument):
@@ -155,13 +168,12 @@ def test_branching_indexers(db: IndexDatabase, tmp_path: Path) -> None:
         ctx=ctx,
         db=db,
         indexer_types=[
-            IndexerA(),
-            IndexerB(),
-            IndexerC(),
-            IndexerD(),
+            IndexerA(config=IndexerA.config_model(), database=index_cache_database),
+            IndexerB(config=IndexerB.config_model(), database=index_cache_database),
+            IndexerC(config=IndexerC.config_model(), database=index_cache_database),
+            IndexerD(config=IndexerD.config_model(), database=index_cache_database),
         ],
         resource_types=[],
-        converter_types=[],
     )
 
     root = db.add_root("root", tmp_path)
@@ -182,7 +194,11 @@ def test_branching_indexers(db: IndexDatabase, tmp_path: Path) -> None:
     assert set(call_log) == {"A", "B", "C", "D"}
 
 
-def test_indexer_receives_resource(db: IndexDatabase, tmp_path: Path) -> None:
+def test_indexer_receives_resource(
+    db: IndexDatabase,
+    tmp_path: Path,
+    index_cache_database: Engine,
+) -> None:
 
     class ResourceRequest(BaseModel):
         value: str
@@ -220,9 +236,10 @@ def test_indexer_receives_resource(db: IndexDatabase, tmp_path: Path) -> None:
     runtime = IndexRuntime(
         ctx=ctx,
         db=db,
-        resource_types=[EchoResource()],
-        indexer_types=[EchoIndexer()],
-        converter_types=[],
+        resource_types=[EchoResource(config=EchoResource.config_model())],
+        indexer_types=[
+            EchoIndexer(config=EchoIndexer.config_model(), database=index_cache_database)
+        ],
     )
 
     root = db.add_root("root", tmp_path)
