@@ -1,7 +1,12 @@
 from pathlib import Path
 
+from PyQt6.QtCore import QModelIndex
+
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
-from tests.utils import init_index_service, init_file_tree_config
+from haxdex.services.indexers.file_size import FileSizeIndexer
+from tests.utils import init_index_service, init_file_tree_config, sub_row_by_name
 
 
 def test_e2e_tree_build(stable_test_dir: Path):
@@ -28,3 +33,31 @@ def test_e2e_tree_build(stable_test_dir: Path):
         cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
     )
+
+    assert core.model.rowCount() == 1
+    root_index: QModelIndex = core.model.index(0, 0, QModelIndex())
+    root_node: FileTreeNode = root_index.internalPointer()
+    assert root_node
+    assert root_node.root == "root"
+    assert root_node.root_relative == ""
+    assert str(root_node.path).endswith("data")
+
+    a_txt_index = sub_row_by_name(root_index, "a.txt")
+    b_txt_index = sub_row_by_name(root_index, "b.txt")
+    sub_index = sub_row_by_name(root_index, "sub")
+
+    assert a_txt_index.isValid()
+    assert b_txt_index.isValid()
+    assert sub_index.isValid()
+
+    a_txt_node: FileTreeNode = a_txt_index.internalPointer()
+    b_txt_node: FileTreeNode = b_txt_index.internalPointer()
+    sub_node: FileTreeNode = sub_index.internalPointer()
+
+    assert sub_node.is_directory
+    assert not a_txt_node.is_directory
+    assert not b_txt_node.is_directory
+
+    assert EntrySizeColumnSpec.column_name in a_txt_node.columns
+    assert EntrySizeColumnSpec.column_name in b_txt_node.columns
+    assert EntrySizeColumnSpec.column_name in sub_node.columns

@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from PyQt6.QtCore import QModelIndex
 from beartype import beartype
 
 from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
@@ -71,3 +73,16 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
         root_dir=index.root_dir,
         cfg=cfg,
     )
+
+
+def sub_row_by_name(index: QModelIndex, suffix: str) -> QModelIndex:
+    model = index.model()
+    assert model
+    for i in range(0, model.rowCount(index)):
+        row_idx = model.index(i, 0, index)
+        node = row_idx.internalPointer()
+        assert isinstance(node, FileTreeNode)
+        if str(node.path).endswith(suffix):
+            return row_idx
+
+    raise ValueError(f"no index for {suffix}")
