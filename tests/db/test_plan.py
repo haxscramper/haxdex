@@ -226,7 +226,7 @@ def test_exclusive_direct(db: IndexDatabase, index_cache_database: Engine):
 
 def test_exclusive_transitive_different_consumers(
     db: IndexDatabase,
-    index_cache_database=Engine,
+    index_cache_database: Engine,
 ):
     """A→B→R, C→D→R (R exclusive) → B≠D → cannot share."""
     res_r = _make_resource("R", exclusive=True)
