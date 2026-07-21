@@ -1,26 +1,22 @@
-import logging
+from dataclasses import dataclass
 from pathlib import Path
 import re
 import shutil
 
+from beartype import beartype
 from sqlalchemy import Engine, create_engine
-from sqlalchemy.dialects import sqlite
 
+from haxdex.cli.cli import IndexService
+from haxdex.cli.cli_config import AppConfig, IndexConfig
 from haxdex.services.core.hash_cache import HashCache
 import pytest
 from beartype.typing import Any, Generator
-from haxdex.services.core.db import get_hash_cache_connection
 
 from haxdex.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseResource, RunContext
-from haxdex.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource
-from haxdex.services.resources.text_summary import (
-    SummarizeRequest,
-    TextSummaryResource,
-    TextSummaryResult,
-)
+from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
+from haxdex.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource, FlmServerResourceConfig
 from haxdex.services.utils import get_custom_traceback_handler, stfu_logs
 import logging
 
@@ -62,14 +58,8 @@ def _safe_name(raw: str) -> str:
 
 class MockFlmServerResource(FlmServerResource):
 
-    def __init__(self,
-                 base_url: str | None = None,
-                 api_key: str = "flm",
-                 host: str | None = None,
-                 port: int | None = None,
-                 serve_cmd: list[str] | None = None,
-                 startup_timeout_sec: float = 20) -> None:
-        pass
+    def __init__(self, config: FlmServerResourceConfig) -> None:
+        super().__init__(config=config)
 
     def handle(self, ctx: RunContext, request: FlmRequest,
                resources: dict[str, BaseResource]) -> FlmResponse:
@@ -95,7 +85,7 @@ def runtime(db, stable_test_dir: Path,
         ctx=ctx,
         db=db,
         resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] +
-        [MockFlmServerResource()],
+        [MockFlmServerResource(config=MockFlmServerResource.config_model())],
         indexer_types=[
             t(config=t.config_model(), database=index_cache_database)
             for t in DEFAULT_INDEXER_TYPES

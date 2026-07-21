@@ -74,12 +74,16 @@ def _validate_plugin_config_map(
 
         if cfg is None:
             cfg = {}
-        if not isinstance(cfg, dict):
+        if isinstance(cfg, dict):
+            validated[name] = config_model.model_validate(cfg)
+
+        elif isinstance(cfg, config_model):
+            validated[name] = cfg
+
+        else:
             raise TypeError(
                 f"{kind.capitalize()} '{name}' config must be an object, got {type(cfg).__name__}"
             )
-
-        validated[name] = config_model.model_validate(cfg)
 
     return validated
 

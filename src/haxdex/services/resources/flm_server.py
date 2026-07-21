@@ -10,7 +10,7 @@ from typing import Any
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
-from haxdex.services.core.job_types import BaseResource, RunContext
+from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
 
 log = logging.getLogger(__name__)
 
@@ -34,34 +34,32 @@ class FlmResponse(BaseModel, extra="forbid"):
     usage: dict[str, Any] | None = None
 
 
+class FlmServerResourceConfig(BaseResourceConfig, extra="forbid"):
+    base_url: str = "http://127.0.0.1:52625/v1"
+    api_key: str = "flm"
+    host: str = "127.0.0.1"
+    port: int = 52625
+    serve_cmd: list[str] | None = None
+    startup_timeout_sec: float = 20.0
+
+
 class FlmServerResource(BaseResource):
     resource_key = "flm_server"
+    config_model = FlmServerResourceConfig
+    config: FlmServerResourceConfig
 
-    def __init__(
-        self,
-        base_url: str = "http://127.0.0.1:52625/v1",
-        api_key: str = "flm",
-        host: str = "127.0.0.1",
-        port: int = 52625,
-        serve_cmd: list[str] | None = None,
-        startup_timeout_sec: float = 20.0,
-    ) -> None:
-        self._base_url = base_url
-        self._api_key = api_key
-        self._host = host
-        self._port = port
-        self._startup_timeout_sec = startup_timeout_sec
-
-        self._serve_cmd = serve_cmd or [
+    def __init__(self, config: FlmServerResourceConfig) -> None:
+        super().__init__(config=config)
+        self._serve_cmd = config.serve_cmd or [
             "flm",
             "serve",
             "--host",
-            self._host,
+            config.host,
             "--port",
-            str(self._port),
+            str(config.port),
         ]
 
-        self._client = OpenAI(base_url=self._base_url, api_key=self._api_key)
+        self._client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
         self._proc: subprocess.Popen[bytes] | None = None
         self._lock = threading.Lock()
         self._stdout_log_path = "/tmp/hax-index-flm-serve-stdout.log"
@@ -98,7 +96,7 @@ class FlmServerResource(BaseResource):
             self._stderr_log_file = None
             raise
 
-        deadline = time.monotonic() + self._startup_timeout_sec
+        deadline = time.monotonic() + self.config.startup_timeout_sec
         while time.monotonic() < deadline:
             if self._is_server_healthy():
                 return
