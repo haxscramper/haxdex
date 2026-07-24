@@ -97,7 +97,7 @@ def runtime(db, stable_test_dir: Path,
 
 def get_test_dir(
         request: pytest.FixtureRequest,
-        test_dir_root: Path = Path("/tmp/image_tagger_tests/test_out"),
+        test_dir_root: Path = Path("/tmp/haxdex_tests/test_out"),
 ) -> Path:
     import hashlib
     from pathlib import Path
@@ -201,7 +201,7 @@ def image_directory(request: pytest.FixtureRequest):
     """
     Fixture providing a temporary directory with 256 monotone color images (512x512).
 
-    Uses a template directory at /tmp/image_tagger_tests/image_template_directory
+    Uses a template directory at /tmp/haxdex_tests/image_template_directory
     to cache generated images and improve test speed by copying instead of regenerating.
     """
     # Ensure template directory is populated

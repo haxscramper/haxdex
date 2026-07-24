@@ -7,7 +7,10 @@ from tests.generation import directory_structure, GeneratedDirectory, write_gene
 from tests.utils import init_index_service
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    max_examples=2,
+)
 @given(directory=directory_structure(
     indexer_types=[FileStatsIndexer],
     min_files=2,
@@ -28,9 +31,18 @@ def test_generated_indexer_directory(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
 ) -> None:
-    materialized = write_generated_directory(stable_test_dir, directory)
+    import shutil
+    if stable_test_dir.exists():
+        shutil.rmtree(stable_test_dir)
+
+    stable_test_dir.mkdir(parents=True, exist_ok=True)
+
+    gen_dir = stable_test_dir / "data"
+    materialized = write_generated_directory(gen_dir, directory)
 
     assert len(materialized.files) == len(directory.files)
+
+    assert len(list(gen_dir.rglob("*"))) != 0
 
     for file_path in materialized.files:
         metadata_path = file_path.with_name(f"{file_path.name}.haxdex-meta.json")

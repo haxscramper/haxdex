@@ -168,6 +168,13 @@ def get_custom_traceback_handler(
     return impl
 
 
+def propagate_logger_level(logger_name: str, level: int):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(level)
+    logger.propagate = False
+    logger.handlers.clear()
+
+
 def stfu_logs():
     for logger_name in [
             "openai._base_client",
@@ -195,10 +202,7 @@ def stfu_logs():
             "plumbum",
             "parso",
     ]:
-        logger = logging.getLogger(logger_name)
-        logger.setLevel(logging.CRITICAL + 1)
-        logger.propagate = False
-        logger.handlers.clear()
+        propagate_logger_level(logger_name, logging.CRITICAL + 1)
 
     QLoggingCategory.setFilterRules("qt.multimedia.ffmpeg.*=false\n"
                                     "qt.multimedia.*=false")
