@@ -4,7 +4,7 @@ test:
         --log-level=DEBUG \
         --capture=tee-sys \
         --disable-warnings \
-       "tests/e2e/test_file_tree_build.py" > test_results.tmp.log 2>&1
+       "tests/e2e/test_pbt_tree.py" > test_results.tmp.log 2>&1
 
 
 #        "tests/gui/test_execute_actions.py" 
