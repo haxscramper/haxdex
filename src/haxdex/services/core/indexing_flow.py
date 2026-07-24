@@ -130,7 +130,7 @@ def run_indexing_per_root_plan(
                 files = files[:remaining]
 
             if not files:
-                log.info(f"no files")
+                log.info(f"no more files, total indexed {indexed_total}")
                 continue
 
             plan_run_size = cfg.max_plan_run_size or len(files)

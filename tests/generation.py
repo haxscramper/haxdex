@@ -17,6 +17,7 @@ from hypothesis.strategies import SearchStrategy
 from pydantic import BaseModel
 
 from haxdex.services.core.job_types import BaseIndexer
+from haxdex.services.pydantic_utils import model_to_json_data
 
 
 @dataclass(frozen=True)
@@ -358,14 +359,14 @@ def pydantic_value_strategy(
 @st.composite
 @beartype
 def directory_structure(
-    draw: Any,
-    indexer_types: Sequence[type[BaseIndexer]],
-    min_files: int = 1,
-    max_files: int = 16,
-    min_nesting: int = 0,
-    max_nesting: int = 3,
-    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
-) -> SearchStrategy[GeneratedDirectory]:
+        draw: Any,
+        indexer_types: Sequence[type[BaseIndexer]],
+        min_files: int = 1,
+        max_files: int = 16,
+        min_nesting: int = 0,
+        max_nesting: int = 3,
+        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
+) -> GeneratedDirectory:
     if max_files < min_files:
         raise ValueError(
             f"max_files must be at least min_files, got min_files={min_files} "

@@ -4,6 +4,7 @@ from hypothesis import given, settings, HealthCheck
 
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory
+from tests.utils import init_index_service
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -35,3 +36,6 @@ def test_generated_indexer_directory(
         metadata_path = file_path.with_name(f"{file_path.name}.haxdex-meta.json")
         assert file_path.exists()
         assert metadata_path.exists()
+
+    index = init_index_service(stable_test_dir)
+    index.service.run_index()
