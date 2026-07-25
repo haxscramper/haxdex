@@ -527,7 +527,7 @@ def _default_item_renderable(
     if 0 < len(context.roles):
         role_table = config.create_role_table()
         for role in context.roles:
-            role_table.add_row(role.role_name, role.role_value)
+            role_table.add_row(f"{role.role_name} = {role.role_value}")
         parts.append(role_table)
 
     return Group(*parts)
@@ -750,15 +750,22 @@ def _tree_index_line(context: ItemFormatContext, config: ModelRichDumpConfig) ->
 
 
 @beartype
-def _tree_value_line(context: ItemFormatContext, config: ModelRichDumpConfig) -> str:
+def _tree_value_line(context: ItemFormatContext,
+                     config: ModelRichDumpConfig) -> list[str]:
     if config.include_final_repr and 0 < len(context.final_repr):
-        return context.final_repr
+        return [context.final_repr]
+
     if 0 < len(context.roles):
-        display_roles = [role for role in context.roles if role.role_name == "display"]
-        if 0 < len(display_roles):
-            return display_roles[0].role_value
-        return context.roles[0].role_value
-    return ""
+        result = list()
+        name_width = max([1, 1] + [len(role.role_name) for role in context.roles])
+
+        for role in context.roles:
+            result.append(f"{role.role_name:<{name_width}} = {role.role_value}")
+
+        return result
+
+    else:
+        return [""]
 
 
 @beartype
@@ -767,14 +774,14 @@ def _tree_cell_lines(
     depth: int,
     config: ModelRichDumpConfig,
     root_model_name: str,
-) -> tuple[str, str]:
+) -> list[str]:
     if node.item is None:
-        return ("", root_model_name)
-    context = _item_context(item=node.item, depth=depth)
-    return (
-        _tree_index_line(context=context, config=config),
-        _tree_value_line(context=context, config=config),
-    )
+        return ["", root_model_name]
+
+    else:
+        context = _item_context(item=node.item, depth=depth)
+        return [_tree_index_line(context=context, config=config)] + _tree_value_line(
+            context=context, config=config)
 
 
 @beartype
@@ -846,12 +853,14 @@ def _make_tree_rows_table(
                 raise ValueError(
                     f"Row {row_idx} has {len(row.cells)} cells, expected at least {column_count} cells"
                 )
+
             index_line, value_line = _tree_cell_lines(
                 node=row.cells[column],
                 depth=depth,
                 config=config,
                 root_model_name=root_model_name,
             )
+
             idx_cells.append(Text(index_line, style=config.style_index))
             val_cells.append(Text(value_line, style=config.style_repr))
 
