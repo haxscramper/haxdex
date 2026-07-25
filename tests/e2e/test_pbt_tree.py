@@ -111,7 +111,7 @@ def test_generated_indexer_directory(
         columns=init_file_tree_columns(index),
     )
 
-    log.info(simple_dump(core.model))
+    # log.info(simple_dump(core.model))
     flat_tree = model_dump.dump(core.model)
     log.info("\n" + render_text(flat_tree))
 

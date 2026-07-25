@@ -797,6 +797,7 @@ def _make_tree_rows_table(
     depth: int,
     column_count: int,
     widths: list[int],
+    leading_width: int,
     config: ModelRichDumpConfig,
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
@@ -809,12 +810,14 @@ def _make_tree_rows_table(
         box=box.ASCII,
     )
 
-    for width in widths:
+    local_widths = [leading_width, *widths[1:]]
+    for width in local_widths:
         table.add_column(width=width, no_wrap=True, overflow="crop")
 
     for row in rows:
         idx_cells: list[RenderableType] = [Text("")]
         val_cells: list[RenderableType] = [Text("")]
+
         for column in range(column_count):
             current_index = model.index(row, column, parent)
             index_line, value_line = _tree_cell_lines(
@@ -897,10 +900,17 @@ def _append_tree_table_rows(
     config: ModelRichDumpConfig,
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
+    tree_level: int,
 ) -> None:
     row_count = model.rowCount(index)
     local_column_count = model.columnCount(index)
     visible_columns = min(column_count, local_column_count)
+
+    step = len(config.tree_guide_vertical)
+    leading_width = max(
+        config.tree_column_min_width,
+        widths[0] - tree_level * step,
+    )
 
     pending_flat_rows: list[int] = []
 
@@ -916,6 +926,7 @@ def _append_tree_table_rows(
                 depth=depth,
                 column_count=column_count,
                 widths=widths,
+                leading_width=leading_width,
                 config=config,
                 state=state,
                 to_string=to_string,
@@ -944,6 +955,7 @@ def _append_tree_table_rows(
                 depth=depth,
                 column_count=column_count,
                 widths=widths,
+                leading_width=leading_width,
                 config=config,
                 state=state,
                 to_string=to_string,
@@ -986,6 +998,7 @@ def _append_tree_table_rows(
                 config=config,
                 state=state,
                 to_string=to_string,
+                tree_level=tree_level + 1,
             )
         else:
             branch.add(
@@ -1056,7 +1069,9 @@ def _build_tree_table(
         config=config,
         state=state,
         to_string=to_string,
+        tree_level=0,
     )
+
     return root
 
 
