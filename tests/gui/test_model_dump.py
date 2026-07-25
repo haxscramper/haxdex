@@ -7,13 +7,16 @@ from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
 from haxdex.gui.agnostic.model_dump import (
+    ItemFormatContext,
     ModelRichDumpConfig,
     ModelStructure,
+    StructureDetectContext,
     dump,
+    extract_snapshot,
     render_text,
-    structure_context,
 )
 
 
@@ -22,11 +25,17 @@ def _structure(model: QStandardItemModel,
                config: ModelRichDumpConfig | None = None) -> ModelStructure:
     if config is None:
         config = ModelRichDumpConfig()
+    snapshot = extract_snapshot(model=model, config=config)
+    root = snapshot.root
     return config.infer_structure(
-        structure_context(model=model,
-                          index=QModelIndex(),
-                          depth=0,
-                          nested_in_cell_depth=0))
+        StructureDetectContext(
+            depth=0,
+            nested_in_cell_depth=0,
+            row_count=root.row_count,
+            column_count=root.column_count,
+            nested_columns=root.nested_columns,
+            tree_columns=root.tree_columns,
+        ))
 
 
 @beartype
@@ -128,16 +137,12 @@ def test_multiple_columns_do_not_short_circuit_into_table() -> None:
 
 
 @beartype
-def test_table_tree_renders_aligned_fixed_width_columns() -> None:
+def test_table_tree_renders_tree_with_aligned_columns() -> None:
     model = _table_tree_model()
     renderable = dump(model=model)
-    assert isinstance(renderable, Table)
-    assert len(renderable.columns) == 4
-    for column in renderable.columns[1:]:
-        assert column.width is not None
-        assert column.no_wrap
+    assert isinstance(renderable, Tree)
 
-    text = render_text(renderable)
+    text = render_text(renderable, width=300)
     assert "root-a" in text
     assert "nested-a0" in text
     assert "nested-a1" in text
@@ -145,9 +150,12 @@ def test_table_tree_renders_aligned_fixed_width_columns() -> None:
     assert "value-a00" in text
     assert "├── " in text or "└── " in text
 
-    lines = [line for line in text.splitlines() if "value-" in line]
-    offsets = {line.index("value-") for line in lines}
-    assert len(offsets) == 1
+    root_lines = [
+        line for line in text.splitlines()
+        if "root-a" in line or "root-b" in line or "root-c" in line
+    ]
+    value_offsets = {line.index("value-") for line in root_lines if "value-" in line}
+    assert len(value_offsets) == 1
 
 
 @beartype
@@ -167,13 +175,8 @@ def test_detects_complex_tree_with_nested_non_zero_column() -> None:
     model = _complex_tree_model()
     assert _structure(model) == ModelStructure.COMPLEX_TREE
 
-    config = ModelRichDumpConfig()
-    renderable = dump(model=model, config=config)
-    assert isinstance(renderable, Table)
-    headers = [
-        Text.from_markup(str(column.header)).plain for column in renderable.columns
-    ]
-    assert config.tree_nested_header in headers
+    renderable = dump(model=model, config=ModelRichDumpConfig())
+    assert isinstance(renderable, Tree)
 
     text = render_text(renderable, width=300)
     assert "side-b1" in text
@@ -183,8 +186,15 @@ def test_detects_complex_tree_with_nested_non_zero_column() -> None:
 
 @beartype
 def test_complex_tree_keeps_base_column_alignment() -> None:
-    table_tree_text = render_text(dump(model=_table_tree_model()), width=300)
-    complex_tree_text = render_text(dump(model=_complex_tree_model()), width=300)
+    table_tree = _table_tree_model()
+    complex_tree = _complex_tree_model()
+
+    # Keep model names identical so proxy labels have equal width.
+    table_tree.setObjectName("model")
+    complex_tree.setObjectName("model")
+
+    table_tree_text = render_text(dump(model=table_tree), width=300)
+    complex_tree_text = render_text(dump(model=complex_tree), width=300)
 
     @beartype
     def offset(text: str, needle: str) -> int:
@@ -218,7 +228,7 @@ def test_max_depth_stops_tree_expansion() -> None:
     model = _table_tree_model()
     text = render_text(dump(model=model, config=ModelRichDumpConfig(max_depth=0)))
     assert "root-a" in text
-    assert "nested-a0" in text
+    assert "nested-a0" not in text
     assert "deep-a00" not in text
 
 
@@ -253,17 +263,17 @@ def test_role_acceptance_override() -> None:
 
 @beartype
 def test_item_formatting_override() -> None:
-    model = _table_tree_model()
+    model = _flat_table_model()
 
     class OverrideItemConfig(ModelRichDumpConfig):
 
         @beartype
-        def format_item(self, context):
-            return Text(f"OVERRIDE:{context.index.row()}:{context.index.column()}")
+        def format_item(self, context: ItemFormatContext):
+            return Text(f"OVERRIDE:{context.row}:{context.column}")
 
     text = render_text(dump(model=model, config=OverrideItemConfig()))
     assert "OVERRIDE:0:0" in text
-    assert "OVERRIDE:0:2" in text
+    assert "OVERRIDE:1:1" in text
 
 
 @beartype
