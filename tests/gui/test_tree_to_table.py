@@ -6,6 +6,7 @@ from PyQt6.QtCore import QCoreApplication, Qt, QSortFilterProxyModel
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from beartype.typing import List, Iterator, Tuple
 
+from haxdex.gui.agnostic.signal_logger import QtTrace
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 
 
@@ -182,15 +183,16 @@ def test_recursive_filter_then_flatten() -> None:
 
 
 def test_filter_change_updates_flatten() -> None:
-    tree = make_tree_model()
-    pre = QSortFilterProxyModel()
-    pre.setRecursiveFilteringEnabled(True)
-    pre.setFilterKeyColumn(0)
-    pre.setSourceModel(tree)
+    with QtTrace():
+        tree = make_tree_model()
+        pre = QSortFilterProxyModel()
+        pre.setRecursiveFilteringEnabled(True)
+        pre.setFilterKeyColumn(0)
+        pre.setSourceModel(tree)
 
-    flatten = TreeToTableProxyModel()
-    flatten.setSourceModel(pre)
-    assert flatten.rowCount() == 5
+        flatten = TreeToTableProxyModel()
+        flatten.setSourceModel(pre)
+        assert flatten.rowCount() == 5
 
-    pre.setFilterFixedString("n0")
-    assert flat_column0(flatten) == ["item0", "n0"]
+        pre.setFilterRegularExpression("^n0$")
+        assert flat_column0(flatten) == ["item0", "n0"]

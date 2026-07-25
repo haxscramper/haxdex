@@ -6,6 +6,9 @@ from PyQt6.QtCore import (
     QObject,
     QPersistentModelIndex,
     Qt,
+    QAbstractItemModel,
+    QMetaObject,
+    pyqtSignal,
 )
 
 from beartype.typing import Optional, List, Dict, Tuple
@@ -17,9 +20,10 @@ class TreeToTableProxyModel(QAbstractProxyModel):
         super().__init__(parent)
         self.flat: List[QPersistentModelIndex] = []
         self.positions: Dict[QPersistentModelIndex, int] = {}
-        self.connections: List[Tuple[object, object]] = []
+        self.connections: List[Tuple[pyqtSignal, object]] = []
+        self._reset_pending = False
 
-    def setSourceModel(self, model: Optional[QObject]) -> None:
+    def setSourceModel(self, model: Optional[QAbstractItemModel]) -> None:
         for signal, slot in self.connections:
             signal.disconnect(slot)
         self.connections = []
@@ -28,6 +32,20 @@ class TreeToTableProxyModel(QAbstractProxyModel):
         super().setSourceModel(model)
         if model is not None:
             for signal in (
+                    model.modelAboutToBeReset,
+                    model.layoutAboutToBeChanged,
+                    model.rowsAboutToBeInserted,
+                    model.rowsAboutToBeRemoved,
+                    model.rowsAboutToBeMoved,
+                    model.columnsAboutToBeInserted,
+                    model.columnsAboutToBeRemoved,
+                    model.columnsAboutToBeMoved,
+            ):
+                signal.connect(self._on_source_structure_about_to_change)
+                self.connections.append(
+                    (signal, self._on_source_structure_about_to_change))
+
+            for signal in (
                     model.modelReset,
                     model.layoutChanged,
                     model.rowsInserted,
@@ -35,16 +53,28 @@ class TreeToTableProxyModel(QAbstractProxyModel):
                     model.rowsMoved,
                     model.columnsInserted,
                     model.columnsRemoved,
+                    model.columnsMoved,
             ):
                 signal.connect(self._on_source_structure_changed)
                 self.connections.append((signal, self._on_source_structure_changed))
+
             model.dataChanged.connect(self._on_source_data_changed)
             self.connections.append((model.dataChanged, self._on_source_data_changed))
+
         self._rebuild()
         self.endResetModel()
 
+    def _on_source_structure_about_to_change(self, *args: object) -> None:
+        if not self._reset_pending:
+            self._reset_pending = True
+            self.beginResetModel()
+
     def _on_source_structure_changed(self, *args: object) -> None:
-        self.beginResetModel()
+        if not self._reset_pending:
+            self.beginResetModel()
+        else:
+            self._reset_pending = False
+
         self._rebuild()
         self.endResetModel()
 
@@ -64,9 +94,11 @@ class TreeToTableProxyModel(QAbstractProxyModel):
 
     def _verify_structure(self) -> None:
         source = self.sourceModel()
+        assert source is not None
         root_columns = source.columnCount(QModelIndex())
 
         def check(parent: QModelIndex, parent_description: str) -> None:
+            assert source is not None
             rows = source.rowCount(parent)
             columns = source.columnCount(parent)
             if 0 < rows and columns != root_columns:
@@ -98,6 +130,7 @@ class TreeToTableProxyModel(QAbstractProxyModel):
         self._verify_structure()
 
         def walk(parent: QModelIndex) -> None:
+            assert source is not None
             for row in range(source.rowCount(parent)):
                 node = source.index(row, 0, parent)
                 persistent = QPersistentModelIndex(node)
