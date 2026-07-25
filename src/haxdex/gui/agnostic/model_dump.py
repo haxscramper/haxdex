@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import enum
+import io
+import logging
 
 from beartype import beartype
 from beartype.typing import Callable
+from pydantic import BaseModel, Field
 
 from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
+from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.measure import Measurement
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
-from rich import box
-
-import enum
-import io
-import logging
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +23,10 @@ log = logging.getLogger(__name__)
 @beartype
 @dataclass
 class ModelProxyRecord:
-    index: QModelIndex
+    row: int
+    column: int
+    identity: str
+    model_name: str
 
 
 @beartype
@@ -36,7 +39,10 @@ class IndexRoleRepr:
 @beartype
 @dataclass
 class ItemFormatContext:
-    index: QModelIndex
+    row: int
+    column: int
+    identity: str
+    model_name: str
     depth: int
     proxies: list[ModelProxyRecord]
     roles: list[IndexRoleRepr]
@@ -55,8 +61,6 @@ class ModelStructure(str, enum.Enum):
 @beartype
 @dataclass
 class StructureDetectContext:
-    model: QAbstractItemModel
-    index: QModelIndex
     depth: int
     nested_in_cell_depth: int
     row_count: int
@@ -67,16 +71,55 @@ class StructureDetectContext:
 
 @beartype
 @dataclass
-class TreeTableLine:
-    prefix: str
-    cells: list[RenderableType | None]
-    nested: RenderableType | None = None
-
-
-@beartype
-@dataclass
 class BuildState:
     model_names: dict[int, str] = field(default_factory=dict)
+
+
+class SnapshotRole(BaseModel):
+    role_name: str
+    role_value: str
+
+
+class SnapshotProxy(BaseModel):
+    row: int
+    column: int
+    identity: str
+    model_name: str
+
+
+class SnapshotItem(BaseModel):
+    row: int
+    column: int
+    identity: str
+    model_name: str
+    depth: int
+    proxies: list[SnapshotProxy] = Field(default_factory=list)
+    roles: list[SnapshotRole] = Field(default_factory=list)
+    final_repr: str = ""
+
+
+class SnapshotRow(BaseModel):
+    cells: list[SnapshotNode] = Field(default_factory=list)
+
+
+class SnapshotNode(BaseModel):
+    item: SnapshotItem | None = None
+    depth: int
+    row_count: int
+    column_count: int
+    column_headers: list[str] = Field(default_factory=list)
+    nested_columns: list[int] = Field(default_factory=list)
+    tree_columns: list[int] = Field(default_factory=list)
+    rows: list[SnapshotRow] = Field(default_factory=list)
+
+
+class ModelDumpSnapshot(BaseModel):
+    root_model_name: str
+    root: SnapshotNode
+
+
+SnapshotRow.model_rebuild()
+SnapshotNode.model_rebuild()
 
 
 @beartype
@@ -154,41 +197,30 @@ class ModelRichDumpConfig:
     def accept_role(self, role: int, role_name: str) -> bool:
         if role == int(Qt.ItemDataRole.DisplayRole):
             return True
-
         if role == int(Qt.ItemDataRole.WhatsThisRole):
             return True
-
         if int(Qt.ItemDataRole.UserRole) <= role:
             return True
-
         return False
 
     @beartype
     def infer_structure(self, context: StructureDetectContext) -> ModelStructure:
         if self.max_depth is not None and self.max_depth < context.depth:
             return ModelStructure.VALUE
-
         if context.row_count <= 0:
             return ModelStructure.VALUE
-
         if context.column_count <= 1:
             if 0 < len(context.nested_columns) and self.detect_tree_models:
                 return ModelStructure.TREE
-
             if self.detect_list_models:
                 return ModelStructure.LIST
-
             return ModelStructure.VALUE
-
         if 0 < len(context.tree_columns) and self.detect_tree_models:
             if context.tree_columns == [0] and context.nested_columns == [0]:
                 return ModelStructure.TABLE_TREE
-
             return ModelStructure.COMPLEX_TREE
-
         if self.detect_table_models:
             return ModelStructure.TABLE
-
         return ModelStructure.VALUE
 
     @beartype
@@ -204,7 +236,7 @@ class ModelRichDumpConfig:
         return None
 
 
-_MEASURE_CONSOLE = Console(width=10_000, file=io.StringIO())
+_MEASURE_CONSOLE = Console(width=10000, file=io.StringIO())
 
 
 @beartype
@@ -221,10 +253,7 @@ def _index_identity(index: QModelIndex) -> str:
 
 
 @beartype
-def _resolve_model_name(
-    model: QAbstractItemModel | None,
-    state: BuildState,
-) -> str:
+def _resolve_model_name(model: QAbstractItemModel | None, state: BuildState) -> str:
     if model is None:
         return "0x0"
     model_id = id(model)
@@ -240,22 +269,31 @@ def _resolve_model_name(
 
 
 @beartype
-def _collect_proxy_chain(index: QModelIndex) -> list[ModelProxyRecord]:
-    records: list[ModelProxyRecord] = []
+def _collect_proxy_chain(index: QModelIndex, state: BuildState) -> list[SnapshotProxy]:
+    records: list[SnapshotProxy] = []
     current_index = index
-    records.append(ModelProxyRecord(index=current_index))
     current_model = current_index.model()
-    while isinstance(current_model, QAbstractProxyModel):
+
+    while current_model is not None:
+        records.append(
+            SnapshotProxy(
+                row=current_index.row(),
+                column=current_index.column(),
+                identity=_index_identity(current_index),
+                model_name=_resolve_model_name(current_model, state),
+            ))
+        if not isinstance(current_model, QAbstractProxyModel):
+            break
         mapped = current_model.mapToSource(current_index)
         if not mapped.isValid():
             break
-        current_index = mapped
-        records.append(ModelProxyRecord(index=current_index))
         source_model = current_model.sourceModel()
-        if isinstance(source_model, QAbstractProxyModel):
+        current_index = mapped
+        if isinstance(source_model, QAbstractItemModel):
             current_model = source_model
         else:
             current_model = None
+
     return records
 
 
@@ -264,134 +302,89 @@ def _collect_roles(
     model: QAbstractItemModel,
     index: QModelIndex,
     config: ModelRichDumpConfig,
-) -> list[IndexRoleRepr]:
+) -> list[SnapshotRole]:
     if not config.include_roles:
         return []
+
     role_data = model.roleNames()
-    records: list[IndexRoleRepr] = []
+    records: list[SnapshotRole] = []
     for role, role_name_raw in sorted(role_data.items(), key=lambda entry: int(entry[0])):
         role_int = int(role)
         role_name = config.role_name(role_name_raw)
         if not config.accept_role(role_int, role_name):
             continue
-
         value = index.data(role_int)
         if value is None:
             continue
-
         records.append(
-            IndexRoleRepr(role_name=role_name, role_value=config.format_value(value)))
-
+            SnapshotRole(
+                role_name=role_name,
+                role_value=config.format_value(value),
+            ))
     return records
 
 
 @beartype
-def _default_item_renderable(
-    context: ItemFormatContext,
-    config: ModelRichDumpConfig,
-    state: BuildState,
-) -> RenderableType:
-    parts: list[RenderableType] = []
-    label = Text()
-    if config.include_proxy_chain:
-        proxy_chunks: list[Text] = []
-        for proxy in context.proxies:
-            proxy_index = proxy.index
-            proxy_model_name = _resolve_model_name(proxy_index.model(), state)
-            chunk = Text("[", style=config.style_index)
-            chunk.append(f"{proxy_index.row()}:{proxy_index.column()}",
-                         style=config.style_index)
-            if config.include_index_identity:
-                chunk.append(", ", style=config.style_index)
-                chunk.append(_index_identity(proxy_index), style=config.style_index)
-            chunk.append(", ", style=config.style_index)
-            chunk.append(proxy_model_name, style=config.style_model_name)
-            chunk.append("]", style=config.style_index)
-            proxy_chunks.append(chunk)
-        for idx, chunk in enumerate(proxy_chunks):
-            if 0 < idx:
-                label.append("->", style=config.style_index)
-            label.append_text(chunk)
-    else:
-        if config.include_index_coordinates:
-            label.append(f"[{context.index.row()}:{context.index.column()}]",
-                         style=config.style_index)
-        if config.include_index_identity:
-            if 0 < len(label.plain):
-                label.append(" ", style=config.style_index)
-            label.append(_index_identity(context.index), style=config.style_index)
-    parts.append(label)
-    if config.include_final_repr and 0 < len(context.final_repr):
-        parts.append(Text(context.final_repr, style=config.style_repr))
-    if 0 < len(context.roles):
-        role_table = config.create_role_table()
-        for role in context.roles:
-            role_table.add_row(role.role_name, role.role_value)
-        parts.append(role_table)
-    return Group(*parts)
+def _column_headers(model: QAbstractItemModel, column_count: int) -> list[str]:
+    headers: list[str] = []
+    for column in range(column_count):
+        header_value = model.headerData(
+            column,
+            Qt.Orientation.Horizontal,
+            int(Qt.ItemDataRole.DisplayRole),
+        )
+        if header_value is None:
+            headers.append(f"C{column}")
+        else:
+            headers.append(str(header_value))
+    return headers
 
 
 @beartype
-def _item_context(
+def _extract_item(
     model: QAbstractItemModel,
     index: QModelIndex,
     depth: int,
+    state: BuildState,
     config: ModelRichDumpConfig,
     to_string: Callable[[QModelIndex], str] | None,
-) -> ItemFormatContext:
-    roles = _collect_roles(model=model, index=index, config=config)
-    proxies = _collect_proxy_chain(index=index)
+) -> SnapshotItem | None:
+    if not index.isValid():
+        return None
+
     final_repr = ""
     if to_string is not None:
         final_repr = str(to_string(index))
-    return ItemFormatContext(
-        index=index,
+
+    return SnapshotItem(
+        row=index.row(),
+        column=index.column(),
+        identity=_index_identity(index),
+        model_name=_resolve_model_name(model, state),
         depth=depth,
-        proxies=proxies,
-        roles=roles,
+        proxies=_collect_proxy_chain(index=index, state=state),
+        roles=_collect_roles(model=model, index=index, config=config),
         final_repr=final_repr,
     )
 
 
 @beartype
-def _format_item_renderable(
+def _extract_structure_columns(
     model: QAbstractItemModel,
     index: QModelIndex,
-    depth: int,
-    config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
-) -> RenderableType:
-    context = _item_context(
-        model=model,
-        index=index,
-        depth=depth,
-        config=config,
-        to_string=to_string,
-    )
-    override = config.format_item(context)
-    if override is not None:
-        return override
-    return _default_item_renderable(context=context, config=config, state=state)
-
-
-@beartype
-def structure_context(
-    model: QAbstractItemModel,
-    index: QModelIndex,
-    depth: int,
-    nested_in_cell_depth: int,
-) -> StructureDetectContext:
-    row_count = model.rowCount(index)
-    column_count = model.columnCount(index)
+    row_count: int,
+    column_count: int,
+) -> tuple[list[int], list[int]]:
     nested_columns: list[int] = []
     tree_columns: list[int] = []
+
     for column in range(column_count):
         column_has_nested = False
         column_matches_run = False
         for row in range(row_count):
             nested_index = model.index(row, column, index)
-            if model.rowCount(nested_index) <= 0:
+            nested_row_count = model.rowCount(nested_index)
+            if nested_row_count <= 0:
                 continue
             column_has_nested = True
             if model.columnCount(nested_index) == column_count:
@@ -400,103 +393,230 @@ def structure_context(
             nested_columns.append(column)
         if column_matches_run:
             tree_columns.append(column)
-    return StructureDetectContext(
-        model=model,
-        index=index,
-        depth=depth,
-        nested_in_cell_depth=nested_in_cell_depth,
-        row_count=row_count,
-        column_count=column_count,
-        nested_columns=nested_columns,
-        tree_columns=tree_columns,
+
+    return nested_columns, tree_columns
+
+
+@beartype
+def extract_snapshot(
+    model: QAbstractItemModel | None,
+    parent: QModelIndex | None = None,
+    to_string: Callable[[QModelIndex], str] | None = None,
+    config: ModelRichDumpConfig | None = None,
+) -> ModelDumpSnapshot:
+    if model is None:
+        return ModelDumpSnapshot(
+            root_model_name="0x0",
+            root=SnapshotNode(depth=0, row_count=0, column_count=0),
+        )
+    if parent is None:
+        parent = QModelIndex()
+    if config is None:
+        config = ModelRichDumpConfig()
+
+    state = BuildState()
+    root_model_name = _resolve_model_name(model, state)
+
+    @beartype
+    def extract_node(index: QModelIndex, depth: int) -> SnapshotNode:
+        row_count = model.rowCount(index)
+        column_count = model.columnCount(index)
+        nested_columns, tree_columns = _extract_structure_columns(
+            model=model,
+            index=index,
+            row_count=row_count,
+            column_count=column_count,
+        )
+        node = SnapshotNode(
+            item=_extract_item(
+                model=model,
+                index=index,
+                depth=depth,
+                state=state,
+                config=config,
+                to_string=to_string,
+            ),
+            depth=depth,
+            row_count=row_count,
+            column_count=column_count,
+            column_headers=_column_headers(model=model, column_count=column_count),
+            nested_columns=nested_columns,
+            tree_columns=tree_columns,
+            rows=[],
+        )
+
+        if row_count <= 0:
+            return node
+        if config.max_depth is not None and config.max_depth < depth:
+            return node
+
+        rows: list[SnapshotRow] = []
+        for row in range(row_count):
+            cells: list[SnapshotNode] = []
+            for column in range(column_count):
+                nested_index = model.index(row, column, index)
+                cells.append(extract_node(nested_index, depth + 1))
+            rows.append(SnapshotRow(cells=cells))
+        node.rows = rows
+        return node
+
+    return ModelDumpSnapshot(
+        root_model_name=root_model_name,
+        root=extract_node(parent, 0),
     )
 
 
 @beartype
-def _column_header(model: QAbstractItemModel, column: int) -> str:
-    header_value = model.headerData(column, Qt.Orientation.Horizontal,
-                                    int(Qt.ItemDataRole.DisplayRole))
-    if header_value is None:
-        return f"C{column}"
-    return str(header_value)
+def _item_context(item: SnapshotItem, depth: int) -> ItemFormatContext:
+    return ItemFormatContext(
+        row=item.row,
+        column=item.column,
+        identity=item.identity,
+        model_name=item.model_name,
+        depth=depth,
+        proxies=[
+            ModelProxyRecord(
+                row=proxy.row,
+                column=proxy.column,
+                identity=proxy.identity,
+                model_name=proxy.model_name,
+            ) for proxy in item.proxies
+        ],
+        roles=[
+            IndexRoleRepr(role_name=role.role_name, role_value=role.role_value)
+            for role in item.roles
+        ],
+        final_repr=item.final_repr,
+    )
 
 
 @beartype
-def _build_value(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _default_item_renderable(
+    context: ItemFormatContext,
+    config: ModelRichDumpConfig,
+) -> RenderableType:
+    parts: list[RenderableType] = []
+    label = Text()
+
+    if config.include_proxy_chain:
+        for idx, proxy in enumerate(context.proxies):
+            if 0 < idx:
+                label.append("->", style=config.style_index)
+            chunk = Text("[", style=config.style_index)
+            chunk.append(f"{proxy.row}:{proxy.column}", style=config.style_index)
+            if config.include_index_identity:
+                chunk.append(", ", style=config.style_index)
+                chunk.append(proxy.identity, style=config.style_index)
+            chunk.append(", ", style=config.style_index)
+            chunk.append(proxy.model_name, style=config.style_model_name)
+            chunk.append("]", style=config.style_index)
+            label.append_text(chunk)
+    else:
+        if config.include_index_coordinates:
+            label.append(f"[{context.row}:{context.column}]", style=config.style_index)
+        if config.include_index_identity:
+            if 0 < len(label.plain):
+                label.append(" ", style=config.style_index)
+            label.append(context.identity, style=config.style_index)
+
+    parts.append(label)
+
+    if config.include_final_repr and 0 < len(context.final_repr):
+        parts.append(Text(context.final_repr, style=config.style_repr))
+
+    if 0 < len(context.roles):
+        role_table = config.create_role_table()
+        for role in context.roles:
+            role_table.add_row(role.role_name, role.role_value)
+        parts.append(role_table)
+
+    return Group(*parts)
+
+
+@beartype
+def _format_item_renderable(
+    item: SnapshotItem,
     depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    return _format_item_renderable(
-        model=model,
-        index=index,
+    context = _item_context(item=item, depth=depth)
+    override = config.format_item(context)
+    if override is not None:
+        return override
+    return _default_item_renderable(context=context, config=config)
+
+
+@beartype
+def _node_structure_context(node: SnapshotNode, depth: int,
+                            nested_in_cell_depth: int) -> StructureDetectContext:
+    return StructureDetectContext(
         depth=depth,
-        config=config,
-        state=state,
-        to_string=to_string,
+        nested_in_cell_depth=nested_in_cell_depth,
+        row_count=node.row_count,
+        column_count=node.column_count,
+        nested_columns=node.nested_columns,
+        tree_columns=node.tree_columns,
     )
 
 
 @beartype
-def _build_cell(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _render_value(
+    node: SnapshotNode,
+    depth: int,
+    config: ModelRichDumpConfig,
+    root_model_name: str,
+) -> RenderableType:
+    if node.item is None:
+        return Text(root_model_name, style=config.style_model_name)
+    return _format_item_renderable(item=node.item, depth=depth, config=config)
+
+
+@beartype
+def _render_cell(
+    node: SnapshotNode,
     depth: int,
     nested_in_cell_depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> RenderableType:
-    if model.rowCount(index) <= 0 or config.max_nested_in_cells <= nested_in_cell_depth:
-        return _build_value(
-            model=model,
-            index=index,
-            depth=depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-        )
-
-    return _build_node(
-        model=model,
-        index=index,
+    if node.row_count <= 0 or config.max_nested_in_cells <= nested_in_cell_depth:
+        return _render_value(node=node,
+                             depth=depth,
+                             config=config,
+                             root_model_name=root_model_name)
+    return _render_node(
+        node=node,
         depth=depth,
         nested_in_cell_depth=nested_in_cell_depth + 1,
         config=config,
-        state=state,
-        to_string=to_string,
+        root_model_name=root_model_name,
         suppress_item_at_root=False,
     )
 
 
 @beartype
-def _build_list(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _render_list(
+    node: SnapshotNode,
     depth: int,
     nested_in_cell_depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> RenderableType:
-    row_count = model.rowCount(index)
+    row_count = len(node.rows)
     values: list[RenderableType] = []
     item_width = len("item")
     index_width = max(len("#"), len(str(max(0, row_count - 1))))
 
-    for row in range(row_count):
-        nested_index = model.index(row, 0, index)
-        value = _build_cell(
-            model=model,
-            index=nested_index,
+    for row_idx, row in enumerate(node.rows):
+        if len(row.cells) <= 0:
+            raise ValueError(
+                f"Row {row_idx} has no cells while rendering list node at depth {depth}")
+        value = _render_cell(
+            node=row.cells[0],
             depth=depth + 1,
             nested_in_cell_depth=nested_in_cell_depth,
             config=config,
-            state=state,
-            to_string=to_string,
+            root_model_name=root_model_name,
         )
         values.append(value)
         item_width = max(item_width, _measure_width(value))
@@ -508,41 +628,43 @@ def _build_list(
                      width=index_width,
                      overflow="ignore")
     table.add_column("item", no_wrap=True, width=item_width, overflow="ignore")
-
     for row, value in enumerate(values):
         table.add_row(str(row), value)
-
     return table
 
 
 @beartype
-def _build_table(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _render_table(
+    node: SnapshotNode,
     depth: int,
     nested_in_cell_depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> RenderableType:
-    row_count = model.rowCount(index)
-    column_count = model.columnCount(index)
+    row_count = len(node.rows)
+    column_count = node.column_count
 
     rows: list[list[RenderableType]] = []
-    column_widths = [len(_column_header(model, column)) for column in range(column_count)]
+    column_widths = [
+        len(node.column_headers[column])
+        if column < len(node.column_headers) else len(f"C{column}")
+        for column in range(column_count)
+    ]
 
-    for row in range(row_count):
+    for row_idx in range(row_count):
+        row = node.rows[row_idx]
+        if len(row.cells) != column_count:
+            raise ValueError(
+                f"Row {row_idx} has {len(row.cells)} cells, expected {column_count} cells for table node at depth {depth}"
+            )
         row_renderables: list[RenderableType] = []
         for column in range(column_count):
-            nested_index = model.index(row, column, index)
-            cell = _build_cell(
-                model=model,
-                index=nested_index,
+            cell = _render_cell(
+                node=row.cells[column],
                 depth=depth + 1,
                 nested_in_cell_depth=nested_in_cell_depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
             row_renderables.append(cell)
             column_widths[column] = max(column_widths[column], _measure_width(cell))
@@ -550,164 +672,80 @@ def _build_table(
 
     table = config.create_table()
     for column in range(column_count):
-        table.add_column(
-            _column_header(model, column),
-            width=column_widths[column],
-            no_wrap=True,
-            overflow="ignore",
-        )
-
+        header = node.column_headers[column] if column < len(
+            node.column_headers) else f"C{column}"
+        table.add_column(header,
+                         width=column_widths[column],
+                         no_wrap=True,
+                         overflow="ignore")
     for row_renderables in rows:
         table.add_row(*row_renderables)
-
     return table
 
 
 @beartype
-def _build_tree(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _render_tree(
+    node: SnapshotNode,
     depth: int,
     nested_in_cell_depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> RenderableType:
-    if index.isValid():
-        root_label = _format_item_renderable(
-            model=model,
-            index=index,
-            depth=depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-        )
-    else:
-        root_label = Text(_resolve_model_name(model, state),
-                          style=config.style_model_name)
+    root_label = _render_value(node=node,
+                               depth=depth,
+                               config=config,
+                               root_model_name=root_model_name)
     root_tree = config.create_tree(root_label)
-    for row in range(model.rowCount(index)):
-        nested_index = model.index(row, 0, index)
-        nested_label = _format_item_renderable(
-            model=model,
-            index=nested_index,
+
+    for row_idx, row in enumerate(node.rows):
+        if len(row.cells) <= 0:
+            raise ValueError(
+                f"Row {row_idx} has no cells while rendering tree node at depth {depth}")
+        nested_node = row.cells[0]
+        nested_label = _render_value(
+            node=nested_node,
             depth=depth + 1,
             config=config,
-            state=state,
-            to_string=to_string,
+            root_model_name=root_model_name,
         )
         branch = root_tree.add(nested_label)
+
         if config.max_depth is not None and config.max_depth < depth:
             continue
-
-        if model.rowCount(nested_index) <= 0:
+        if nested_node.row_count <= 0:
             continue
 
         branch.add(
-            _build_node(
-                model=model,
-                index=nested_index,
+            _render_node(
+                node=nested_node,
                 depth=depth + 1,
                 nested_in_cell_depth=nested_in_cell_depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
                 suppress_item_at_root=True,
             ))
     return root_tree
 
 
 @beartype
-def _tree_cell_width_hint(
-    model: QAbstractItemModel,
-    index: QModelIndex,
-    depth: int,
-    config: ModelRichDumpConfig,
-    to_string: Callable[[QModelIndex], str] | None,
-) -> int:
-    context = _item_context(
-        model=model,
-        index=index,
-        depth=depth,
-        config=config,
-        to_string=to_string,
-    )
-
-    override = config.format_item(context)
-    if override is not None:
-        return _measure_width(override)
-
-    candidates: list[int] = [0]
-
-    if config.include_final_repr and 0 < len(context.final_repr):
-        candidates.append(len(context.final_repr))
-
-    if config.include_roles:
-        for role in context.roles:
-            candidates.append(len(role.role_value))
-            candidates.append(len(role.role_name) + len(role.role_value))
-
-    if max(candidates) == 0:
-        candidates.append(len(f"{index.row()}:{index.column()}"))
-
-    return max(candidates)
-
-
-@beartype
-def _make_aligned_row_table(
-    cells: list[RenderableType],
-    widths: list[int],
-) -> Table:
-    row_table = Table.grid(expand=False, pad_edge=False)
-    for width in widths:
-        row_table.add_column(width=width, no_wrap=True, overflow="ignore")
-    row_table.add_row(*cells)
-    return row_table
-
-
-@beartype
-def _make_header_table(
-    model: QAbstractItemModel,
-    column_count: int,
-    widths: list[int],
-) -> Table:
-    header_table = Table.grid(expand=False, pad_edge=False)
-    for width in widths:
-        header_table.add_column(width=width, no_wrap=True, overflow="ignore")
-
-    header_cells: list[RenderableType] = [Text("")]
-    header_cells.extend(
-        Text(_column_header(model, column), style="bold")
-        for column in range(column_count))
-    header_table.add_row(*header_cells)
-    return header_table
-
-
-@beartype
-def _tree_index_line(
-    context: ItemFormatContext,
-    config: ModelRichDumpConfig,
-    state: BuildState,
-) -> str:
+def _tree_index_line(context: ItemFormatContext, config: ModelRichDumpConfig) -> str:
     if config.include_proxy_chain:
         chunks: list[str] = []
         for proxy in context.proxies:
-            proxy_index = proxy.index
-            proxy_model_name = _resolve_model_name(proxy_index.model(), state)
-            part = f"[{proxy_index.row()}:{proxy_index.column()}"
+            part = f"[{proxy.row}:{proxy.column}"
             if config.include_index_identity:
-                part += f", {_index_identity(proxy_index)}"
-            part += f", {proxy_model_name}]"
+                part += f", {proxy.identity}"
+            part += f", {proxy.model_name}]"
             chunks.append(part)
         return "->".join(chunks)
 
     result = ""
     if config.include_index_coordinates:
-        result += f"[{context.index.row()}:{context.index.column()}]"
+        result += f"[{context.row}:{context.column}]"
     if config.include_index_identity:
         if 0 < len(result):
             result += " "
-        result += _index_identity(context.index)
+        result += context.identity
     return result
 
 
@@ -715,92 +753,72 @@ def _tree_index_line(
 def _tree_value_line(context: ItemFormatContext, config: ModelRichDumpConfig) -> str:
     if config.include_final_repr and 0 < len(context.final_repr):
         return context.final_repr
-
     if 0 < len(context.roles):
-        display_roles = [r for r in context.roles if r.role_name == "display"]
+        display_roles = [role for role in context.roles if role.role_name == "display"]
         if 0 < len(display_roles):
             return display_roles[0].role_value
         return context.roles[0].role_value
-
     return ""
 
 
 @beartype
 def _tree_cell_lines(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+    node: SnapshotNode,
     depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> tuple[str, str]:
-    context = _item_context(
-        model=model,
-        index=index,
-        depth=depth,
-        config=config,
-        to_string=to_string,
-    )
+    if node.item is None:
+        return ("", root_model_name)
+    context = _item_context(item=node.item, depth=depth)
     return (
-        _tree_index_line(context=context, config=config, state=state),
+        _tree_index_line(context=context, config=config),
         _tree_value_line(context=context, config=config),
     )
 
 
 @beartype
-def _row_is_flat(
-    model: QAbstractItemModel,
-    parent: QModelIndex,
-    row: int,
-    visible_columns: int,
-) -> bool:
+def _row_is_flat(row: SnapshotRow, visible_columns: int) -> bool:
     for column in range(visible_columns):
-        idx = model.index(row, column, parent)
-        if 0 < model.rowCount(idx):
+        if len(row.cells) <= column:
+            raise ValueError(
+                f"Row has {len(row.cells)} cells, cannot access column {column} while checking table-tree flatness"
+            )
+        if 0 < row.cells[column].row_count:
             return False
     return True
 
 
 @beartype
-def _max_table_tree_depth(
-    model: QAbstractItemModel,
-    index: QModelIndex,
-    column_count: int,
-) -> int:
-    row_count = model.rowCount(index)
+def _max_table_tree_depth(node: SnapshotNode, column_count: int) -> int:
+    row_count = len(node.rows)
     if row_count <= 0:
         return 1
 
     max_depth = 1
-    for row in range(row_count):
-        first_index = model.index(row, 0, index)
-        if model.rowCount(first_index) <= 0:
+    for row_idx, row in enumerate(node.rows):
+        if len(row.cells) <= 0:
+            raise ValueError(
+                f"Row {row_idx} has no cells while computing table-tree depth")
+        first = row.cells[0]
+        if first.row_count <= 0:
             continue
-        if model.columnCount(first_index) != column_count:
+        if first.column_count != column_count:
             continue
-        max_depth = max(
-            max_depth,
-            1 + _max_table_tree_depth(
-                model=model,
-                index=first_index,
-                column_count=column_count,
-            ),
-        )
+        max_depth = max(max_depth, 1 + _max_table_tree_depth(first, column_count))
     return max_depth
 
 
 @beartype
 def _make_tree_rows_table(
-    model: QAbstractItemModel,
-    parent: QModelIndex,
+    node: SnapshotNode,
     rows: list[int],
     depth: int,
     column_count: int,
     widths: list[int],
     leading_width: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> Table:
     table = Table(
         show_header=False,
@@ -814,19 +832,25 @@ def _make_tree_rows_table(
     for width in local_widths:
         table.add_column(width=width, no_wrap=True, overflow="crop")
 
-    for row in rows:
+    for row_idx in rows:
+        if len(node.rows) <= row_idx:
+            raise ValueError(
+                f"Requested row {row_idx} while table-tree node has {len(node.rows)} rows"
+            )
+        row = node.rows[row_idx]
         idx_cells: list[RenderableType] = [Text("")]
         val_cells: list[RenderableType] = [Text("")]
 
         for column in range(column_count):
-            current_index = model.index(row, column, parent)
+            if len(row.cells) <= column:
+                raise ValueError(
+                    f"Row {row_idx} has {len(row.cells)} cells, expected at least {column_count} cells"
+                )
             index_line, value_line = _tree_cell_lines(
-                model=model,
-                index=current_index,
+                node=row.cells[column],
                 depth=depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
             idx_cells.append(Text(index_line, style=config.style_index))
             val_cells.append(Text(value_line, style=config.style_repr))
@@ -839,177 +863,159 @@ def _make_tree_rows_table(
 
 @beartype
 def _collect_tree_table_widths(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+    node: SnapshotNode,
     depth: int,
     column_count: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
     widths: list[int],
 ) -> None:
-    row_count = model.rowCount(index)
-    local_column_count = model.columnCount(index)
-    visible_columns = min(column_count, local_column_count)
+    row_count = len(node.rows)
+    visible_columns = min(column_count, node.column_count)
 
-    for row in range(row_count):
+    for row_idx in range(row_count):
+        row = node.rows[row_idx]
         for column in range(visible_columns):
-            current_index = model.index(row, column, index)
+            if len(row.cells) <= column:
+                raise ValueError(
+                    f"Row {row_idx} has {len(row.cells)} cells, expected at least {visible_columns} cells"
+                )
             index_line, value_line = _tree_cell_lines(
-                model=model,
-                index=current_index,
+                node=row.cells[column],
                 depth=depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
-            widths[column + 1] = max(
-                widths[column + 1],
-                len(index_line),
-                len(value_line),
-            )
+            widths[column + 1] = max(widths[column + 1], len(index_line), len(value_line))
 
         if visible_columns <= 0:
             continue
-
-        first_index = model.index(row, 0, index)
-        if model.rowCount(first_index) <= 0:
+        if len(row.cells) <= 0:
+            raise ValueError(
+                f"Row {row_idx} has no cells while collecting tree-table widths")
+        first = row.cells[0]
+        if first.row_count <= 0:
             continue
-
-        if model.columnCount(first_index) == column_count:
+        if first.column_count == column_count:
             _collect_tree_table_widths(
-                model=model,
-                index=first_index,
+                node=first,
                 depth=depth + 1,
                 column_count=column_count,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
                 widths=widths,
             )
 
 
 @beartype
 def _append_tree_table_rows(
-    model: QAbstractItemModel,
+    node: SnapshotNode,
     parent_tree: Tree,
-    index: QModelIndex,
     depth: int,
     column_count: int,
     widths: list[int],
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
     tree_level: int,
 ) -> None:
-    row_count = model.rowCount(index)
-    local_column_count = model.columnCount(index)
-    visible_columns = min(column_count, local_column_count)
+    row_count = len(node.rows)
+    visible_columns = min(column_count, node.column_count)
 
     step = len(config.tree_guide_vertical)
-    leading_width = max(
-        config.tree_column_min_width,
-        widths[0] - tree_level * step,
-    )
+    leading_width = max(config.tree_column_min_width, widths[0] - tree_level * step)
 
     pending_flat_rows: list[int] = []
 
+    @beartype
     def flush_flat_rows() -> None:
         nonlocal pending_flat_rows
-        if len(pending_flat_rows) == 0:
+        if len(pending_flat_rows) <= 0:
             return
         parent_tree.add(
             _make_tree_rows_table(
-                model=model,
-                parent=index,
+                node=node,
                 rows=pending_flat_rows,
                 depth=depth,
                 column_count=column_count,
                 widths=widths,
                 leading_width=leading_width,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             ))
         pending_flat_rows = []
 
-    for row in range(row_count):
-        flat = _row_is_flat(
-            model=model,
-            parent=index,
-            row=row,
-            visible_columns=visible_columns,
-        )
+    for row_idx in range(row_count):
+        row = node.rows[row_idx]
+        flat = _row_is_flat(row=row, visible_columns=visible_columns)
 
         if flat:
-            pending_flat_rows.append(row)
+            pending_flat_rows.append(row_idx)
             continue
 
         flush_flat_rows()
 
         branch = parent_tree.add(
             _make_tree_rows_table(
-                model=model,
-                parent=index,
-                rows=[row],
+                node=node,
+                rows=[row_idx],
                 depth=depth,
                 column_count=column_count,
                 widths=widths,
                 leading_width=leading_width,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             ))
 
         if config.max_depth is not None and config.max_depth < depth:
             continue
 
         for column in range(1, visible_columns):
-            nested_index = model.index(row, column, index)
-            if model.rowCount(nested_index) <= 0:
+            if len(row.cells) <= column:
+                raise ValueError(
+                    f"Row {row_idx} has {len(row.cells)} cells, cannot access nested column {column}"
+                )
+            nested_node = row.cells[column]
+            if nested_node.row_count <= 0:
                 continue
             branch.add(
-                _build_node(
-                    model=model,
-                    index=nested_index,
+                _render_node(
+                    node=nested_node,
                     depth=depth + 1,
                     nested_in_cell_depth=0,
                     config=config,
-                    state=state,
-                    to_string=to_string,
+                    root_model_name=root_model_name,
                     suppress_item_at_root=False,
                 ))
 
         if visible_columns <= 0:
             continue
 
-        first_index = model.index(row, 0, index)
-        if model.rowCount(first_index) <= 0:
+        if len(row.cells) <= 0:
+            raise ValueError(
+                f"Row {row_idx} has no cells while appending tree-table rows")
+        first = row.cells[0]
+        if first.row_count <= 0:
             continue
 
-        if model.columnCount(first_index) == column_count:
+        if first.column_count == column_count:
             _append_tree_table_rows(
-                model=model,
+                node=first,
                 parent_tree=branch,
-                index=first_index,
                 depth=depth + 1,
                 column_count=column_count,
                 widths=widths,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
                 tree_level=tree_level + 1,
             )
         else:
             branch.add(
-                _build_node(
-                    model=model,
-                    index=first_index,
+                _render_node(
+                    node=first,
                     depth=depth + 1,
                     nested_in_cell_depth=0,
                     config=config,
-                    state=state,
-                    to_string=to_string,
+                    root_model_name=root_model_name,
                     suppress_item_at_root=True,
                 ))
 
@@ -1017,58 +1023,66 @@ def _append_tree_table_rows(
 
 
 @beartype
-def _build_tree_table(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _make_header_table(node: SnapshotNode, column_count: int, widths: list[int]) -> Table:
+    header_table = Table.grid(expand=False, pad_edge=False)
+    for width in widths:
+        header_table.add_column(width=width, no_wrap=True, overflow="ignore")
+
+    header_cells: list[RenderableType] = [Text("")]
+    for column in range(column_count):
+        header = node.column_headers[column] if column < len(
+            node.column_headers) else f"C{column}"
+        header_cells.append(Text(header, style="bold"))
+    header_table.add_row(*header_cells)
+    return header_table
+
+
+@beartype
+def _render_tree_table(
+    node: SnapshotNode,
     depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
 ) -> RenderableType:
-    column_count = model.columnCount(index)
+    column_count = node.column_count
 
     widths = [config.tree_column_min_width]
-    widths.extend(len(_column_header(model, column)) for column in range(column_count))
+    for column in range(column_count):
+        header = node.column_headers[column] if column < len(
+            node.column_headers) else f"C{column}"
+        widths.append(len(header))
 
-    max_rel_depth = _max_table_tree_depth(
-        model=model,
-        index=index,
-        column_count=column_count,
-    )
+    max_rel_depth = _max_table_tree_depth(node=node, column_count=column_count)
     widths[0] = max(widths[0], max_rel_depth * len(config.tree_guide_vertical))
 
     _collect_tree_table_widths(
-        model=model,
-        index=index,
+        node=node,
         depth=depth,
         column_count=column_count,
         config=config,
-        state=state,
-        to_string=to_string,
+        root_model_name=root_model_name,
         widths=widths,
     )
 
-    widths = [max(config.tree_column_min_width, w) for w in widths]
-
+    widths = [max(config.tree_column_min_width, width) for width in widths]
     if config.tree_column_max_width is not None:
-        widths = [min(w, config.tree_column_max_width) for w in widths]
+        widths = [min(width, config.tree_column_max_width) for width in widths]
 
     root_label = Group(
-        Text(_resolve_model_name(model, state), style=config.style_model_name),
-        _make_header_table(model=model, column_count=column_count, widths=widths),
+        Text(root_model_name if node.item is None else node.item.model_name,
+             style=config.style_model_name),
+        _make_header_table(node=node, column_count=column_count, widths=widths),
     )
     root = config.create_tree(root_label)
 
     _append_tree_table_rows(
-        model=model,
+        node=node,
         parent_tree=root,
-        index=index,
         depth=depth,
         column_count=column_count,
         widths=widths,
         config=config,
-        state=state,
-        to_string=to_string,
+        root_model_name=root_model_name,
         tree_level=0,
     )
 
@@ -1076,92 +1090,94 @@ def _build_tree_table(
 
 
 @beartype
-def _build_node(
-    model: QAbstractItemModel,
-    index: QModelIndex,
+def _render_node(
+    node: SnapshotNode,
     depth: int,
     nested_in_cell_depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
-    to_string: Callable[[QModelIndex], str] | None,
+    root_model_name: str,
     suppress_item_at_root: bool,
 ) -> RenderableType:
-    context = structure_context(
-        model=model,
-        index=index,
-        depth=depth,
-        nested_in_cell_depth=nested_in_cell_depth,
-    )
+    context = _node_structure_context(node=node,
+                                      depth=depth,
+                                      nested_in_cell_depth=nested_in_cell_depth)
     structure = config.infer_structure(context)
-    log.debug(f"structure {structure} at depth {depth} "
-              f"rows {context.row_count} columns {context.column_count} "
-              f"nested {context.nested_columns} tree {context.tree_columns}")
+    log.debug(
+        f"structure {structure} at depth {depth} rows {context.row_count} "
+        f"columns {context.column_count} nested {context.nested_columns} tree {context.tree_columns}"
+    )
 
     match structure:
         case ModelStructure.VALUE:
-            return _build_value(
-                model=model,
-                index=index,
-                depth=depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
+            return _render_value(node=node,
+                                 depth=depth,
+                                 config=config,
+                                 root_model_name=root_model_name)
         case ModelStructure.TREE:
-            return _build_tree(
-                model=model,
-                index=index,
+            return _render_tree(
+                node=node,
                 depth=depth,
                 nested_in_cell_depth=nested_in_cell_depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
         case ModelStructure.LIST:
-            body = _build_list(
-                model=model,
-                index=index,
+            body = _render_list(
+                node=node,
                 depth=depth,
                 nested_in_cell_depth=nested_in_cell_depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
         case ModelStructure.TABLE:
-            body = _build_table(
-                model=model,
-                index=index,
+            body = _render_table(
+                node=node,
                 depth=depth,
                 nested_in_cell_depth=nested_in_cell_depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
         case ModelStructure.TABLE_TREE | ModelStructure.COMPLEX_TREE:
-            body = _build_tree_table(
-                model=model,
-                index=index,
+            body = _render_tree_table(
+                node=node,
                 depth=depth,
                 config=config,
-                state=state,
-                to_string=to_string,
+                root_model_name=root_model_name,
             )
         case _:
-            raise ValueError(f"Unknown structure {structure} for index "
-                             f"[{index.row()}:{index.column()}] at depth {depth}")
+            row_repr = node.item.row if node.item is not None else -1
+            column_repr = node.item.column if node.item is not None else -1
+            raise ValueError(
+                f"Unknown structure {structure} for snapshot node [{row_repr}:{column_repr}] at depth {depth}"
+            )
 
-    if suppress_item_at_root or not index.isValid():
+    if suppress_item_at_root or node.item is None:
         return body
 
     return Group(
-        _build_value(
-            model=model,
-            index=index,
-            depth=depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-        ), body)
+        _render_value(node=node,
+                      depth=depth,
+                      config=config,
+                      root_model_name=root_model_name),
+        body,
+    )
+
+
+@beartype
+def render_snapshot(
+    snapshot: ModelDumpSnapshot,
+    config: ModelRichDumpConfig | None = None,
+) -> RenderableType:
+    if config is None:
+        config = ModelRichDumpConfig()
+    return _render_node(
+        node=snapshot.root,
+        depth=0,
+        nested_in_cell_depth=0,
+        config=config,
+        root_model_name=snapshot.root_model_name,
+        suppress_item_at_root=not config.include_root_entry,
+    )
 
 
 @beartype
@@ -1171,22 +1187,15 @@ def dump(
     to_string: Callable[[QModelIndex], str] | None = None,
     config: ModelRichDumpConfig | None = None,
 ) -> RenderableType:
-    if model is None:
-        return Text("")
-    if parent is None:
-        parent = QModelIndex()
     if config is None:
         config = ModelRichDumpConfig()
-    return _build_node(
+    snapshot = extract_snapshot(
         model=model,
-        index=parent,
-        depth=0,
-        nested_in_cell_depth=0,
-        config=config,
-        state=BuildState(),
+        parent=parent,
         to_string=to_string,
-        suppress_item_at_root=not config.include_root_entry,
+        config=config,
     )
+    return render_snapshot(snapshot=snapshot, config=config)
 
 
 @beartype
