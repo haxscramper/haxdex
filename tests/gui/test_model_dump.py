@@ -9,14 +9,7 @@ from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from rich.console import Console
 from rich.text import Text
 
-from haxdex.gui.agnostic.model_dump import ModelRichDumpConfig, dump
-
-
-@beartype
-def render_text(renderable: object) -> str:
-    console = Console(record=True, width=220)
-    console.print(renderable)
-    return console.export_text()
+from haxdex.gui.agnostic.model_dump import ModelRichDumpConfig, dump, render_text
 
 
 @beartype
@@ -31,7 +24,7 @@ def test_detects_table_model() -> None:
     model.setData(model.index(1, 0), "r1c0")
     model.setData(model.index(1, 1), "r1c1")
     renderable = dump(model=model, parent=QModelIndex(), config=ModelRichDumpConfig())
-    text = render_text(renderable)
+    text = render_text(renderable, width=220)
     assert "A" in text
     assert "B" in text
     assert "r0c0" in text
@@ -62,8 +55,10 @@ def test_nested_structure_in_table_cell_with_limit() -> None:
     assert "nested-r0c1" in text_with_nested
 
     config_without_nested = ModelRichDumpConfig(max_nested_in_cells=0)
-    text_without_nested = render_text(
-        dump(model=model, parent=QModelIndex(), config=config_without_nested))
+    text_without_nested = render_text(dump(model=model,
+                                           parent=QModelIndex(),
+                                           config=config_without_nested),
+                                      width=220)
     assert "nested-r0c0" not in text_without_nested
     assert "nested-r0c1" not in text_without_nested
 
@@ -84,8 +79,8 @@ def test_role_acceptance_override() -> None:
         def accept_role(self, role: int, role_name: str) -> bool:
             return role == int(Qt.ItemDataRole.DisplayRole)
 
-    default_text = render_text(dump(model=model, config=ModelRichDumpConfig()))
-    filtered_text = render_text(dump(model=model, config=OnlyDisplayConfig()))
+    default_text = render_text(dump(model=model, config=ModelRichDumpConfig()), width=220)
+    filtered_text = render_text(dump(model=model, config=OnlyDisplayConfig()), width=220)
     assert "custom-value" in default_text
     assert "custom-value" not in filtered_text
 
@@ -104,5 +99,5 @@ def test_item_formatting_override() -> None:
         def format_item(self, context):  # type: ignore[override]
             return Text(f"OVERRIDE:{context.index.row()}:{context.index.column()}")
 
-    text = render_text(dump(model=model, config=OverrideItemConfig()))
+    text = render_text(dump(model=model, config=OverrideItemConfig()), width=220)
     assert "OVERRIDE:0:0" in text

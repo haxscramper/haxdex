@@ -93,11 +93,11 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     )
 
 
-def sub_row_by_name(index: QModelIndex, suffix: str) -> QModelIndex:
+def sub_row_by_name(index: QModelIndex, suffix: str, name_column: int = 0) -> QModelIndex:
     model = index.model()
     assert model
     for i in range(0, model.rowCount(index)):
-        row_idx = model.index(i, 0, index)
+        row_idx = model.index(i, name_column, index)
         node = row_idx.internalPointer()
         assert isinstance(node, FileTreeNode)
         if str(node.path).endswith(suffix):

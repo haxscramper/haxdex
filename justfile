@@ -3,7 +3,7 @@ test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
         --disable-warnings \
-        "tests/gui/test_model_dump.py" \
+        "tests/e2e/test_pbt_tree.py"  \
         > test_results.tmp.log 2>&1
 
 

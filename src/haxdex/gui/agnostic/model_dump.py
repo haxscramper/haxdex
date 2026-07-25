@@ -6,11 +6,15 @@ from beartype import beartype
 from beartype.typing import Callable, Literal
 
 from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
-from rich.console import Group, RenderableType
+from rich.console import Console, Group, RenderableType
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 import enum
+
+import logging
+
+log = logging.getLogger(__name__)
 
 
 @beartype
@@ -122,10 +126,13 @@ class ModelRichDumpConfig:
     def accept_role(self, role: int, role_name: str) -> bool:
         if role == int(Qt.ItemDataRole.DisplayRole):
             return True
+
         if role == int(Qt.ItemDataRole.WhatsThisRole):
             return True
+
         if int(Qt.ItemDataRole.UserRole) <= role:
             return True
+
         return False
 
     @beartype
@@ -235,11 +242,14 @@ def _collect_roles(
         role_name = config.role_name(role_name_raw)
         if not config.accept_role(role_int, role_name):
             continue
+
         value = index.data(role_int)
         if value is None:
             continue
+
         records.append(
             IndexRoleRepr(role_name=role_name, role_value=config.format_value(value)))
+
     return records
 
 
@@ -498,6 +508,9 @@ def _build_node(
     suppress_item_at_root: bool = False,
 ) -> RenderableType:
     if in_table_cell and config.max_nested_in_cells <= nested_in_cell_depth:
+        log.debug(
+            f"result structure short exit {in_table_cell} {config.max_nested_in_cells} {nested_in_cell_depth}"
+        )
         return _build_value(
             model=model,
             index=index,
@@ -506,6 +519,7 @@ def _build_node(
             state=state,
             to_string=to_string,
         )
+
     row_count = model.rowCount(index)
     column_count = model.columnCount(index)
     structure = config.infer_structure(
@@ -517,6 +531,9 @@ def _build_node(
             row_count=row_count,
             column_count=column_count,
         ))
+
+    log.debug(f"result structure {structure}")
+
     match structure:
         case ModelStructure.TABLE:
             table_renderable = _build_table(
@@ -582,7 +599,7 @@ def _build_node(
                 to_string=to_string,
             )
             return tree_renderable
-        case _:
+        case ModelStructure.VALUE:
             return _build_value(
                 model=model,
                 index=index,
@@ -591,6 +608,9 @@ def _build_node(
                 state=state,
                 to_string=to_string,
             )
+
+        case _:
+            raise ValueError(f"Unknown structure result {structure}")
 
 
 @beartype
@@ -629,6 +649,9 @@ def dump(
             row_count=row_count,
             column_count=column_count,
         ))
+
+    log.debug(f"result structure {structure}")
+
     match structure:
         case ModelStructure.TABLE:
             return _build_table(
@@ -660,7 +683,7 @@ def dump(
                 state=state,
                 to_string=to_string,
             )
-        case _:
+        case ModelStructure.VALUE:
             return _build_value(
                 model=model,
                 index=parent,
@@ -669,3 +692,13 @@ def dump(
                 state=state,
                 to_string=to_string,
             )
+
+        case _:
+            raise ValueError(f"Unknown structure {structure}")
+
+
+@beartype
+def render_text(renderable: object, width=220) -> str:
+    console = Console(record=True, width=220)
+    console.print(renderable)
+    return console.export_text()

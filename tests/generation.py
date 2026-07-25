@@ -19,6 +19,11 @@ from pydantic import BaseModel
 from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.pydantic_utils import model_to_json_data
 
+from dataclasses import dataclass
+from pathlib import Path
+
+from pydantic import BaseModel
+
 
 @dataclass(frozen=True)
 class GeneratedIndexerFile:
@@ -29,6 +34,92 @@ class GeneratedIndexerFile:
 @dataclass(frozen=True)
 class GeneratedDirectory:
     files: list[GeneratedIndexerFile]
+
+    @staticmethod
+    def _as_relative_path(path: Path | str) -> Path:
+        path = Path(path)
+        if path.is_absolute():
+            raise ValueError(f"Expected relative path, got absolute: {path}")
+        return path
+
+    def collect_directories_direct(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+
+        for item in self.files:
+            parent = item.relative_path.parent
+            if parent != Path(".") and parent.parent == path:
+                result.append(item)
+
+        return result
+
+    def collect_directories_recursive(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+        for item in self.files:
+            parent = item.relative_path.parent
+            if parent == Path("."):
+                continue
+
+            if path == Path("."):
+                result.append(item)
+                continue
+
+            if parent.is_relative_to(path) and parent != path:
+                result.append(item)
+
+        return result
+
+    def collect_files_direct(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+        for item in self.files:
+            if item.relative_path.parent == path:
+                result.append(item)
+
+        return result
+
+    def collect_files_recursive(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+        for item in self.files:
+            if path == Path("."):
+                result.append(item)
+                continue
+
+            if item.relative_path.is_relative_to(path):
+                result.append(item)
+
+        return result
+
+    def collect_entries_direct(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+        result.extend(self.collect_directories_direct(path))
+        result.extend(self.collect_files_direct(path))
+        return result
+
+    def collect_entries_recursive(
+        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
+        path = self._as_relative_path(path)
+        result: list[GeneratedIndexerFile] = []
+        result.extend(self.collect_directories_recursive(path))
+        result.extend(self.collect_files_recursive(path))
+        return result
+
+    def get_file_by_relative_name(self,
+                                  relative_name: Path | str) -> GeneratedIndexerFile:
+        relative_name = self._as_relative_path(relative_name)
+        for item in self.files:
+            if item.relative_path == relative_name:
+                return item
+
+        raise KeyError(f"Generated indexer file not found: {relative_name}")
 
 
 @dataclass(frozen=True)
