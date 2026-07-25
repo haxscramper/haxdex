@@ -854,7 +854,7 @@ def _make_tree_rows_table(
                     f"Row {row_idx} has {len(row.cells)} cells, expected at least {column_count} cells"
                 )
 
-            index_line, value_line = _tree_cell_lines(
+            index_line, *value_lines = _tree_cell_lines(
                 node=row.cells[column],
                 depth=depth,
                 config=config,
@@ -862,7 +862,7 @@ def _make_tree_rows_table(
             )
 
             idx_cells.append(Text(index_line, style=config.style_index))
-            val_cells.append(Text(value_line, style=config.style_repr))
+            val_cells.append(Group(*value_lines))
 
         table.add_row(*idx_cells)
         table.add_row(*val_cells, end_section=True)
@@ -1032,18 +1032,24 @@ def _append_tree_table_rows(
 
 
 @beartype
-def _make_header_table(node: SnapshotNode, column_count: int, widths: list[int]) -> Table:
-    header_table = Table.grid(expand=False, pad_edge=False)
-    for width in widths:
-        header_table.add_column(width=width, no_wrap=True, overflow="ignore")
+def _make_header_table(
+    node: SnapshotNode,
+    column_count: int,
+    widths: list[int],
+    config: ModelRichDumpConfig,
+) -> Text:
+    tree_prefix_width = max(len(config.tree_guide_branch), len(config.tree_guide_last))
+    first_col_width = widths[0] + tree_prefix_width
 
-    header_cells: list[RenderableType] = [Text("")]
+    sep = " | "
+    parts: list[str] = [" " * first_col_width]
+
     for column in range(column_count):
         header = node.column_headers[column] if column < len(
             node.column_headers) else f"C{column}"
-        header_cells.append(Text(header, style="bold"))
-    header_table.add_row(*header_cells)
-    return header_table
+        parts.append(f"{header:^{widths[column + 1]}}")
+
+    return Text("  " + sep.join(parts), style="bold")
 
 
 @beartype
@@ -1080,7 +1086,12 @@ def _render_tree_table(
     root_label = Group(
         Text(root_model_name if node.item is None else node.item.model_name,
              style=config.style_model_name),
-        _make_header_table(node=node, column_count=column_count, widths=widths),
+        _make_header_table(
+            node=node,
+            column_count=column_count,
+            widths=widths,
+            config=config,
+        ),
     )
     root = config.create_tree(root_label)
 
