@@ -183,16 +183,15 @@ def test_recursive_filter_then_flatten() -> None:
 
 
 def test_filter_change_updates_flatten() -> None:
-    with QtTrace():
-        tree = make_tree_model()
-        pre = QSortFilterProxyModel()
-        pre.setRecursiveFilteringEnabled(True)
-        pre.setFilterKeyColumn(0)
-        pre.setSourceModel(tree)
+    tree = make_tree_model()
+    pre = QSortFilterProxyModel()
+    pre.setRecursiveFilteringEnabled(True)
+    pre.setFilterKeyColumn(0)
+    pre.setSourceModel(tree)
 
-        flatten = TreeToTableProxyModel()
-        flatten.setSourceModel(pre)
-        assert flatten.rowCount() == 5
+    flatten = TreeToTableProxyModel()
+    flatten.setSourceModel(pre)
+    assert flatten.rowCount() == 5
 
-        pre.setFilterRegularExpression("^n0$")
-        assert flat_column0(flatten) == ["item0", "n0"]
+    pre.setFilterRegularExpression("^n0$")
+    assert flat_column0(flatten) == ["item0", "n0"]

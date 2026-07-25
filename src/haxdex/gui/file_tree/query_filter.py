@@ -7,7 +7,7 @@ from PyQt6.QtCore import QModelIndex, QObject
 from beartype import beartype
 from beartype.typing import Callable, cast
 
-from haxdex.gui.abstract_models.column_model import AbstractColumnItemModel
+from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.file_tree.actions.action_list_model import ActionListModel, ActionProvider
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.python_code_editor import (

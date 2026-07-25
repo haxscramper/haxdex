@@ -4,7 +4,7 @@ from beartype.typing import Any
 
 from PyQt6.QtCore import QModelIndex, Qt
 
-from haxdex.gui.abstract_models.tree_column_model import AbstractTreeColumnModel
+from haxdex.gui.agnostic.tree_column_model import AbstractTreeColumnModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 import logging
 

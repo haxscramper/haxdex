@@ -3,7 +3,7 @@ from beartype.typing import Any, Generic, Sequence, TypeVar, cast
 from beartype import beartype
 from PyQt6.QtCore import QModelIndex, QObject
 
-from haxdex.gui.abstract_models.column_model import AbstractColumnItemModel, ColumnSpec
+from haxdex.gui.agnostic.column_model import AbstractColumnItemModel, ColumnSpec
 
 T = TypeVar("T")
 

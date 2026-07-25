@@ -2,9 +2,8 @@
 test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
-        --capture=tee-sys \
         --disable-warnings \
-        "tests/gui/test_tree_to_table.py" \
+        "tests/gui/test_model_dump.py" \
         > test_results.tmp.log 2>&1
 
 

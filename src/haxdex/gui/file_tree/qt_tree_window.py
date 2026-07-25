@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.cli.cli_config import FileTreeViewConfig, AppConfig
-from haxdex.gui.abstract_models.column_model import AbstractColumnItemModel
+from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.common.qt_model_roles import CustomModelRole

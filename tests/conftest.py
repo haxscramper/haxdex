@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import shutil
 
+from PyQt6.QtCore import QCoreApplication
 from beartype import beartype
 from sqlalchemy import Engine, create_engine
 
@@ -219,7 +220,7 @@ def image_directory(request: pytest.FixtureRequest):
 
 
 @pytest.fixture(scope="session")
-def qapp():
+def qt_app():
     """Fixture providing QApplication instance."""
     from PyQt6.QtWidgets import QApplication
 
@@ -234,3 +235,12 @@ def screenshot_dir(request: pytest.FixtureRequest):
     screenshot_dir = get_test_dir(request) / "screenshots"
     screenshot_dir.mkdir(exist_ok=True, parents=True)
     yield screenshot_dir
+
+
+@beartype
+@pytest.fixture(scope="session", autouse=True)
+def qt_core_app() -> Generator[QCoreApplication, None, None]:
+    app = QCoreApplication.instance()
+    if app is None:
+        app = QCoreApplication([])
+    yield app

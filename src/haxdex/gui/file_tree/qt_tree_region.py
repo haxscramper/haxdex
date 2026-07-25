@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.gui.abstract_models.column_model import AbstractColumnItemModel
+from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
