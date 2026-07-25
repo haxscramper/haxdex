@@ -140,7 +140,7 @@ class FileTreeViewConfig(BaseModel, extra="forbid"):
     reference_tree_cache_path: OutputFile = Path("/tmp/reference_tree_cache.sqlite")
     visual_tree_cache_path: OutputFile = Path("/tmp/input_tree_cache.sqlite")
     drop_cache_files: bool = False
-    user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite")
+    user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite").expanduser()
 
 
 class ActionConfig(BaseModel, extra="forbid"):
