@@ -563,3 +563,48 @@ def write_generated_directory(
         root=root,
         files=materialized_files,
     )
+
+
+@beartype
+def assert_generated_directory_entries_exact(
+    root: Path,
+    generated: GeneratedDirectory,
+) -> None:
+    assert root.exists() and root.is_dir(), f"Expected directory at {root}"
+
+    expected_files: set[Path] = set()
+    for gfile in generated.files:
+        rel = gfile.relative_path
+        expected_files.add(rel)
+        expected_files.add(rel.with_name(f"{rel.name}.haxdex-meta.json"))
+
+    expected_dirs: set[Path] = set()
+    for rel_file in expected_files:
+        parent = rel_file.parent
+        while parent != Path("."):
+            expected_dirs.add(parent)
+            parent = parent.parent
+
+    actual_files: set[Path] = set()
+    actual_dirs: set[Path] = set()
+
+    for path in root.rglob("*"):
+        rel = path.relative_to(root)
+        if path.is_file():
+            actual_files.add(rel)
+        elif path.is_dir():
+            actual_dirs.add(rel)
+        else:
+            raise AssertionError(f"Unexpected non-file/non-dir entry: {path}")
+
+    missing_files = expected_files - actual_files
+    extra_files = actual_files - expected_files
+    missing_dirs = expected_dirs - actual_dirs
+    extra_dirs = actual_dirs - expected_dirs
+
+    assert not missing_files and not extra_files and not missing_dirs and not extra_dirs, (
+        "Directory entries mismatch:\n"
+        f"  missing files: {sorted(map(str, missing_files))}\n"
+        f"  extra files:   {sorted(map(str, extra_files))}\n"
+        f"  missing dirs:  {sorted(map(str, missing_dirs))}\n"
+        f"  extra dirs:    {sorted(map(str, extra_dirs))}")

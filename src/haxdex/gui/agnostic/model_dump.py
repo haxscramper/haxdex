@@ -6,7 +6,7 @@ import io
 import logging
 
 from beartype import beartype
-from beartype.typing import Callable
+from beartype.typing import Callable, List, Tuple
 from pydantic import BaseModel, Field
 
 from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
@@ -194,6 +194,19 @@ class ModelRichDumpConfig:
         return bytes(role_name).decode("utf-8", errors="replace")
 
     @beartype
+    def extra_roles(
+        self,
+        model: QAbstractItemModel,
+        index: QModelIndex,
+    ) -> list[IndexRoleRepr]:
+        return [
+            IndexRoleRepr(
+                role_name="model_size",
+                role_value=f"{model.rowCount(index)} rows {model.columnCount(index)} cols",
+            )
+        ]
+
+    @beartype
     def accept_role(self, role: int, role_name: str) -> bool:
         if role == int(Qt.ItemDataRole.DisplayRole):
             return True
@@ -308,6 +321,7 @@ def _collect_roles(
 
     role_data = model.roleNames()
     records: list[SnapshotRole] = []
+
     for role, role_name_raw in sorted(role_data.items(), key=lambda entry: int(entry[0])):
         role_int = int(role)
         role_name = config.role_name(role_name_raw)
@@ -321,6 +335,14 @@ def _collect_roles(
                 role_name=role_name,
                 role_value=config.format_value(value),
             ))
+
+    for extra in config.extra_roles(model=model, index=index):
+        records.append(
+            SnapshotRole(
+                role_name=extra.role_name,
+                role_value=extra.role_value,
+            ))
+
     return records
 
 
@@ -411,6 +433,7 @@ def extract_snapshot(
         )
     if parent is None:
         parent = QModelIndex()
+
     if config is None:
         config = ModelRichDumpConfig()
 
@@ -419,6 +442,7 @@ def extract_snapshot(
 
     @beartype
     def extract_node(index: QModelIndex, depth: int) -> SnapshotNode:
+        assert model is not None
         row_count = model.rowCount(index)
         column_count = model.columnCount(index)
         nested_columns, tree_columns = _extract_structure_columns(
@@ -514,9 +538,11 @@ def _default_item_renderable(
     else:
         if config.include_index_coordinates:
             label.append(f"[{context.row}:{context.column}]", style=config.style_index)
+
         if config.include_index_identity:
             if 0 < len(label.plain):
                 label.append(" ", style=config.style_index)
+
             label.append(context.identity, style=config.style_index)
 
     parts.append(label)
@@ -889,22 +915,27 @@ def _collect_tree_table_widths(
                 raise ValueError(
                     f"Row {row_idx} has {len(row.cells)} cells, expected at least {visible_columns} cells"
                 )
-            index_line, value_line = _tree_cell_lines(
+            index_line, *value_lines = _tree_cell_lines(
                 node=row.cells[column],
                 depth=depth,
                 config=config,
                 root_model_name=root_model_name,
             )
-            widths[column + 1] = max(widths[column + 1], len(index_line), len(value_line))
+
+            widths[column + 1] = max(widths[column + 1], len(index_line),
+                                     max([len(value_line) for value_line in value_lines]))
 
         if visible_columns <= 0:
             continue
+
         if len(row.cells) <= 0:
             raise ValueError(
                 f"Row {row_idx} has no cells while collecting tree-table widths")
+
         first = row.cells[0]
         if first.row_count <= 0:
             continue
+
         if first.column_count == column_count:
             _collect_tree_table_widths(
                 node=first,
@@ -1228,3 +1259,39 @@ def render_text(renderable: object, width: int = 220) -> str:
     )
     console.print(renderable)
     return console.export_text()
+
+
+@beartype
+def simple_dump(model: QAbstractItemModel, indentation_step: str = "  ") -> str:
+
+    @beartype
+    def format_display_value(value: object) -> str:
+        match value:
+            case None:
+                return "None"
+            case str():
+                return value
+            case _:
+                return str(value)
+
+    lines: List[str] = []
+
+    @beartype
+    def traverse(parent_index: QModelIndex, path: List[Tuple[int, int]],
+                 depth: int) -> None:
+        row_count = model.rowCount(parent_index)
+        column_count = model.columnCount(parent_index)
+        for row in range(row_count):
+            for col in range(column_count):
+                nested_index = model.index(row, col, parent_index)
+                nested_path = [*path, (row, col)]
+                path_text = "".join(
+                    f"[{path_row}.{path_col}]" for path_row, path_col in nested_path)
+                display_value = model.data(nested_index, Qt.ItemDataRole.DisplayRole)
+                lines.append(
+                    f"{indentation_step * depth}{path_text} {format_display_value(display_value)}"
+                )
+                traverse(nested_index, nested_path, depth + 1)
+
+    traverse(QModelIndex(), [], 0)
+    return "\n".join(lines)
