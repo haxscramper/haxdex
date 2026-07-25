@@ -16,10 +16,19 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def _all_query_paths(directory: GeneratedDirectory) -> list[Path]:
+def _fs_content_files(root: Path) -> list[Path]:
+    return sorted(
+        (path.relative_to(root)
+         for path in root.rglob("*")
+         if path.is_file() and not path.name.endswith(".haxdex-meta.json")),
+        key=lambda p: (len(p.parts), str(p)),
+    )
+
+
+def _all_query_paths_from_files(files: list[Path]) -> list[Path]:
     result: set[Path] = {Path(".")}
-    for item in directory.files:
-        parent = item.relative_path.parent
+    for rel in files:
+        parent = rel.parent
         while True:
             result.add(parent)
             if parent == Path("."):
@@ -28,8 +37,8 @@ def _all_query_paths(directory: GeneratedDirectory) -> list[Path]:
     return sorted(result, key=lambda p: (len(p.parts), str(p)))
 
 
-def _paths(items: list[GeneratedIndexerFile]) -> list[Path]:
-    return [item.relative_path for item in items]
+def _relset(items: list[GeneratedIndexerFile]) -> set[Path]:
+    return {item.relative_path for item in items}
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture],)
@@ -64,60 +73,47 @@ def test_generated_directory_collect_methods_match_content(
     materialized = write_generated_directory(gen_dir, directory)
     assert_generated_directory_entries_exact(materialized.root, directory)
 
-    fs_files = {
-        path.relative_to(materialized.root)
-        for path in materialized.root.rglob("*")
-        if path.is_file() and not path.name.endswith(".haxdex-meta.json")
-    }
-    model_files = {item.relative_path for item in directory.files}
-    assert fs_files == model_files
+    fs_files = _fs_content_files(materialized.root)
+    assert set(fs_files) == {item.relative_path for item in directory.files}
 
-    for path in _all_query_paths(directory):
-        expected_files_direct = [
-            item for item in directory.files if item.relative_path.parent == path
-        ]
-        expected_files_recursive = []
-        for item in directory.files:
-            if path == Path("."):
-                expected_files_recursive.append(item)
-                continue
-            if item.relative_path.is_relative_to(path):
-                expected_files_recursive.append(item)
+    for path in _all_query_paths_from_files(fs_files):
+        expected_files_direct = {rel for rel in fs_files if rel.parent == path}
 
-        expected_dirs_direct = [
-            item for item in directory.files if item.relative_path.parent != Path(".") and
-            item.relative_path.parent.parent == path
-        ]
-        expected_dirs_recursive = []
-        for item in directory.files:
-            parent = item.relative_path.parent
-            if parent == Path("."):
-                continue
-            if path == Path("."):
-                expected_dirs_recursive.append(item)
-                continue
-            if parent.is_relative_to(path) and parent != path:
-                expected_dirs_recursive.append(item)
+        if path == Path("."):
+            expected_files_recursive = set(fs_files)
+        else:
+            expected_files_recursive = {
+                rel for rel in fs_files if rel.is_relative_to(path)
+            }
 
-        assert _paths(
-            directory.collect_files_direct(path)) == _paths(expected_files_direct)
-        assert _paths(
-            directory.collect_files_recursive(path)) == _paths(expected_files_recursive)
-        assert _paths(
-            directory.collect_directories_direct(path)) == _paths(expected_dirs_direct)
-        assert _paths(directory.collect_directories_recursive(path)) == _paths(
-            expected_dirs_recursive)
+        expected_dirs_direct = {
+            rel for rel in fs_files
+            if rel.parent != Path(".") and rel.parent.parent == path
+        }
 
-        expected_entries_direct = expected_dirs_direct + expected_files_direct
-        expected_entries_recursive = expected_dirs_recursive + expected_files_recursive
+        if path == Path("."):
+            expected_dirs_recursive = {rel for rel in fs_files if rel.parent != Path(".")}
+        else:
+            expected_dirs_recursive = {
+                rel for rel in fs_files if rel.parent != Path(".") and
+                rel.parent.is_relative_to(path) and rel.parent != path
+            }
 
-        assert _paths(
-            directory.collect_entries_direct(path)) == _paths(expected_entries_direct)
-        assert _paths(directory.collect_entries_recursive(path)) == _paths(
-            expected_entries_recursive)
+        assert _relset(directory.collect_files_direct(path)) == expected_files_direct
+        assert _relset(
+            directory.collect_files_recursive(path)) == expected_files_recursive
+        assert _relset(directory.collect_directories_direct(path)) == expected_dirs_direct
+        assert _relset(
+            directory.collect_directories_recursive(path)) == expected_dirs_recursive
 
-    for item in directory.files:
-        assert directory.get_file_by_relative_name(item.relative_path) == item
+        assert _relset(directory.collect_entries_direct(path)) == (expected_dirs_direct |
+                                                                   expected_files_direct)
+        assert _relset(
+            directory.collect_entries_recursive(path)) == (expected_dirs_recursive |
+                                                           expected_files_recursive)
+
+    for rel in fs_files:
+        assert directory.get_file_by_relative_name(rel).relative_path == rel
 
     with pytest.raises(KeyError):
         directory.get_file_by_relative_name(Path("__missing__") / "nope.txt")
