@@ -567,10 +567,12 @@ def _build_tree(
             to_string=to_string,
         )
         branch = root_tree.add(nested_label)
-        if config.max_depth is not None and config.max_depth <= depth:
+        if config.max_depth is not None and config.max_depth < depth:
             continue
+
         if model.rowCount(nested_index) <= 0:
             continue
+
         branch.add(
             _build_node(
                 model=model,
@@ -586,6 +588,41 @@ def _build_tree(
 
 
 @beartype
+def _tree_cell_width_hint(
+    model: QAbstractItemModel,
+    index: QModelIndex,
+    depth: int,
+    config: ModelRichDumpConfig,
+    to_string: Callable[[QModelIndex], str] | None,
+) -> int:
+    context = _item_context(
+        model=model,
+        index=index,
+        depth=depth,
+        config=config,
+        to_string=to_string,
+    )
+
+    override = config.format_item(context)
+    if override is not None:
+        return _measure_width(override)
+
+    candidates: list[int] = [0]
+
+    if config.include_final_repr and 0 < len(context.final_repr):
+        candidates.append(len(context.final_repr))
+
+    if config.include_roles:
+        for role in context.roles:
+            candidates.append(len(role.role_value))
+            candidates.append(len(role.role_name) + len(role.role_value))
+
+    if max(candidates) == 0:
+        candidates.append(len(f"{index.row()}:{index.column()}"))
+
+    return max(candidates)
+
+
 def _collect_tree_table_lines(
     model: QAbstractItemModel,
     index: QModelIndex,
@@ -596,6 +633,7 @@ def _collect_tree_table_lines(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
     lines: list[TreeTableLine],
+    column_widths: list[int],
 ) -> None:
     row_count = model.rowCount(index)
     local_column_count = model.columnCount(index)
@@ -610,18 +648,31 @@ def _collect_tree_table_lines(
             if local_column_count <= column:
                 cells.append(None)
                 continue
-            cells.append(
-                _format_item_renderable(
+
+            current_index = model.index(row, column, index)
+            cell = _format_item_renderable(
+                model=model,
+                index=current_index,
+                depth=depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
+            cells.append(cell)
+            column_widths[column] = max(
+                column_widths[column],
+                _tree_cell_width_hint(
                     model=model,
-                    index=model.index(row, column, index),
+                    index=current_index,
                     depth=depth,
                     config=config,
-                    state=state,
                     to_string=to_string,
-                ))
+                ),
+            )
+
         lines.append(TreeTableLine(prefix=line_prefix, cells=cells))
 
-        depth_exhausted = config.max_depth is not None and config.max_depth <= depth
+        depth_exhausted = config.max_depth is not None and config.max_depth < depth
         if depth_exhausted:
             continue
 
@@ -664,7 +715,9 @@ def _collect_tree_table_lines(
                 state=state,
                 to_string=to_string,
                 lines=lines,
+                column_widths=column_widths,
             )
+
         else:
             lines.append(
                 TreeTableLine(
@@ -694,6 +747,11 @@ def _build_tree_table(
 ) -> RenderableType:
     column_count = model.columnCount(index)
     lines: list[TreeTableLine] = []
+    column_widths = [
+        max(config.tree_column_min_width, len(_column_header(model, column)))
+        for column in range(column_count)
+    ]
+
     _collect_tree_table_lines(
         model=model,
         index=index,
@@ -704,10 +762,15 @@ def _build_tree_table(
         state=state,
         to_string=to_string,
         lines=lines,
+        column_widths=column_widths,
     )
 
+    if config.tree_column_max_width is not None:
+        column_widths = [
+            min(width, config.tree_column_max_width) for width in column_widths
+        ]
+
     prefix_width = max((len(line.prefix) for line in lines), default=0)
-    column_widths: list[int] = []
     for column in range(column_count):
         width = max(config.tree_column_min_width, len(_column_header(model, column)))
         for line in lines:
