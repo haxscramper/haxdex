@@ -3,11 +3,11 @@ test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
         --disable-warnings \
-        "tests/e2e/test_pbt_tree.py"  \
+        "tests/gui/test_model_dump.py" \
         > test_results.tmp.log 2>&1
 
 
-#    "tests/e2e/test_pbt_tree.py" 
+# "tests/e2e/test_pbt_tree.py"  \
 #        "tests/gui/test_execute_actions.py" 
 
 [env("DISPLAY", ":2")]

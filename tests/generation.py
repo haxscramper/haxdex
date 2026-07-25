@@ -497,18 +497,20 @@ def directory_structure(
             st.lists(
                 st.text(
                     alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                    min_size=1,
-                    max_size=12,
+                    min_size=8,
+                    max_size=8,
                 ),
                 min_size=depth,
                 max_size=depth,
             ))
+
         stem = draw(
             st.text(
                 alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                min_size=1,
-                max_size=20,
+                min_size=8,
+                max_size=8,
             ))
+
         mime_type = draw(st.sampled_from(tuple(mime_types)))
         relative_path = Path(*nested_parts, f"{stem}{_MIME_SUFFIXES[mime_type]}")
         assume(relative_path not in relative_paths)

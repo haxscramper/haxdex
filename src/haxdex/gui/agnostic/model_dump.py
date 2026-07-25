@@ -3,15 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from beartype import beartype
-from beartype.typing import Callable, Literal
+from beartype.typing import Callable
 
 from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
 from rich.console import Console, Group, RenderableType
+from rich.measure import Measurement
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
-import enum
 
+import enum
+import io
 import logging
 
 log = logging.getLogger(__name__)
@@ -40,6 +42,15 @@ class ItemFormatContext:
     final_repr: str
 
 
+class ModelStructure(str, enum.Enum):
+    VALUE = "value"
+    LIST = "list"
+    TABLE = "table"
+    TREE = "tree"
+    TABLE_TREE = "table_tree"
+    COMPLEX_TREE = "complex_tree"
+
+
 @beartype
 @dataclass
 class StructureDetectContext:
@@ -49,19 +60,22 @@ class StructureDetectContext:
     nested_in_cell_depth: int
     row_count: int
     column_count: int
+    nested_columns: list[int]
+    tree_columns: list[int]
+
+
+@beartype
+@dataclass
+class TreeTableLine:
+    prefix: str
+    cells: list[RenderableType | None]
+    nested: RenderableType | None = None
 
 
 @beartype
 @dataclass
 class BuildState:
     model_names: dict[int, str] = field(default_factory=dict)
-
-
-class ModelStructure(str, enum.Enum):
-    LIST = "list"
-    TABLE = "table"
-    TREE = "tree"
-    VALUE = "value"
 
 
 @beartype
@@ -88,15 +102,19 @@ class ModelRichDumpConfig:
     table_show_lines: bool = True
     table_expand: bool = False
     table_pad_edge: bool = True
+    tree_table_show_lines: bool = False
     tree_guide_style: str = "bright_black"
-    list_title: str = "List"
-    table_title: str = "Table"
-    tree_title: str = "Tree"
+    tree_guide_branch: str = "├── "
+    tree_guide_last: str = "└── "
+    tree_guide_vertical: str = "│   "
+    tree_guide_space: str = "    "
+    tree_nested_header: str = "nested"
+    tree_column_min_width: int = 1
+    tree_column_max_width: int | None = None
 
     @beartype
-    def create_table(self, title: str | None = None) -> Table:
+    def create_table(self) -> Table:
         return Table(
-            title=title,
             show_header=self.table_show_header,
             show_lines=self.table_show_lines,
             expand=self.table_expand,
@@ -104,8 +122,17 @@ class ModelRichDumpConfig:
         )
 
     @beartype
-    def create_list_table(self, title: str | None = None) -> Table:
-        return self.create_table(title=title)
+    def create_list_table(self) -> Table:
+        return self.create_table()
+
+    @beartype
+    def create_tree_table(self) -> Table:
+        return Table(
+            show_header=self.table_show_header,
+            show_lines=self.tree_table_show_lines,
+            expand=False,
+            pad_edge=self.table_pad_edge,
+        )
 
     @beartype
     def create_tree(self, label: RenderableType) -> Tree:
@@ -136,35 +163,30 @@ class ModelRichDumpConfig:
         return False
 
     @beartype
-    def infer_structure(
-        self,
-        context: StructureDetectContext,
-    ) -> ModelStructure:
+    def infer_structure(self, context: StructureDetectContext) -> ModelStructure:
         if self.max_depth is not None and self.max_depth < context.depth:
             return ModelStructure.VALUE
 
-        if self.detect_table_models and 1 < context.column_count:
-            return ModelStructure.TABLE
+        if context.row_count <= 0:
+            return ModelStructure.VALUE
 
-        if self.detect_list_models and context.column_count <= 1 and 0 < context.row_count:
-            any_nested = False
-            for row in range(context.row_count):
-                nested_index = context.model.index(row, 0, context.index)
-                if 0 < context.model.rowCount(nested_index):
-                    any_nested = True
-                    break
-                if 1 < context.model.columnCount(nested_index):
-                    any_nested = True
-                    break
-            if any_nested:
-                if self.detect_tree_models:
-                    return ModelStructure.TREE
+        if context.column_count <= 1:
+            if 0 < len(context.nested_columns) and self.detect_tree_models:
+                return ModelStructure.TREE
 
-            else:
+            if self.detect_list_models:
                 return ModelStructure.LIST
 
-        if self.detect_tree_models and 0 < context.row_count:
-            return ModelStructure.TREE
+            return ModelStructure.VALUE
+
+        if 0 < len(context.tree_columns) and self.detect_tree_models:
+            if context.tree_columns == [0] and context.nested_columns == [0]:
+                return ModelStructure.TABLE_TREE
+
+            return ModelStructure.COMPLEX_TREE
+
+        if self.detect_table_models:
+            return ModelStructure.TABLE
 
         return ModelStructure.VALUE
 
@@ -179,6 +201,15 @@ class ModelRichDumpConfig:
     @beartype
     def format_item(self, context: ItemFormatContext) -> RenderableType | None:
         return None
+
+
+_MEASURE_CONSOLE = Console(width=10_000, file=io.StringIO())
+
+
+@beartype
+def _measure_width(renderable: object) -> int:
+    measurement = Measurement.get(_MEASURE_CONSOLE, _MEASURE_CONSOLE.options, renderable)
+    return measurement.maximum
 
 
 @beartype
@@ -305,7 +336,6 @@ def _item_context(
     index: QModelIndex,
     depth: int,
     config: ModelRichDumpConfig,
-    state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> ItemFormatContext:
     roles = _collect_roles(model=model, index=index, config=config)
@@ -313,7 +343,6 @@ def _item_context(
     final_repr = ""
     if to_string is not None:
         final_repr = str(to_string(index))
-    _ = state
     return ItemFormatContext(
         index=index,
         depth=depth,
@@ -337,13 +366,58 @@ def _format_item_renderable(
         index=index,
         depth=depth,
         config=config,
-        state=state,
         to_string=to_string,
     )
     override = config.format_item(context)
     if override is not None:
         return override
     return _default_item_renderable(context=context, config=config, state=state)
+
+
+@beartype
+def structure_context(
+    model: QAbstractItemModel,
+    index: QModelIndex,
+    depth: int,
+    nested_in_cell_depth: int,
+) -> StructureDetectContext:
+    row_count = model.rowCount(index)
+    column_count = model.columnCount(index)
+    nested_columns: list[int] = []
+    tree_columns: list[int] = []
+    for column in range(column_count):
+        column_has_nested = False
+        column_matches_run = False
+        for row in range(row_count):
+            nested_index = model.index(row, column, index)
+            if model.rowCount(nested_index) <= 0:
+                continue
+            column_has_nested = True
+            if model.columnCount(nested_index) == column_count:
+                column_matches_run = True
+        if column_has_nested:
+            nested_columns.append(column)
+        if column_matches_run:
+            tree_columns.append(column)
+    return StructureDetectContext(
+        model=model,
+        index=index,
+        depth=depth,
+        nested_in_cell_depth=nested_in_cell_depth,
+        row_count=row_count,
+        column_count=column_count,
+        nested_columns=nested_columns,
+        tree_columns=tree_columns,
+    )
+
+
+@beartype
+def _column_header(model: QAbstractItemModel, column: int) -> str:
+    header_value = model.headerData(column, Qt.Orientation.Horizontal,
+                                    int(Qt.ItemDataRole.DisplayRole))
+    if header_value is None:
+        return f"C{column}"
+    return str(header_value)
 
 
 @beartype
@@ -366,6 +440,38 @@ def _build_value(
 
 
 @beartype
+def _build_cell(
+    model: QAbstractItemModel,
+    index: QModelIndex,
+    depth: int,
+    nested_in_cell_depth: int,
+    config: ModelRichDumpConfig,
+    state: BuildState,
+    to_string: Callable[[QModelIndex], str] | None,
+) -> RenderableType:
+    if model.rowCount(index) <= 0 or config.max_nested_in_cells <= nested_in_cell_depth:
+        return _build_value(
+            model=model,
+            index=index,
+            depth=depth,
+            config=config,
+            state=state,
+            to_string=to_string,
+        )
+
+    return _build_node(
+        model=model,
+        index=index,
+        depth=depth,
+        nested_in_cell_depth=nested_in_cell_depth + 1,
+        config=config,
+        state=state,
+        to_string=to_string,
+        suppress_item_at_root=False,
+    )
+
+
+@beartype
 def _build_list(
     model: QAbstractItemModel,
     index: QModelIndex,
@@ -375,33 +481,24 @@ def _build_list(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    table = config.create_list_table(title=config.list_title)
+    table = config.create_list_table()
     table.add_column("#", style=config.style_index, no_wrap=True)
-    table.add_column("Item")
-    row_count = model.rowCount(index)
-    for row in range(row_count):
+    table.add_column("item")
+    for row in range(model.rowCount(index)):
         nested_index = model.index(row, 0, index)
-        cell_renderable = _build_node(
-            model=model,
-            index=nested_index,
-            depth=depth + 1,
-            nested_in_cell_depth=nested_in_cell_depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-            in_table_cell=True,
+        table.add_row(
+            str(row),
+            _build_cell(
+                model=model,
+                index=nested_index,
+                depth=depth + 1,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            ),
         )
-        table.add_row(str(row), cell_renderable)
     return table
-
-
-@beartype
-def _column_header(model: QAbstractItemModel, column: int) -> str:
-    header_value = model.headerData(column, Qt.Orientation.Horizontal,
-                                    int(Qt.ItemDataRole.DisplayRole))
-    if header_value is None:
-        return f"C{column}"
-    return str(header_value)
 
 
 @beartype
@@ -414,25 +511,23 @@ def _build_table(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    table = config.create_table(title=config.table_title)
+    table = config.create_table()
     column_count = model.columnCount(index)
     for column in range(column_count):
         table.add_column(_column_header(model, column))
-    row_count = model.rowCount(index)
-    for row in range(row_count):
+    for row in range(model.rowCount(index)):
         row_renderables: list[RenderableType] = []
         for column in range(column_count):
             nested_index = model.index(row, column, index)
             row_renderables.append(
-                _build_node(
+                _build_cell(
                     model=model,
                     index=nested_index,
                     depth=depth + 1,
-                    nested_in_cell_depth=nested_in_cell_depth + 1,
+                    nested_in_cell_depth=nested_in_cell_depth,
                     config=config,
                     state=state,
                     to_string=to_string,
-                    in_table_cell=True,
                 ))
         table.add_row(*row_renderables)
     return table
@@ -448,7 +543,6 @@ def _build_tree(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    root_label: RenderableType
     if index.isValid():
         root_label = _format_item_renderable(
             model=model,
@@ -459,12 +553,10 @@ def _build_tree(
             to_string=to_string,
         )
     else:
-        model_name = _resolve_model_name(model, state)
-        root_label = Text(f"{config.tree_title} [{model_name}]",
+        root_label = Text(_resolve_model_name(model, state),
                           style=config.style_model_name)
     root_tree = config.create_tree(root_label)
-    row_count = model.rowCount(index)
-    for row in range(row_count):
+    for row in range(model.rowCount(index)):
         nested_index = model.index(row, 0, index)
         nested_label = _format_item_renderable(
             model=model,
@@ -475,24 +567,183 @@ def _build_tree(
             to_string=to_string,
         )
         branch = root_tree.add(nested_label)
-        if config.max_depth is not None and config.max_depth < depth + 1:
+        if config.max_depth is not None and config.max_depth <= depth:
             continue
-        nested_row_count = model.rowCount(nested_index)
-        if nested_row_count <= 0:
+        if model.rowCount(nested_index) <= 0:
             continue
-        nested_renderable = _build_node(
-            model=model,
-            index=nested_index,
-            depth=depth + 2,
-            nested_in_cell_depth=nested_in_cell_depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-            in_table_cell=False,
-            suppress_item_at_root=True,
-        )
-        branch.add(nested_renderable)
+        branch.add(
+            _build_node(
+                model=model,
+                index=nested_index,
+                depth=depth + 1,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+                suppress_item_at_root=True,
+            ))
     return root_tree
+
+
+@beartype
+def _collect_tree_table_lines(
+    model: QAbstractItemModel,
+    index: QModelIndex,
+    depth: int,
+    prefix: str,
+    column_count: int,
+    config: ModelRichDumpConfig,
+    state: BuildState,
+    to_string: Callable[[QModelIndex], str] | None,
+    lines: list[TreeTableLine],
+) -> None:
+    row_count = model.rowCount(index)
+    local_column_count = model.columnCount(index)
+    for row in range(row_count):
+        is_last = row_count - 1 <= row
+        line_prefix = prefix + (config.tree_guide_last
+                                if is_last else config.tree_guide_branch)
+        continuation = prefix + (config.tree_guide_space
+                                 if is_last else config.tree_guide_vertical)
+        cells: list[RenderableType | None] = []
+        for column in range(column_count):
+            if local_column_count <= column:
+                cells.append(None)
+                continue
+            cells.append(
+                _format_item_renderable(
+                    model=model,
+                    index=model.index(row, column, index),
+                    depth=depth,
+                    config=config,
+                    state=state,
+                    to_string=to_string,
+                ))
+        lines.append(TreeTableLine(prefix=line_prefix, cells=cells))
+
+        depth_exhausted = config.max_depth is not None and config.max_depth <= depth
+        if depth_exhausted:
+            continue
+
+        visible_columns = min(column_count, local_column_count)
+        for column in range(1, visible_columns):
+            nested_index = model.index(row, column, index)
+            if model.rowCount(nested_index) <= 0:
+                continue
+            lines.append(
+                TreeTableLine(
+                    prefix=continuation,
+                    cells=[None] * column_count,
+                    nested=_build_node(
+                        model=model,
+                        index=nested_index,
+                        depth=depth + 1,
+                        nested_in_cell_depth=0,
+                        config=config,
+                        state=state,
+                        to_string=to_string,
+                        suppress_item_at_root=False,
+                    ),
+                ))
+
+        if visible_columns <= 0:
+            continue
+
+        first_index = model.index(row, 0, index)
+        if model.rowCount(first_index) <= 0:
+            continue
+
+        if model.columnCount(first_index) == column_count:
+            _collect_tree_table_lines(
+                model=model,
+                index=first_index,
+                depth=depth + 1,
+                prefix=continuation,
+                column_count=column_count,
+                config=config,
+                state=state,
+                to_string=to_string,
+                lines=lines,
+            )
+        else:
+            lines.append(
+                TreeTableLine(
+                    prefix=continuation,
+                    cells=[None] * column_count,
+                    nested=_build_node(
+                        model=model,
+                        index=first_index,
+                        depth=depth + 1,
+                        nested_in_cell_depth=0,
+                        config=config,
+                        state=state,
+                        to_string=to_string,
+                        suppress_item_at_root=True,
+                    ),
+                ))
+
+
+@beartype
+def _build_tree_table(
+    model: QAbstractItemModel,
+    index: QModelIndex,
+    depth: int,
+    config: ModelRichDumpConfig,
+    state: BuildState,
+    to_string: Callable[[QModelIndex], str] | None,
+) -> RenderableType:
+    column_count = model.columnCount(index)
+    lines: list[TreeTableLine] = []
+    _collect_tree_table_lines(
+        model=model,
+        index=index,
+        depth=depth,
+        prefix="",
+        column_count=column_count,
+        config=config,
+        state=state,
+        to_string=to_string,
+        lines=lines,
+    )
+
+    prefix_width = max((len(line.prefix) for line in lines), default=0)
+    column_widths: list[int] = []
+    for column in range(column_count):
+        width = max(config.tree_column_min_width, len(_column_header(model, column)))
+        for line in lines:
+            cell = line.cells[column] if column < len(line.cells) else None
+            if cell is None:
+                continue
+            width = max(width, _measure_width(cell))
+        if config.tree_column_max_width is not None:
+            width = min(width, config.tree_column_max_width)
+        column_widths.append(width)
+
+    has_nested = any(line.nested is not None for line in lines)
+    table = config.create_tree_table()
+    table.add_column("", width=prefix_width, no_wrap=True, style=config.tree_guide_style)
+    for column in range(column_count):
+        table.add_column(
+            _column_header(model, column),
+            width=column_widths[column],
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+    if has_nested:
+        table.add_column(config.tree_nested_header)
+
+    for line in lines:
+        row_renderables: list[RenderableType] = [
+            Text(line.prefix, style=config.tree_guide_style)
+        ]
+        for column in range(column_count):
+            cell = line.cells[column] if column < len(line.cells) else None
+            row_renderables.append(cell if cell is not None else Text(""))
+        if has_nested:
+            row_renderables.append(line.nested if line.nested is not None else Text(""))
+        table.add_row(*row_renderables)
+
+    return table
 
 
 @beartype
@@ -504,101 +755,20 @@ def _build_node(
     config: ModelRichDumpConfig,
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
-    in_table_cell: bool,
-    suppress_item_at_root: bool = False,
+    suppress_item_at_root: bool,
 ) -> RenderableType:
-    if in_table_cell and config.max_nested_in_cells <= nested_in_cell_depth:
-        log.debug(
-            f"result structure short exit {in_table_cell} {config.max_nested_in_cells} {nested_in_cell_depth}"
-        )
-        return _build_value(
-            model=model,
-            index=index,
-            depth=depth,
-            config=config,
-            state=state,
-            to_string=to_string,
-        )
-
-    row_count = model.rowCount(index)
-    column_count = model.columnCount(index)
-    structure = config.infer_structure(
-        StructureDetectContext(
-            model=model,
-            index=index,
-            depth=depth,
-            nested_in_cell_depth=nested_in_cell_depth,
-            row_count=row_count,
-            column_count=column_count,
-        ))
-
-    log.debug(f"result structure {structure}")
+    context = structure_context(
+        model=model,
+        index=index,
+        depth=depth,
+        nested_in_cell_depth=nested_in_cell_depth,
+    )
+    structure = config.infer_structure(context)
+    log.debug(f"structure {structure} at depth {depth} "
+              f"rows {context.row_count} columns {context.column_count} "
+              f"nested {context.nested_columns} tree {context.tree_columns}")
 
     match structure:
-        case ModelStructure.TABLE:
-            table_renderable = _build_table(
-                model=model,
-                index=index,
-                depth=depth,
-                nested_in_cell_depth=nested_in_cell_depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-            if suppress_item_at_root:
-                return table_renderable
-            item_renderable = _build_value(
-                model=model,
-                index=index,
-                depth=depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-            return Group(item_renderable, table_renderable)
-        case ModelStructure.LIST:
-            list_renderable = _build_list(
-                model=model,
-                index=index,
-                depth=depth,
-                nested_in_cell_depth=nested_in_cell_depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-            if suppress_item_at_root:
-                return list_renderable
-            item_renderable = _build_value(
-                model=model,
-                index=index,
-                depth=depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-            return Group(item_renderable, list_renderable)
-        case ModelStructure.TREE:
-            if suppress_item_at_root:
-                nested_tree = _build_tree(
-                    model=model,
-                    index=index,
-                    depth=depth,
-                    nested_in_cell_depth=nested_in_cell_depth,
-                    config=config,
-                    state=state,
-                    to_string=to_string,
-                )
-                return nested_tree
-            tree_renderable = _build_tree(
-                model=model,
-                index=index,
-                depth=depth,
-                nested_in_cell_depth=nested_in_cell_depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-            return tree_renderable
         case ModelStructure.VALUE:
             return _build_value(
                 model=model,
@@ -608,9 +778,61 @@ def _build_node(
                 state=state,
                 to_string=to_string,
             )
-
+        case ModelStructure.TREE:
+            return _build_tree(
+                model=model,
+                index=index,
+                depth=depth,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
+        case ModelStructure.LIST:
+            body = _build_list(
+                model=model,
+                index=index,
+                depth=depth,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
+        case ModelStructure.TABLE:
+            body = _build_table(
+                model=model,
+                index=index,
+                depth=depth,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
+        case ModelStructure.TABLE_TREE | ModelStructure.COMPLEX_TREE:
+            body = _build_tree_table(
+                model=model,
+                index=index,
+                depth=depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
         case _:
-            raise ValueError(f"Unknown structure result {structure}")
+            raise ValueError(f"Unknown structure {structure} for index "
+                             f"[{index.row()}:{index.column()}] at depth {depth}")
+
+    if suppress_item_at_root or not index.isValid():
+        return body
+
+    return Group(
+        _build_value(
+            model=model,
+            index=index,
+            depth=depth,
+            config=config,
+            state=state,
+            to_string=to_string,
+        ), body)
 
 
 @beartype
@@ -626,79 +848,20 @@ def dump(
         parent = QModelIndex()
     if config is None:
         config = ModelRichDumpConfig()
-    state = BuildState()
-    if config.include_root_entry:
-        return _build_node(
-            model=model,
-            index=parent,
-            depth=0,
-            nested_in_cell_depth=0,
-            config=config,
-            state=state,
-            to_string=to_string,
-            in_table_cell=False,
-        )
-    row_count = model.rowCount(parent)
-    column_count = model.columnCount(parent)
-    structure = config.infer_structure(
-        StructureDetectContext(
-            model=model,
-            index=parent,
-            depth=0,
-            nested_in_cell_depth=0,
-            row_count=row_count,
-            column_count=column_count,
-        ))
-
-    log.debug(f"result structure {structure}")
-
-    match structure:
-        case ModelStructure.TABLE:
-            return _build_table(
-                model=model,
-                index=parent,
-                depth=0,
-                nested_in_cell_depth=0,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-        case ModelStructure.LIST:
-            return _build_list(
-                model=model,
-                index=parent,
-                depth=0,
-                nested_in_cell_depth=0,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-        case ModelStructure.TREE:
-            return _build_tree(
-                model=model,
-                index=parent,
-                depth=0,
-                nested_in_cell_depth=0,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-        case ModelStructure.VALUE:
-            return _build_value(
-                model=model,
-                index=parent,
-                depth=0,
-                config=config,
-                state=state,
-                to_string=to_string,
-            )
-
-        case _:
-            raise ValueError(f"Unknown structure {structure}")
+    return _build_node(
+        model=model,
+        index=parent,
+        depth=0,
+        nested_in_cell_depth=0,
+        config=config,
+        state=BuildState(),
+        to_string=to_string,
+        suppress_item_at_root=not config.include_root_entry,
+    )
 
 
 @beartype
-def render_text(renderable: object, width=220) -> str:
-    console = Console(record=True, width=220)
+def render_text(renderable: object, width: int = 220) -> str:
+    console = Console(record=True, width=width, file=io.StringIO())
     console.print(renderable)
     return console.export_text()

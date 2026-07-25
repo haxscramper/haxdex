@@ -1,30 +1,96 @@
 from __future__ import annotations
 
 from beartype import beartype
-from beartype.typing import Generator
+from beartype.typing import Callable
 
-import pytest
-from PyQt6.QtCore import QCoreApplication, QModelIndex, Qt
+from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from rich.console import Console
+from rich.table import Table
 from rich.text import Text
 
-from haxdex.gui.agnostic.model_dump import ModelRichDumpConfig, dump, render_text
+from haxdex.gui.agnostic.model_dump import (
+    ModelRichDumpConfig,
+    ModelStructure,
+    dump,
+    render_text,
+    structure_context,
+)
 
 
 @beartype
-def test_detects_table_model() -> None:
+def _structure(model: QStandardItemModel,
+               config: ModelRichDumpConfig | None = None) -> ModelStructure:
+    if config is None:
+        config = ModelRichDumpConfig()
+    return config.infer_structure(
+        structure_context(model=model,
+                          index=QModelIndex(),
+                          depth=0,
+                          nested_in_cell_depth=0))
+
+
+@beartype
+def _row(*values: str) -> list[QStandardItem]:
+    return [QStandardItem(value) for value in values]
+
+
+@beartype
+def _flat_table_model() -> QStandardItemModel:
     model = QStandardItemModel()
-    model.setObjectName("tableModel")
+    model.setObjectName("flat_table")
     model.setHorizontalHeaderLabels(["A", "B"])
-    model.setRowCount(2)
-    model.setColumnCount(2)
-    model.setData(model.index(0, 0), "r0c0")
-    model.setData(model.index(0, 1), "r0c1")
-    model.setData(model.index(1, 0), "r1c0")
-    model.setData(model.index(1, 1), "r1c1")
-    renderable = dump(model=model, parent=QModelIndex(), config=ModelRichDumpConfig())
-    text = render_text(renderable, width=220)
+    model.appendRow(_row("r0c0", "r0c1"))
+    model.appendRow(_row("r1c0", "r1c1"))
+    return model
+
+
+@beartype
+def _table_tree_model() -> QStandardItemModel:
+    model = QStandardItemModel()
+    model.setObjectName("table_tree")
+    model.setHorizontalHeaderLabels(["name", "kind", "value"])
+    root_a = _row("root-a", "kind-a", "value-a")
+    root_b = _row("root-b", "kind-b", "value-b")
+    root_c = _row("root-c", "kind-c", "value-c")
+    model.appendRow(root_a)
+    model.appendRow(root_b)
+    model.appendRow(root_c)
+    nested_a0 = _row("nested-a0", "kind-a0", "value-a0")
+    nested_a1 = _row("nested-a1", "kind-a1", "value-a1")
+    root_a[0].appendRow(nested_a0)
+    root_a[0].appendRow(nested_a1)
+    nested_a0[0].appendRow(_row("deep-a00", "kind-a00", "value-a00"))
+    return model
+
+
+@beartype
+def _complex_tree_model() -> QStandardItemModel:
+    model = _table_tree_model()
+    model.setObjectName("complex_tree")
+    side = _row("side-b1", "kind-b1", "value-b1")
+    model.item(1, 1).appendRow(side)
+    model.item(1, 1).appendRow(_row("side-b2", "kind-b2", "value-b2"))
+    return model
+
+
+@beartype
+def _nested_table_model() -> QStandardItemModel:
+    model = QStandardItemModel()
+    model.setObjectName("nested_table")
+    model.setHorizontalHeaderLabels(["main", "other"])
+    main = QStandardItem("cell-main")
+    other = QStandardItem("cell-other")
+    model.appendRow([main, other])
+    main.appendRow(QStandardItem("nested-list-0"))
+    main.appendRow(QStandardItem("nested-list-1"))
+    return model
+
+
+@beartype
+def test_detects_flat_table() -> None:
+    model = _flat_table_model()
+    assert _structure(model) == ModelStructure.TABLE
+    text = render_text(dump(model=model))
     assert "A" in text
     assert "B" in text
     assert "r0c0" in text
@@ -32,45 +98,145 @@ def test_detects_table_model() -> None:
 
 
 @beartype
-def test_nested_structure_in_table_cell_with_limit() -> None:
+def test_detects_list_model() -> None:
     model = QStandardItemModel()
-    model.setHorizontalHeaderLabels(["Main", "Other"])
-    model.setRowCount(1)
-    model.setColumnCount(2)
-    root_item = QStandardItem("cell-main")
-    other_item = QStandardItem("cell-other")
-    nested_row0_col0 = QStandardItem("nested-r0c0")
-    nested_row0_col1 = QStandardItem("nested-r0c1")
-    root_item.setColumnCount(2)
-    root_item.setRowCount(1)
-    root_item.setChild(0, 0, nested_row0_col0)
-    root_item.setChild(0, 1, nested_row0_col1)
-    model.setItem(0, 0, root_item)
-    model.setItem(0, 1, other_item)
+    model.appendRow(QStandardItem("item-0"))
+    model.appendRow(QStandardItem("item-1"))
+    assert _structure(model) == ModelStructure.LIST
+    text = render_text(dump(model=model))
+    assert "item-0" in text
+    assert "item-1" in text
 
-    config_with_nested = ModelRichDumpConfig(max_nested_in_cells=2)
-    text_with_nested = render_text(
-        dump(model=model, parent=QModelIndex(), config=config_with_nested))
-    assert "nested-r0c0" in text_with_nested
-    assert "nested-r0c1" in text_with_nested
 
-    config_without_nested = ModelRichDumpConfig(max_nested_in_cells=0)
-    text_without_nested = render_text(dump(model=model,
-                                           parent=QModelIndex(),
-                                           config=config_without_nested),
-                                      width=220)
-    assert "nested-r0c0" not in text_without_nested
-    assert "nested-r0c1" not in text_without_nested
+@beartype
+def test_detects_single_column_tree_model() -> None:
+    model = QStandardItemModel()
+    root = QStandardItem("root")
+    model.appendRow(root)
+    root.appendRow(QStandardItem("nested"))
+    assert _structure(model) == ModelStructure.TREE
+    text = render_text(dump(model=model))
+    assert "root" in text
+    assert "nested" in text
+
+
+@beartype
+def test_multiple_columns_do_not_short_circuit_into_table() -> None:
+    model = _table_tree_model()
+    assert 1 < model.columnCount(QModelIndex())
+    assert _structure(model) == ModelStructure.TABLE_TREE
+
+
+@beartype
+def test_table_tree_renders_aligned_fixed_width_columns() -> None:
+    model = _table_tree_model()
+    renderable = dump(model=model)
+    assert isinstance(renderable, Table)
+    assert len(renderable.columns) == 4
+    for column in renderable.columns[1:]:
+        assert column.width is not None
+        assert column.no_wrap
+
+    text = render_text(renderable)
+    assert "root-a" in text
+    assert "nested-a0" in text
+    assert "nested-a1" in text
+    assert "deep-a00" in text
+    assert "value-a00" in text
+    assert "├── " in text or "└── " in text
+
+    lines = [line for line in text.splitlines() if "value-" in line]
+    offsets = {line.index("value-") for line in lines}
+    assert len(offsets) == 1
+
+
+@beartype
+def test_table_tree_groups_flat_rows_into_table_rows() -> None:
+    model = _table_tree_model()
+    text = render_text(dump(model=model))
+    root_b_line = next(line for line in text.splitlines() if "root-b" in line)
+    root_c_line = next(line for line in text.splitlines() if "root-c" in line)
+    assert "kind-b" in root_b_line
+    assert "value-b" in root_b_line
+    assert "kind-c" in root_c_line
+    assert "value-c" in root_c_line
+
+
+@beartype
+def test_detects_complex_tree_with_nested_non_zero_column() -> None:
+    model = _complex_tree_model()
+    assert _structure(model) == ModelStructure.COMPLEX_TREE
+
+    config = ModelRichDumpConfig()
+    renderable = dump(model=model, config=config)
+    assert isinstance(renderable, Table)
+    headers = [
+        Text.from_markup(str(column.header)).plain for column in renderable.columns
+    ]
+    assert config.tree_nested_header in headers
+
+    text = render_text(renderable, width=300)
+    assert "side-b1" in text
+    assert "side-b2" in text
+    assert "nested-a0" in text
+
+
+@beartype
+def test_complex_tree_keeps_base_column_alignment() -> None:
+    table_tree_text = render_text(dump(model=_table_tree_model()), width=300)
+    complex_tree_text = render_text(dump(model=_complex_tree_model()), width=300)
+
+    @beartype
+    def offset(text: str, needle: str) -> int:
+        return next(line for line in text.splitlines() if needle in line).index(needle)
+
+    assert offset(table_tree_text, "kind-a") == offset(complex_tree_text, "kind-a")
+    assert offset(table_tree_text, "value-a") == offset(complex_tree_text, "value-a")
+    assert offset(table_tree_text, "deep-a00") == offset(complex_tree_text, "deep-a00")
+
+
+@beartype
+def test_nested_table_cell_structure_with_limit() -> None:
+    model = _nested_table_model()
+    assert _structure(model) == ModelStructure.TABLE
+
+    with_nested = render_text(
+        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=1)))
+    assert "nested-list-0" in with_nested
+    assert "nested-list-1" in with_nested
+    assert "cell-other" in with_nested
+
+    without_nested = render_text(
+        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=0)))
+    assert "nested-list-0" not in without_nested
+    assert "nested-list-1" not in without_nested
+    assert "cell-main" in without_nested
+
+
+@beartype
+def test_max_depth_stops_tree_expansion() -> None:
+    model = _table_tree_model()
+    text = render_text(dump(model=model, config=ModelRichDumpConfig(max_depth=0)))
+    assert "root-a" in text
+    assert "nested-a0" in text
+    assert "deep-a00" not in text
+
+
+@beartype
+def test_table_title_is_not_rendered() -> None:
+    for model in (_flat_table_model(), _table_tree_model(), _complex_tree_model()):
+        text = render_text(dump(model=model), width=300)
+        assert "Table" not in text
+        assert "Tree" not in text
+        assert "List" not in text
 
 
 @beartype
 def test_role_acceptance_override() -> None:
     model = QStandardItemModel()
-    model.setHorizontalHeaderLabels(["A"])
-    model.setRowCount(1)
-    model.setColumnCount(1)
+    model.setHorizontalHeaderLabels(["A", "B"])
     model.setItemRoleNames({int(Qt.ItemDataRole.UserRole) + 1: b"custom"})
-    model.setData(model.index(0, 0), "display", int(Qt.ItemDataRole.DisplayRole))
+    model.appendRow(_row("display", "other"))
     model.setData(model.index(0, 0), "custom-value", int(Qt.ItemDataRole.UserRole) + 1)
 
     class OnlyDisplayConfig(ModelRichDumpConfig):
@@ -79,25 +245,32 @@ def test_role_acceptance_override() -> None:
         def accept_role(self, role: int, role_name: str) -> bool:
             return role == int(Qt.ItemDataRole.DisplayRole)
 
-    default_text = render_text(dump(model=model, config=ModelRichDumpConfig()), width=220)
-    filtered_text = render_text(dump(model=model, config=OnlyDisplayConfig()), width=220)
+    default_text = render_text(dump(model=model, config=ModelRichDumpConfig()))
+    filtered_text = render_text(dump(model=model, config=OnlyDisplayConfig()))
     assert "custom-value" in default_text
     assert "custom-value" not in filtered_text
 
 
 @beartype
 def test_item_formatting_override() -> None:
-    model = QStandardItemModel()
-    model.setHorizontalHeaderLabels(["A"])
-    model.setRowCount(1)
-    model.setColumnCount(1)
-    model.setData(model.index(0, 0), "value")
+    model = _table_tree_model()
 
     class OverrideItemConfig(ModelRichDumpConfig):
 
         @beartype
-        def format_item(self, context):  # type: ignore[override]
+        def format_item(self, context):
             return Text(f"OVERRIDE:{context.index.row()}:{context.index.column()}")
 
-    text = render_text(dump(model=model, config=OverrideItemConfig()), width=220)
+    text = render_text(dump(model=model, config=OverrideItemConfig()))
     assert "OVERRIDE:0:0" in text
+    assert "OVERRIDE:0:2" in text
+
+
+@beartype
+def test_to_string_callback_is_used() -> None:
+    model = _table_tree_model()
+    to_string: Callable[[QModelIndex],
+                        str] = lambda index: f"S{index.row()}{index.column()}"
+    text = render_text(dump(model=model, to_string=to_string), width=400)
+    assert "S00" in text
+    assert "S12" in text
