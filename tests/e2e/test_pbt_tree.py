@@ -2,9 +2,10 @@ from pathlib import Path
 
 from hypothesis import given, settings, HealthCheck
 
+from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory
-from tests.utils import init_index_service
+from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns
 
 
 @settings(
@@ -51,3 +52,14 @@ def test_generated_indexer_directory(
 
     index = init_index_service(stable_test_dir)
     index.service.run_index()
+
+    tree_config = init_file_tree_config(index)
+
+    assert tree_config.cfg.file_tree_view
+    core = FileTreeQueryCore(
+        ctx=tree_config.service.ctx,
+        db=tree_config.service.db,
+        cfg=tree_config.cfg,
+        indexer_instances=tree_config.service.indexer_instances,
+        columns=init_file_tree_columns(index),
+    )

@@ -46,32 +46,14 @@ log = logging.getLogger(__name__)
 @beartype
 class FileTreeQueryCore:
 
-    def __init__(
-        self,
+    @staticmethod
+    def build_reference_tree(
         ctx: RunContext,
-        file_tree_view: FileTreeViewConfig,
-        db: IndexDatabase,
+        columns: Sequence[FileTreeColumnSpec],
         cfg: AppConfig,
+        db: IndexDatabase,
         indexer_instances: Sequence[BaseIndexer],
-    ) -> None:
-        assert file_tree_view
-
-        self.cfg = cfg
-
-        self.columns: list[FileTreeColumnSpec] = [
-            FileNameColumnSpec(),
-            FileMimeColumnSpec("mime"),
-            EntrySizeColumnSpec("size"),
-            SizeShareColumnSpec(
-                "share",
-                [d.path for d in file_tree_view.root_dirs],
-            ),
-            VideoBitrateColumnSpec("bitrate"),
-            VideoResolutionColumnSpec("resolution"),
-            VideoFramerateColumnSpec("framerate"),
-            VideoConvertColumnSpec("convert"),
-        ]
-
+    ) -> list[FileTreeNode] | None:
         if cfg.file_tree_view.drop_cache_files:
             if cfg.file_tree_view.reference_tree_cache_path.exists():
                 cfg.file_tree_view.reference_tree_cache_path.unlink()
@@ -79,22 +61,69 @@ class FileTreeQueryCore:
             if cfg.file_tree_view.visual_tree_cache_path.exists():
                 cfg.file_tree_view.visual_tree_cache_path.unlink()
 
-        if file_tree_view.reference_dir:
-            reference_tree: list[FileTreeNode] = build_file_tree(
+        if cfg.file_tree_view.reference_dir:
+            return build_file_tree(
                 ctx=ctx,
                 db=db,
-                root_directories=[file_tree_view.reference_dir],
+                root_directories=[cfg.file_tree_view.reference_dir],
                 indexers=indexer_instances,
-                columns=self.columns + [FileDuplicateColumnSpec(None)],
+                columns=list(columns) + [FileDuplicateColumnSpec(None)],
                 cache_path=cfg.file_tree_view.reference_tree_cache_path,
                 user_edit_path=cfg.file_tree_view.user_edit_path,
             )
-            self.columns.append(FileDuplicateColumnSpec(reference_tree=reference_tree[0]))
+
+        else:
+            return None
+
+    @staticmethod
+    def build_default_columns(
+        ctx: RunContext,
+        cfg: AppConfig,
+        db: IndexDatabase,
+        indexer_instances: Sequence[BaseIndexer],
+    ) -> list[FileTreeColumnSpec]:
+        columns: list[FileTreeColumnSpec] = [
+            FileNameColumnSpec(),
+            FileMimeColumnSpec("mime"),
+            EntrySizeColumnSpec("size"),
+            SizeShareColumnSpec(
+                "share",
+                [d.path for d in cfg.file_tree_view.root_dirs],
+            ),
+            VideoBitrateColumnSpec("bitrate"),
+            VideoResolutionColumnSpec("resolution"),
+            VideoFramerateColumnSpec("framerate"),
+            VideoConvertColumnSpec("convert"),
+        ]
+
+        if cfg.file_tree_view.reference_dir:
+            reference_tree = FileTreeQueryCore.build_reference_tree(
+                ctx=ctx,
+                columns=columns,
+                cfg=cfg,
+                db=db,
+                indexer_instances=indexer_instances,
+            )
+            columns.append(FileDuplicateColumnSpec(reference_tree=reference_tree[0]))
+
+        return columns
+
+    def __init__(
+        self,
+        ctx: RunContext,
+        cfg: AppConfig,
+        columns: Sequence[FileTreeColumnSpec],
+        db: IndexDatabase,
+        indexer_instances: Sequence[BaseIndexer],
+    ) -> None:
+
+        self.columns = columns
+        self.cfg = cfg
 
         nodes = build_file_tree(
             ctx=ctx,
             db=db,
-            root_directories=file_tree_view.root_dirs,
+            root_directories=cfg.file_tree_view.root_dirs,
             indexers=indexer_instances,
             columns=self.columns,
             cache_path=cfg.file_tree_view.visual_tree_cache_path,
@@ -146,7 +175,6 @@ class FileTreeQueryWindow(QMainWindow):
     def __init__(
         self,
         ctx: RunContext,
-        file_tree_view: FileTreeViewConfig,
         db: IndexDatabase,
         cfg: AppConfig,
         indexer_instances: Sequence[BaseIndexer],
@@ -160,13 +188,16 @@ class FileTreeQueryWindow(QMainWindow):
         QCoreApplication.setOrganizationName("haxscramper")
         QCoreApplication.setApplicationName("haxdex-tree-view")
 
-        self.core = FileTreeQueryCore(
-            ctx=ctx,
-            file_tree_view=file_tree_view,
-            db=db,
-            cfg=cfg,
-            indexer_instances=indexer_instances,
-        )
+        self.core = FileTreeQueryCore(ctx=ctx,
+                                      db=db,
+                                      cfg=cfg,
+                                      indexer_instances=indexer_instances,
+                                      columns=FileTreeQueryCore.build_default_columns(
+                                          ctx=ctx,
+                                          db=db,
+                                          cfg=cfg,
+                                          indexer_instances=indexer_instances,
+                                      ))
 
         self.columns = self.core.columns
         self.regions: list[FileTreeRegion] = []

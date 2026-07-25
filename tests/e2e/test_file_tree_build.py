@@ -6,7 +6,7 @@ from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_size import FileSizeIndexer
-from tests.utils import init_index_service, init_file_tree_config, sub_row_by_name
+from tests.utils import init_index_service, init_file_tree_config, sub_row_by_name, init_file_tree_columns
 
 
 def test_e2e_tree_build(stable_test_dir: Path):
@@ -28,10 +28,10 @@ def test_e2e_tree_build(stable_test_dir: Path):
     assert tree_config.cfg.file_tree_view
     core = FileTreeQueryCore(
         ctx=tree_config.service.ctx,
-        file_tree_view=tree_config.cfg.file_tree_view,
         db=tree_config.service.db,
         cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
+        columns=init_file_tree_columns(index),
     )
 
     assert core.model.rowCount() == 1

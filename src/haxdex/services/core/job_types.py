@@ -157,7 +157,7 @@ class BaseIndexer(ABC):
     required_resources: tuple[str, ...] = ()
     max_parallel: int = 1
     edge_collection_name: Optional[str] = None
-    config_model: ClassVar[type[BaseModel]] = BaseIndexerConfig
+    config_model: ClassVar[type[BaseIndexerConfig]] = BaseIndexerConfig
     "Pydantic data class with object that holds all the configuration parameters"
 
     def get_document_type_bases(self) -> list[Any]:

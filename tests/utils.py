@@ -3,10 +3,15 @@ from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex
 from beartype import beartype
+from beartype.typing import cast
 
 from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
+from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
+from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
@@ -26,11 +31,14 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
     root_dir = stable_test_dir.joinpath("data")
     root_dir.mkdir(parents=True, exist_ok=True)
     cfg = AppConfig(
-        index=IndexConfig(paths=(IndexPathConfig(name="root",
-                                                 root_path=root_dir,
-                                                 paths=[
-                                                     DirConfig(path=root_dir),
-                                                 ]),),),
+        index=IndexConfig(
+            paths=(IndexPathConfig(name="root",
+                                   root_path=root_dir,
+                                   paths=[
+                                       DirConfig(path=root_dir),
+                                   ]),),
+            reset=True,
+        ),
         indexers={
             FFProbeIndexer.asset_name: FFProbeIndexer.config_model(),
             FileSizeIndexer.asset_name: FileSizeIndexer.config_model(),
@@ -46,6 +54,16 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
     service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
 
     return IndexServiceConfig(service=service, root_dir=root_dir, cfg=cfg)
+
+
+@beartype
+def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec]:
+    return cast(list[FileTreeColumnSpec], [
+        FileNameColumnSpec(),
+        FileMimeColumnSpec("mime"),
+        EntrySizeColumnSpec("size"),
+        SizeShareColumnSpec("share", [index.root_dir]),
+    ])
 
 
 @beartype
