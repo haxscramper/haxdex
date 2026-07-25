@@ -481,23 +481,36 @@ def _build_list(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    table = config.create_list_table()
-    table.add_column("#", style=config.style_index, no_wrap=True)
-    table.add_column("item")
-    for row in range(model.rowCount(index)):
+    row_count = model.rowCount(index)
+    values: list[RenderableType] = []
+    item_width = len("item")
+    index_width = max(len("#"), len(str(max(0, row_count - 1))))
+
+    for row in range(row_count):
         nested_index = model.index(row, 0, index)
-        table.add_row(
-            str(row),
-            _build_cell(
-                model=model,
-                index=nested_index,
-                depth=depth + 1,
-                nested_in_cell_depth=nested_in_cell_depth,
-                config=config,
-                state=state,
-                to_string=to_string,
-            ),
+        value = _build_cell(
+            model=model,
+            index=nested_index,
+            depth=depth + 1,
+            nested_in_cell_depth=nested_in_cell_depth,
+            config=config,
+            state=state,
+            to_string=to_string,
         )
+        values.append(value)
+        item_width = max(item_width, _measure_width(value))
+
+    table = config.create_list_table()
+    table.add_column("#",
+                     style=config.style_index,
+                     no_wrap=True,
+                     width=index_width,
+                     overflow="ignore")
+    table.add_column("item", no_wrap=True, width=item_width, overflow="ignore")
+
+    for row, value in enumerate(values):
+        table.add_row(str(row), value)
+
     return table
 
 
@@ -511,25 +524,41 @@ def _build_table(
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
-    table = config.create_table()
+    row_count = model.rowCount(index)
     column_count = model.columnCount(index)
-    for column in range(column_count):
-        table.add_column(_column_header(model, column))
-    for row in range(model.rowCount(index)):
+
+    rows: list[list[RenderableType]] = []
+    column_widths = [len(_column_header(model, column)) for column in range(column_count)]
+
+    for row in range(row_count):
         row_renderables: list[RenderableType] = []
         for column in range(column_count):
             nested_index = model.index(row, column, index)
-            row_renderables.append(
-                _build_cell(
-                    model=model,
-                    index=nested_index,
-                    depth=depth + 1,
-                    nested_in_cell_depth=nested_in_cell_depth,
-                    config=config,
-                    state=state,
-                    to_string=to_string,
-                ))
+            cell = _build_cell(
+                model=model,
+                index=nested_index,
+                depth=depth + 1,
+                nested_in_cell_depth=nested_in_cell_depth,
+                config=config,
+                state=state,
+                to_string=to_string,
+            )
+            row_renderables.append(cell)
+            column_widths[column] = max(column_widths[column], _measure_width(cell))
+        rows.append(row_renderables)
+
+    table = config.create_table()
+    for column in range(column_count):
+        table.add_column(
+            _column_header(model, column),
+            width=column_widths[column],
+            no_wrap=True,
+            overflow="ignore",
+        )
+
+    for row_renderables in rows:
         table.add_row(*row_renderables)
+
     return table
 
 
@@ -623,32 +652,52 @@ def _tree_cell_width_hint(
     return max(candidates)
 
 
-def _collect_tree_table_lines(
+@beartype
+def _make_aligned_row_table(
+    cells: list[RenderableType],
+    widths: list[int],
+) -> Table:
+    row_table = Table.grid(expand=False, pad_edge=False)
+    for width in widths:
+        row_table.add_column(width=width, no_wrap=True, overflow="ignore")
+    row_table.add_row(*cells)
+    return row_table
+
+
+@beartype
+def _make_header_table(
+    model: QAbstractItemModel,
+    column_count: int,
+    widths: list[int],
+) -> Table:
+    header_table = Table.grid(expand=False, pad_edge=False)
+    for width in widths:
+        header_table.add_column(width=width, no_wrap=True, overflow="ignore")
+    header_cells = [
+        Text(_column_header(model, column), style="bold")
+        for column in range(column_count)
+    ]
+    header_table.add_row(*header_cells)
+    return header_table
+
+
+@beartype
+def _collect_tree_table_widths(
     model: QAbstractItemModel,
     index: QModelIndex,
     depth: int,
-    prefix: str,
     column_count: int,
     config: ModelRichDumpConfig,
     state: BuildState,
     to_string: Callable[[QModelIndex], str] | None,
-    lines: list[TreeTableLine],
-    column_widths: list[int],
+    widths: list[int],
 ) -> None:
     row_count = model.rowCount(index)
     local_column_count = model.columnCount(index)
-    for row in range(row_count):
-        is_last = row_count - 1 <= row
-        line_prefix = prefix + (config.tree_guide_last
-                                if is_last else config.tree_guide_branch)
-        continuation = prefix + (config.tree_guide_space
-                                 if is_last else config.tree_guide_vertical)
-        cells: list[RenderableType | None] = []
-        for column in range(column_count):
-            if local_column_count <= column:
-                cells.append(None)
-                continue
+    visible_columns = min(column_count, local_column_count)
 
+    for row in range(row_count):
+        for column in range(visible_columns):
             current_index = model.index(row, column, index)
             cell = _format_item_renderable(
                 model=model,
@@ -658,43 +707,80 @@ def _collect_tree_table_lines(
                 state=state,
                 to_string=to_string,
             )
-            cells.append(cell)
-            column_widths[column] = max(
-                column_widths[column],
-                _tree_cell_width_hint(
-                    model=model,
-                    index=current_index,
-                    depth=depth,
-                    config=config,
-                    to_string=to_string,
-                ),
-            )
+            widths[column] = max(widths[column], _measure_width(cell))
 
-        lines.append(TreeTableLine(prefix=line_prefix, cells=cells))
-
-        depth_exhausted = config.max_depth is not None and config.max_depth < depth
-        if depth_exhausted:
+        if visible_columns <= 0:
             continue
 
-        visible_columns = min(column_count, local_column_count)
+        first_index = model.index(row, 0, index)
+        if model.rowCount(first_index) <= 0:
+            continue
+
+        if model.columnCount(first_index) == column_count:
+            _collect_tree_table_widths(
+                model=model,
+                index=first_index,
+                depth=depth + 1,
+                column_count=column_count,
+                config=config,
+                state=state,
+                to_string=to_string,
+                widths=widths,
+            )
+
+
+@beartype
+def _append_tree_table_rows(
+    model: QAbstractItemModel,
+    parent_tree: Tree,
+    index: QModelIndex,
+    depth: int,
+    column_count: int,
+    widths: list[int],
+    config: ModelRichDumpConfig,
+    state: BuildState,
+    to_string: Callable[[QModelIndex], str] | None,
+) -> None:
+    row_count = model.rowCount(index)
+    local_column_count = model.columnCount(index)
+    visible_columns = min(column_count, local_column_count)
+
+    for row in range(row_count):
+        cells: list[RenderableType] = []
+        for column in range(column_count):
+            if column < visible_columns:
+                current_index = model.index(row, column, index)
+                cells.append(
+                    _format_item_renderable(
+                        model=model,
+                        index=current_index,
+                        depth=depth,
+                        config=config,
+                        state=state,
+                        to_string=to_string,
+                    ))
+            else:
+                cells.append(Text(""))
+
+        branch = parent_tree.add(_make_aligned_row_table(cells=cells, widths=widths))
+
+        if config.max_depth is not None and config.max_depth < depth:
+            continue
+
         for column in range(1, visible_columns):
             nested_index = model.index(row, column, index)
             if model.rowCount(nested_index) <= 0:
                 continue
-            lines.append(
-                TreeTableLine(
-                    prefix=continuation,
-                    cells=[None] * column_count,
-                    nested=_build_node(
-                        model=model,
-                        index=nested_index,
-                        depth=depth + 1,
-                        nested_in_cell_depth=0,
-                        config=config,
-                        state=state,
-                        to_string=to_string,
-                        suppress_item_at_root=False,
-                    ),
+            branch.add(
+                _build_node(
+                    model=model,
+                    index=nested_index,
+                    depth=depth + 1,
+                    nested_in_cell_depth=0,
+                    config=config,
+                    state=state,
+                    to_string=to_string,
+                    suppress_item_at_root=False,
                 ))
 
         if visible_columns <= 0:
@@ -705,34 +791,28 @@ def _collect_tree_table_lines(
             continue
 
         if model.columnCount(first_index) == column_count:
-            _collect_tree_table_lines(
+            _append_tree_table_rows(
                 model=model,
+                parent_tree=branch,
                 index=first_index,
                 depth=depth + 1,
-                prefix=continuation,
                 column_count=column_count,
+                widths=widths,
                 config=config,
                 state=state,
                 to_string=to_string,
-                lines=lines,
-                column_widths=column_widths,
             )
-
         else:
-            lines.append(
-                TreeTableLine(
-                    prefix=continuation,
-                    cells=[None] * column_count,
-                    nested=_build_node(
-                        model=model,
-                        index=first_index,
-                        depth=depth + 1,
-                        nested_in_cell_depth=0,
-                        config=config,
-                        state=state,
-                        to_string=to_string,
-                        suppress_item_at_root=True,
-                    ),
+            branch.add(
+                _build_node(
+                    model=model,
+                    index=first_index,
+                    depth=depth + 1,
+                    nested_in_cell_depth=0,
+                    config=config,
+                    state=state,
+                    to_string=to_string,
+                    suppress_item_at_root=True,
                 ))
 
 
@@ -746,67 +826,40 @@ def _build_tree_table(
     to_string: Callable[[QModelIndex], str] | None,
 ) -> RenderableType:
     column_count = model.columnCount(index)
-    lines: list[TreeTableLine] = []
-    column_widths = [
-        max(config.tree_column_min_width, len(_column_header(model, column)))
-        for column in range(column_count)
-    ]
+    widths = [len(_column_header(model, column)) for column in range(column_count)]
 
-    _collect_tree_table_lines(
+    _collect_tree_table_widths(
         model=model,
         index=index,
         depth=depth,
-        prefix="",
         column_count=column_count,
         config=config,
         state=state,
         to_string=to_string,
-        lines=lines,
-        column_widths=column_widths,
+        widths=widths,
     )
 
     if config.tree_column_max_width is not None:
-        column_widths = [
-            min(width, config.tree_column_max_width) for width in column_widths
-        ]
+        widths = [min(width, config.tree_column_max_width) for width in widths]
 
-    prefix_width = max((len(line.prefix) for line in lines), default=0)
-    for column in range(column_count):
-        width = max(config.tree_column_min_width, len(_column_header(model, column)))
-        for line in lines:
-            cell = line.cells[column] if column < len(line.cells) else None
-            if cell is None:
-                continue
-            width = max(width, _measure_width(cell))
-        if config.tree_column_max_width is not None:
-            width = min(width, config.tree_column_max_width)
-        column_widths.append(width)
+    root_label = Group(
+        Text(_resolve_model_name(model, state), style=config.style_model_name),
+        _make_header_table(model=model, column_count=column_count, widths=widths),
+    )
+    root = config.create_tree(root_label)
 
-    has_nested = any(line.nested is not None for line in lines)
-    table = config.create_tree_table()
-    table.add_column("", width=prefix_width, no_wrap=True, style=config.tree_guide_style)
-    for column in range(column_count):
-        table.add_column(
-            _column_header(model, column),
-            width=column_widths[column],
-            no_wrap=True,
-            overflow="ellipsis",
-        )
-    if has_nested:
-        table.add_column(config.tree_nested_header)
-
-    for line in lines:
-        row_renderables: list[RenderableType] = [
-            Text(line.prefix, style=config.tree_guide_style)
-        ]
-        for column in range(column_count):
-            cell = line.cells[column] if column < len(line.cells) else None
-            row_renderables.append(cell if cell is not None else Text(""))
-        if has_nested:
-            row_renderables.append(line.nested if line.nested is not None else Text(""))
-        table.add_row(*row_renderables)
-
-    return table
+    _append_tree_table_rows(
+        model=model,
+        parent_tree=root,
+        index=index,
+        depth=depth,
+        column_count=column_count,
+        widths=widths,
+        config=config,
+        state=state,
+        to_string=to_string,
+    )
+    return root
 
 
 @beartype
@@ -925,6 +978,11 @@ def dump(
 
 @beartype
 def render_text(renderable: object, width: int = 220) -> str:
-    console = Console(record=True, width=width, file=io.StringIO())
+    required_width = _measure_width(renderable) + 2
+    console = Console(
+        record=True,
+        width=max(width, required_width),
+        file=io.StringIO(),
+    )
     console.print(renderable)
     return console.export_text()

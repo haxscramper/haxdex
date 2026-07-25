@@ -113,7 +113,7 @@ def test_generated_indexer_directory(
 
     log.info(simple_dump(core.model))
     flat_tree = model_dump.dump(core.model)
-    log.info(render_text(flat_tree))
+    log.info("\n" + render_text(flat_tree))
 
     tree_root = core.model.index(0, 0, QModelIndex())
     m = core.model
