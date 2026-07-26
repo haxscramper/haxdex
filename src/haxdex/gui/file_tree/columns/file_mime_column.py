@@ -6,7 +6,7 @@ from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer, FileMimeIndexerResult
 
@@ -22,9 +22,7 @@ class FileMimeColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:

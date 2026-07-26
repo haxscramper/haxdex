@@ -28,7 +28,9 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 
 from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,)
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+)
 from haxdex.services.utils import create_cache_engine
 import logging
 
@@ -336,9 +338,13 @@ def store_missing_file_columns(
             for column in columns:
                 assert path.exists(), str(path)
                 data = column.initColumnData(
-                    path=path,
-                    hash=file_hash,
-                    is_directory=False,
+                    args=FileTreeInitArgs(
+                        path=path,
+                        hash=file_hash,
+                        is_directory=False,
+                        root=row_data.root,
+                        relative=row_data.relative,
+                    ),
                     assets=assets,
                     nested=[],
                 )

@@ -6,7 +6,7 @@ from beartype import beartype
 from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeIndexerResult, FFProbeInfoModel
 
@@ -33,9 +33,7 @@ class VideoFramerateColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:

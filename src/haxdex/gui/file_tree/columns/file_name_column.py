@@ -7,7 +7,7 @@ from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode, FileTreeInitArgs
 from haxdex.services.core.types import FileHash
 
 import logging
@@ -26,14 +26,11 @@ class FileNameColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> BaseModel:
-        log.debug(f"name column {path} -> {path.name}")
-        return FileNameData(name=path.name)
+        return FileNameData(name=args.path.name)
 
     def __init__(self) -> None:
         super().__init__("name")

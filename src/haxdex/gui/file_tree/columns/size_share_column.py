@@ -16,7 +16,7 @@ from beartype.typing import Any, Literal, Optional, cast
 from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
 import logging
@@ -116,16 +116,14 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
-        resolved_path = path.resolve()
+        resolved_path = args.path.resolve()
 
         def get_self_size() -> int | None:
-            if is_directory:
+            if args.is_directory:
                 return self.directory_size_bytes.get(resolved_path, None)
 
             else:
@@ -146,7 +144,7 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
         self_size = get_self_size()
         if not self_size:
-            log.warning(f"no size for {path}")
+            log.warning(f"no size for {args.path}")
             return None
 
         if resolved_path.parent not in self.directory_size_bytes:

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
+    FileTreeInitArgs,
     FileTreeNode,
 )
 from haxdex.services.core.types import FileHash
@@ -59,13 +60,11 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
-        if is_directory:
+        if args.is_directory:
             duplicate_count = 0
             total_count = 0
 
@@ -89,10 +88,10 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
         if hash is None:
             return None
 
-        matches = self._matches(path, hash.hash)
+        matches = self._matches(args.path, args.hash.hash)
 
         return FileDuplicateData(
-            hash=hash.hash,
+            hash=args.hash.hash,
             matches=matches,
             duplicate_count=1 if matches else 0,
             total_count=1,

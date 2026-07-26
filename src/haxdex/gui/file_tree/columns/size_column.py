@@ -7,7 +7,7 @@ from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeIndexerResult, FFProbeInfoModel
 from haxdex.services.indexers.file_stats import FileStatsIndexerResult, FileStatsIndexer
@@ -25,13 +25,11 @@ class EntrySizeColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
-        if is_directory:
+        if args.is_directory:
             size_bytes = 0
             for node in nested:
                 duplicate_data = cast(

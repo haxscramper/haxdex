@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex, Qt
@@ -27,6 +28,16 @@ class FileTreeNode(BaseModel):
 
 
 @beartype
+@dataclass
+class FileTreeInitArgs():
+    is_directory: bool
+    path: Path
+    root: str
+    relative: str
+    hash: Optional[FileHash] = None
+
+
+@beartype
 class FileTreeColumnSpec(ColumnSpec, ABC):
 
     def __init__(self, title: str) -> None:
@@ -38,9 +49,7 @@ class FileTreeColumnSpec(ColumnSpec, ABC):
     @abstractmethod
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:

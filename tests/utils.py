@@ -10,7 +10,7 @@ from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexP
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
-from haxdex.gui.file_tree.columns.is_directory_column import IsDirectoryColumnSpec
+from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
@@ -68,7 +68,7 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
 def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec]:
     return cast(list[FileTreeColumnSpec], [
         FileNameColumnSpec(),
-        IsDirectoryColumnSpec("is_directory"),
+        TrivialDataColumnSpec("is_directory"),
         FileMimeColumnSpec("mime"),
         EntrySizeColumnSpec("size"),
         SizeShareColumnSpec("share", [index.root_dir]),

@@ -11,7 +11,7 @@ from beartype import beartype
 from pydantic import BaseModel
 
 from testing.python.haxdex.src.haxdex.gui.file_tree.model.tree_model_build import FileTreeNode
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.image_hash import ImageHashIndexerResult, ImageHashIndexer
 
@@ -72,13 +72,11 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
-        if is_directory:
+        if args.is_directory:
             nested_data = (cast(Optional[ImageHashData],
                                 node.columns.get(self.column_name)) for node in nested)
 

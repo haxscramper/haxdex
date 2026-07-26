@@ -7,7 +7,7 @@ from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode, FileTreeInitArgs
 from haxdex.services.core.types import FileHash
 
 import logging
@@ -15,31 +15,39 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class IsDirectoryData(BaseModel, extra="forbid"):
+class TrivialEntryData(BaseModel, extra="forbid"):
     is_directory: bool
+    assets: list[str]
+    root: str
+    root_relative: str
+    # hash: Optional[str]
 
 
 @beartype
-class IsDirectoryColumnSpec(FileTreeColumnSpec):
-    column_type = IsDirectoryData
-    column_name = "is_directory"
+class TrivialDataColumnSpec(FileTreeColumnSpec):
+    column_type = TrivialEntryData
+    column_name = "trivial_data"
 
     def initColumnData(
         self,
-        path: Path,
-        hash: Optional[FileHash],
-        is_directory: bool,
+        args: FileTreeInitArgs,
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> BaseModel:
-        return IsDirectoryData(is_directory=is_directory)
+        return TrivialEntryData(
+            is_directory=args.is_directory,
+            # hash=hash.hash if hash else None,
+            assets=list(sorted(assets.keys())),
+            root=args.root,
+            root_relative=args.relative,
+        )
 
     def data(
         self,
         index: QModelIndex,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        data = cast(IsDirectoryData, self.getColumnData(index))
+        data = cast(TrivialEntryData, self.getColumnData(index))
         assert data is not None, "File name column spec cannot be null"
         match role:
             case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:

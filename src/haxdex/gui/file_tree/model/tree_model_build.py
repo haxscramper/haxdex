@@ -17,6 +17,7 @@ from sqlalchemy.engine import Engine
 from haxdex.cli.cli_config import DirConfig
 from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
+    FileTreeInitArgs,
     FileTreeNode,
 )
 from haxdex.gui.file_tree.model.tree_model_cache import initialize_cache, populate_cache
@@ -146,9 +147,13 @@ def _build_directory_tree(
         col_data = {
             column.column_name:
                 column.initColumnData(
-                    path=directory_path,
-                    hash=None,
-                    is_directory=True,
+                    args=FileTreeInitArgs(
+                        path=directory_path,
+                        hash=None,
+                        is_directory=True,
+                        root=root_names.get(root_path),
+                        relative=_root_relative(directory_path, root_path),
+                    ),
                     assets={},
                     nested=nested,
                 ) for column in columns
