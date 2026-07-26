@@ -6,6 +6,7 @@ from beartype import beartype
 from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeIndexerResult, FFProbeInfoModel
@@ -60,6 +61,9 @@ class VideoResolutionColumnSpec(FileTreeColumnSpec):
                     return None
 
                 return res.probe.width * res.probe.height
+
+            case CustomModelRole.FullDataRole.value:
+                return res
 
             case _:
                 return None

@@ -13,6 +13,9 @@ from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, Fi
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
+from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateData, VideoBitrateColumnSpec
+from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
+from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
 from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
@@ -75,6 +78,9 @@ def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec
         FileMimeColumnSpec("mime"),
         EntrySizeColumnSpec("size"),
         SizeShareColumnSpec("share", [index.root_dir]),
+        VideoFramerateColumnSpec("framerate"),
+        VideoBitrateColumnSpec("bitrate"),
+        VideoResolutionColumnSpec("video_resolution"),
     ])
 
 

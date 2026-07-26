@@ -26,6 +26,7 @@ from tests.generation import directory_structure, GeneratedDirectory, write_gene
     create_default_persistent_corpus
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
 import logging
+import glom
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,16 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 pd.set_option("display.colheader_justify", "left")
+
+
+def left_align_formatters(df):
+    widths = {
+        column: max(len(str(column)), df[column].map(str).str.len().max())
+        for column in df.columns
+    }
+
+    return [(lambda width: (lambda value: f"{str(value):<{width}}"))(widths[column])
+            for column in df.columns]
 
 
 @contextmanager
@@ -133,7 +144,7 @@ def _cell_to_dict(v):
 
 def split_columns_by_rules(
     df: pd.DataFrame,
-    rules: list[tuple[str, list[str | tuple[str, str]]]],
+    rules: list[tuple[str, list[str | tuple[Any, str]]]],
 ) -> pd.DataFrame:
     out = df.copy()
 
@@ -141,13 +152,13 @@ def split_columns_by_rules(
         mapped = out[col].map(_cell_to_dict)
 
         for field in fields:
-            if isinstance(field, tuple):
-                field_key, res_name = field
-
-            else:
+            if isinstance(field, str):
                 field_key, res_name = field, field
 
-            out[res_name] = mapped.map(lambda d: d.get(field_key))
+            else:
+                field_key, res_name = field
+
+            out[res_name] = mapped.map(lambda d: glom.glom(d, field_key, default=None))
 
     out = out.drop(columns=[col for col, _ in rules])
 
@@ -337,13 +348,14 @@ def test_generated_directory_collect_methods_match_content(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
     max_examples=1,
+    deadline=2000,
 )
 @given(directory=directory_structure(
     indexer_types=[],
-    min_files=2,
-    max_files=8,
+    min_files=8,
+    max_files=32,
     min_nesting=1,
-    max_nesting=4,
+    max_nesting=3,
     corpus_manifest=corpus_manifest,
     corpus_root=corpus_root,
     mime_types=(
@@ -362,8 +374,6 @@ def test_generated_indexer_directory(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
 ) -> None:
-    propagate_logger_level("haxdex", logging.DEBUG)
-    log.info("run")
     gen_dir = stable_test_dir / "data"
     materialized = write_generated_directory(gen_dir, directory)
     assert_generated_directory_entries_exact(materialized.root, directory)
@@ -436,10 +446,14 @@ def test_generated_indexer_directory(
         ("share", ["size_self", "size_parent"]),
         ("mime", ["mime_type"]),
         ("name", [("name", "entry_name")]),
+        ("framerate", [("probe.fps", "video_framerate")]),
+        ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
+        ("video_resolution", [("probe.width", "video_width"),
+                              ("probe.height", "video_height")]),
     ]
-    df = split_columns_by_rules(df, rules)
+    df = split_columns_by_rules(df, rules).sort_values("root_relative")
 
-    log.info("\n" + df.to_string(justify="left"))
+    log.info("\n" + df.to_string(justify="left", formatters=left_align_formatters(df)))
     rec_basenames = [e.name for e in rec_entries]
 
     assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
@@ -452,5 +466,12 @@ def test_generated_indexer_directory(
 
     assert df["size_self"].notna().all(), "`size_self` contains None values"
     assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
+    assert (df["size_self"]
+            <= df["size_parent"]).all(), "entry size cannot be larger than the parent"
 
-    assert False
+    video_mask = df["mime_type"].str.startswith("video/", na=False)
+
+    assert df.loc[video_mask, "video_framerate"].notna().all()
+    assert df.loc[video_mask, "video_bitrate"].notna().all()
+    assert df.loc[video_mask, "video_width"].notna().all()
+    assert df.loc[video_mask, "video_height"].notna().all()

@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex, Qt
@@ -26,12 +27,20 @@ log = logging.getLogger(__name__)
 
 class SizeShareData(BaseModel, extra="forbid"):
     size_self: int
-    size_parent: float
+    size_parent: int
 
 
 @beartype
-def _compute_directory_size_bytes(parent_directories: list[Path]) -> dict[Path, int]:
-    directory_size_bytes: dict[Path, int] = {}
+@dataclass
+class _DirSizeStats():
+    per_path: dict[Path, int]
+    total: int
+    "Multi-root sum of all sizes"
+
+
+@beartype
+def _compute_directory_size_bytes(parent_directories: list[Path]) -> _DirSizeStats:
+    result = _DirSizeStats(per_path=dict(), total=0)
     assert parent_directories
 
     def walk(directory: Path) -> int:
@@ -56,14 +65,14 @@ def _compute_directory_size_bytes(parent_directories: list[Path]) -> dict[Path, 
         for subdir in subdirs:
             total += walk(subdir)
 
-        directory_size_bytes[directory.absolute()] = total
+        result.per_path[directory.absolute()] = total
 
         return total
 
     for root in parent_directories:
-        walk(root.resolve())
+        result.total += walk(root.resolve())
 
-    return directory_size_bytes
+    return result
 
 
 @beartype
@@ -111,7 +120,7 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
         self.parent_roots = [path.resolve() for path in parent_directories]
         self.directory_size_bytes = _compute_directory_size_bytes(self.parent_roots)
         self.global_size_bytes = sum(
-            self.directory_size_bytes[root] for root in self.parent_roots)
+            self.directory_size_bytes.per_path[root] for root in self.parent_roots)
         self.delegate = SizeShareDelegate()
 
     def initColumnData(
@@ -124,7 +133,7 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
         def get_self_size() -> int | None:
             if args.is_directory:
-                return self.directory_size_bytes.get(resolved_path, None)
+                return self.directory_size_bytes.per_path.get(resolved_path, None)
 
             else:
                 if FileStatsIndexer.asset_name in assets:
@@ -140,19 +149,18 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
                 return self.global_size_bytes
 
             else:
-                return self.directory_size_bytes[resolved_path.parent]
+                return self.directory_size_bytes.per_path[resolved_path.parent]
 
         self_size = get_self_size()
         if not self_size:
             log.warning(f"no size for {args.path}")
             return None
 
-        if resolved_path.parent not in self.directory_size_bytes:
-            log.warning(
-                f"Missing precomputed size for parent directory: {resolved_path.parent}")
-            return None
-
-        return SizeShareData(size_self=self_size, size_parent=get_parent())
+        if resolved_path.parent not in self.directory_size_bytes.per_path:
+            return SizeShareData(size_self=self_size,
+                                 size_parent=self.directory_size_bytes.total)
+        else:
+            return SizeShareData(size_self=self_size, size_parent=get_parent())
 
     def data(
         self,

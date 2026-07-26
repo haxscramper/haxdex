@@ -563,9 +563,6 @@ class ExifMetadataIndexer(BaseIndexer):
 
         try:
             params = get_image_params(Path(path), Path(path).parent)
-
-            log.info(f"{path} OK")
-
             result = ExifMetadataIndexerResult(file=params, hash=request.get_hash_str())
 
         except PIL.UnidentifiedImageError as err:

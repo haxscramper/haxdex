@@ -152,9 +152,6 @@ def run_indexing_per_root_plan(
                         batch=batch_idx,
                         batch_files=len(batch_files),
                 ):
-                    for f in batch_files:
-                        log.debug(f"batch file {f}")
-
                     refs = build_refs_for_root(db, root, batch_files)
 
                 indexed_total += len(refs)
