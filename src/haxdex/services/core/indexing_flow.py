@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from haxdex.cli.cli_config import IndexPathConfig, IndexConfig
@@ -13,11 +14,16 @@ from haxdex.services.file_iteration import RootFilter, prepare_root_filters, Dir
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class CollectedPathFiles:
+    files: list[Path]
+    meta_files: list[Path]
+
+
 def _is_file_selected_by_filters(file: Path, filters: list[RootFilter]) -> bool:
     file_str = str(file)
 
     for root_filter in filters:
-        # Fast reject when file is not under this configured directory.
         if not file_str.startswith(root_filter.root_str):
             continue
 
@@ -48,29 +54,22 @@ def collect_files_for_path(
     dir_configs: list[DirConfig],
     filters: list[RootFilter],
     limit_per_path: int | None,
-) -> list[Path]:
+) -> CollectedPathFiles:
     files: list[Path] = []
+    meta_files: list[Path] = []
     seen: set[Path] = set()
 
     for dir_cfg in dir_configs:
         source = dir_cfg.path
-
         assert source.exists(), str(source)
 
         if source.is_file():
             candidates = [source]
-
         else:
             candidates = (p for p in source.rglob("*") if p.is_file())
 
-        if not candidates:
-            log.warning(f"no candidates from {source}")
-
         for file in candidates:
             if file in seen:
-                continue
-
-            if str(file).endswith(META_SUFFIX):
                 continue
 
             if not _is_file_selected_by_filters(file, filters):
@@ -78,12 +77,17 @@ def collect_files_for_path(
                 continue
 
             seen.add(file)
+
+            if str(file).endswith(META_SUFFIX):
+                meta_files.append(file)
+                continue
+
             files.append(file)
 
-            if limit_per_path is not None and len(files) >= limit_per_path:
-                return files
+            if limit_per_path is not None and limit_per_path <= len(files):
+                return CollectedPathFiles(files=files, meta_files=meta_files)
 
-    return files
+    return CollectedPathFiles(files=files, meta_files=meta_files)
 
 
 def build_refs_for_root(
@@ -122,12 +126,13 @@ def run_indexing_per_root_plan(
                 root_filters = prepare_root_filters(path_cfg.paths)
 
             with ctx.trace_scope("collect files for path", path=path_cfg.name):
-                files = collect_files_for_path(
+                collected = collect_files_for_path(
                     path_cfg.paths,
                     root_filters,
                     cfg.limit_per_path,
                 )
 
+            files = collected.files
             if cfg.limit_total is not None:
                 remaining = max(0, cfg.limit_total - indexed_total)
                 files = files[:remaining]
@@ -136,8 +141,22 @@ def run_indexing_per_root_plan(
                 log.info(f"no more files, total indexed {indexed_total}")
                 continue
 
+            selected_sources = {str(file) for file in files}
+            selected_meta = [
+                meta_file for meta_file in collected.meta_files
+                if str(meta_file)[:len(str(meta_file)) -
+                                  len(META_SUFFIX)] in selected_sources
+            ]
+
+            with ctx.trace_scope(
+                    "load cache from meta files",
+                    path=path_cfg.name,
+                    meta_files=len(selected_meta),
+            ):
+                runner.load_meta_cache_for_root(root, selected_meta)
+
             plan_run_size = cfg.max_plan_run_size or len(files)
-            assert plan_run_size > 0, "max_plan_run_size must be > 0"
+            assert 0 < plan_run_size, "max_plan_run_size must be > 0"
 
             total_batches = (len(files) + plan_run_size - 1) // plan_run_size
 
@@ -164,14 +183,6 @@ def run_indexing_per_root_plan(
                         indexers=len(indexers),
                 ):
                     plan = runner.create_plan(refs, list(indexers))
-
-                # log.info("execution plan for root={} path={} batch={}/{}\n{}".format(
-                #     root.name,
-                #     str(path_cfg.root_path),
-                #     batch_idx,
-                #     total_batches,
-                #     plan.to_text(),
-                # ))
 
                 with ctx.trace_scope(
                         "root plan execution",
