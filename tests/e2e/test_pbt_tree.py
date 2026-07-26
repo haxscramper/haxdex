@@ -47,7 +47,6 @@ def capture_all_logs_to_test_file(
 ) -> Iterator[Path]:
     run_log_path = stable_test_dir / f"{test_name}"
     run_log_path.parent.mkdir(parents=True, exist_ok=True)
-    print(run_log_path)
 
     root = logging.getLogger()
     old_root_handlers = list(root.handlers)
@@ -435,6 +434,7 @@ def test_generated_indexer_directory(
     rules = [
         ("trivial", ["assets", "is_directory", "root", "root_relative"]),
         ("share", ["size_self", "size_parent"]),
+        ("mime", ["mime_type"]),
         ("name", [("name", "entry_name")]),
     ]
     df = split_columns_by_rules(df, rules)

@@ -46,7 +46,6 @@ class SpokenLanguage(str, Enum):
 
 class FileSpecBase(BaseModel):
     mime_type: str
-    empty_content: bool = False
 
 
 class PdfSpec(FileSpecBase):
@@ -198,10 +197,8 @@ def _seed_to_relative_path(seed: int, mime_type: str) -> Path:
 def _seed_to_file_spec(
     seed: int,
     mime_type: str,
-    allow_empty: bool,
 ) -> FileSpec:
     rng = random.Random(seed)
-    empty_content = allow_empty and seed % 11 == 0
 
     match mime_type:
         case "application/pdf":
@@ -215,7 +212,6 @@ def _seed_to_file_spec(
                 include_headers=seed % 2 == 1,
                 include_images=seed % 3 == 0,
                 selectable_text_blocks=rng.randint(1, 8),
-                empty_content=empty_content,
             )
 
         case "image/png":
@@ -246,7 +242,6 @@ def _seed_to_file_spec(
                 },
                 hf_repo_id=hf_repo_id,
                 hf_file_name=hf_file_name,
-                empty_content=empty_content,
             )
 
         case "audio/mpeg":
@@ -265,7 +260,6 @@ def _seed_to_file_spec(
                 bitrate_kbps=bitrate,
                 spoken_language=spoken_language,
                 spoken_text=spoken_text,
-                empty_content=empty_content,
             )
 
         case "video/mp4":
@@ -292,14 +286,12 @@ def _seed_to_file_spec(
                 has_audio=has_audio,
                 spoken_language=spoken_language,
                 spoken_text=spoken_text,
-                empty_content=empty_content,
             )
 
         case "text/plain":
             return TextSpec(
                 random_base64=seed % 2 == 0,
                 word_count=random.Random(seed + 8).randint(0, 1200),
-                empty_content=empty_content,
             )
 
         case "text/markdown":
@@ -308,7 +300,6 @@ def _seed_to_file_spec(
                 include_code_blocks=seed % 2 == 1,
                 include_lists=seed % 3 == 0,
                 total_words=random.Random(seed + 10).randint(50, 5000),
-                empty_content=empty_content,
             )
 
         case "text/org":
@@ -317,7 +308,6 @@ def _seed_to_file_spec(
                 include_src_blocks=seed % 2 == 0,
                 include_lists=seed % 3 == 1,
                 total_words=random.Random(seed + 12).randint(50, 5000),
-                empty_content=empty_content,
             )
 
         case _:
@@ -327,9 +317,8 @@ def _seed_to_file_spec(
 
 
 def seed_to_corpus_entry(
-    seed: int,
-    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
-    allow_empty: bool = False,
+        seed: int,
+        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
 ) -> CorpusFileEntry:
     unsupported = [mime for mime in mime_types if mime not in _MIME_SUFFIXES]
     if 0 < len(unsupported):
@@ -339,7 +328,7 @@ def seed_to_corpus_entry(
 
     mime_type = mime_types[seed % len(mime_types)]
     content_seed = _seed_to_content_seed(seed)
-    spec = _seed_to_file_spec(content_seed, mime_type, allow_empty)
+    spec = _seed_to_file_spec(content_seed, mime_type)
     return CorpusFileEntry(
         seed=seed,
         content_seed=content_seed,
@@ -349,10 +338,6 @@ def seed_to_corpus_entry(
 
 
 def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
-    if spec.empty_content:
-        output_path.write_bytes(b"")
-        return
-
     image: Image.Image
     match spec.kind:
         case ImageKind.monotone:
@@ -403,10 +388,6 @@ def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
 
 
 def _write_pdf(spec: PdfSpec, output_path: Path) -> None:
-    if spec.empty_content:
-        output_path.write_bytes(b"")
-        return
-
     canvas = Canvas(str(output_path), pagesize=A4)
     page_width, page_height = A4
 
@@ -453,10 +434,6 @@ def _write_pdf(spec: PdfSpec, output_path: Path) -> None:
 
 
 def _write_audio(spec: AudioSpec, output_path: Path) -> None:
-    if spec.empty_content:
-        output_path.write_bytes(b"")
-        return
-
     with tempfile.TemporaryDirectory(prefix="haxdex_audio_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
         speech_wav = tmp_dir / "speech.wav"
@@ -509,10 +486,6 @@ def _write_audio(spec: AudioSpec, output_path: Path) -> None:
 
 
 def _write_video(spec: VideoSpec, output_path: Path) -> None:
-    if spec.empty_content:
-        output_path.write_bytes(b"")
-        return
-
     with tempfile.TemporaryDirectory(prefix="haxdex_video_") as tmp_dir_name:
         tmp_dir = Path(tmp_dir_name)
         speech_audio = tmp_dir / "speech.mp3"
@@ -523,7 +496,6 @@ def _write_video(spec: VideoSpec, output_path: Path) -> None:
                 bitrate_kbps=96,
                 spoken_language=spec.spoken_language,
                 spoken_text=spec.spoken_text,
-                empty_content=False,
             )
             _write_audio(audio_spec, speech_audio)
 
@@ -568,10 +540,6 @@ def _write_video(spec: VideoSpec, output_path: Path) -> None:
 
 
 def _write_text(spec: TextSpec, output_path: Path, seed: int) -> None:
-    if spec.empty_content:
-        output_path.write_text("", encoding="utf-8")
-        return
-
     if spec.random_base64:
         raw = hashlib.sha256(f"{seed}".encode("utf-8")).digest() * 30
         output_path.write_text(base64.b64encode(raw).decode("ascii"), encoding="utf-8")
@@ -581,10 +549,6 @@ def _write_text(spec: TextSpec, output_path: Path, seed: int) -> None:
 
 
 def _write_markdown(spec: MarkdownSpec, output_path: Path, seed: int) -> None:
-    if spec.empty_content:
-        output_path.write_text("", encoding="utf-8")
-        return
-
     rng = random.Random(seed)
     section_words = max(1, spec.total_words // spec.section_count)
     lines: list[str] = []
@@ -610,10 +574,6 @@ def _write_markdown(spec: MarkdownSpec, output_path: Path, seed: int) -> None:
 
 
 def _write_org(spec: OrgSpec, output_path: Path, seed: int) -> None:
-    if spec.empty_content:
-        output_path.write_text("", encoding="utf-8")
-        return
-
     rng = random.Random(seed)
     section_words = max(1, spec.total_words // spec.section_count)
     lines: list[str] = []
@@ -667,18 +627,14 @@ def write_corpus_file(
 
 
 def initialize_persistent_corpus(
-    corpus_root: Path,
-    seeds: Sequence[int],
-    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
-    allow_empty: bool = True,
+        corpus_root: Path,
+        seeds: Sequence[int],
+        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
 ) -> CorpusManifest:
     hf_cache_root = corpus_root / ".hf_cache"
     manifest_path = corpus_root / "manifest.json"
 
-    entries = [
-        seed_to_corpus_entry(seed=seed, mime_types=mime_types, allow_empty=allow_empty)
-        for seed in seeds
-    ]
+    entries = [seed_to_corpus_entry(seed=seed, mime_types=mime_types) for seed in seeds]
     manifest = CorpusManifest(version=1, entries=entries)
 
     if manifest_path.exists():

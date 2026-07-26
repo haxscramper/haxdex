@@ -614,7 +614,6 @@ def create_default_persistent_corpus(corpus_root: Path) -> CorpusManifest:
         corpus_root=corpus_root,
         seeds=seeds,
         mime_types=tuple(_MIME_SUFFIXES),
-        allow_empty=True,
     )
 
 
