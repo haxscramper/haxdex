@@ -25,6 +25,7 @@ class IndexServiceConfig():
     service: IndexService
     root_dir: Path
     cfg: AppConfig
+    stable_test_dir: Path
 
 
 def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
@@ -54,7 +55,12 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
     IndexService.reset_for_config(cfg)
     service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
 
-    return IndexServiceConfig(service=service, root_dir=root_dir, cfg=cfg)
+    return IndexServiceConfig(
+        service=service,
+        root_dir=root_dir,
+        cfg=cfg,
+        stable_test_dir=stable_test_dir,
+    )
 
 
 @beartype
@@ -73,13 +79,21 @@ class FileTreeServiceConfig():
     service: IndexService
     root_dir: Path
     cfg: AppConfig
+    stable_test_dir: Path
 
 
 def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     assert index.cfg.index
     cfg = index.cfg.model_copy(update=dict(
         index=None,
-        file_tree_view=FileTreeViewConfig(root_dirs=index.cfg.index.paths[0].paths),
+        file_tree_view=FileTreeViewConfig(
+            root_dirs=index.cfg.index.paths[0].paths,
+            reference_tree_cache_path=index.stable_test_dir.joinpath(
+                "reference_tree_cache.sqlite"),
+            visual_tree_cache_path=index.stable_test_dir.joinpath(
+                "input_tree_cache.sqlite"),
+            user_edit_path=index.stable_test_dir.joinpath("user_actions.sqlite"),
+        ),
     ))
 
     service = IndexService(
@@ -91,6 +105,7 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
         service=service,
         root_dir=index.root_dir,
         cfg=cfg,
+        stable_test_dir=index.stable_test_dir,
     )
 
 

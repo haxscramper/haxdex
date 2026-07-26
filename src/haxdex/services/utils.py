@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
 import enum
 import json
@@ -8,7 +9,7 @@ from sqlalchemy import URL, Engine, create_engine
 
 from PyQt6.QtCore import QLoggingCategory
 from beartype import beartype
-from beartype.typing import Any, Callable, Literal, Optional, Set
+from beartype.typing import Any, Callable, Literal, Optional, Set, Iterator
 import os
 import traceback
 from rich.console import Console

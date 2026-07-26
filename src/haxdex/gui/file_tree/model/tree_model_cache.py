@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import (
     bindparam,)
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -37,6 +39,17 @@ CACHE_FILE_TABLE = "file_tree_file_columns"
 CACHE_PATH_TABLE = "file_tree_paths"
 
 
+@dataclass(slots=True, frozen=True)
+class _CachePathKey:
+    hash: str
+    root: str
+    relative: str
+
+
+def _row_cache_key(row: _FilePathRow) -> _CachePathKey:
+    return _CachePathKey(hash=row.hash, root=row.root, relative=row.relative)
+
+
 def _column_schema_hash(column: FileTreeColumnSpec) -> str:
     schema = column.column_type.model_json_schema()
 
@@ -57,9 +70,12 @@ def _validate_columns(columns: Sequence[FileTreeColumnSpec]) -> None:
         raise ValueError(
             f"File tree column names must be unique; duplicate items: {duplicates}")
 
-    if "hash" in names:
+    reserved_names = {"hash", "root", "relative"}
+    reserved_in_use = sorted(name for name in names if name in reserved_names)
+    if reserved_in_use:
         raise ValueError(
-            "'hash' is reserved by the file tree cache and cannot be a column name",)
+            f"Reserved cache column names cannot be used as file tree columns: {reserved_in_use}",
+        )
 
 
 def _build_cache_tables(
@@ -77,6 +93,8 @@ def _build_cache_tables(
         CACHE_FILE_TABLE,
         metadata,
         Column("hash", Text, primary_key=True),
+        Column("root", Text, primary_key=True),
+        Column("relative", Text, primary_key=True),
         *[Column(column.column_name, Text, nullable=False) for column in columns],
     )
 
@@ -146,6 +164,30 @@ def initialize_cache(
                 f"Expected path table columns {expected_path_table_columns} != path table columns {path_table_columns}"
             )
 
+    if not cache_needs_rebuild:
+        file_table_columns = {
+            column_info["name"] for column_info in inspector.get_columns(CACHE_FILE_TABLE)
+        }
+        expected_file_table_columns = {
+            "hash",
+            "root",
+            "relative",
+            *[column.column_name for column in columns],
+        }
+
+        cache_needs_rebuild = (len(file_table_columns) != len(expected_file_table_columns)
+                               or file_table_columns != expected_file_table_columns)
+
+        if len(file_table_columns) != len(expected_file_table_columns):
+            log.info(
+                f"Expected file table columns len({expected_file_table_columns}) != file table columns len({file_table_columns})"
+            )
+
+        if file_table_columns != expected_file_table_columns:
+            log.info(
+                f"Expected file table columns {expected_file_table_columns} != file table columns {file_table_columns}"
+            )
+
     if cache_needs_rebuild:
         log.info("Need to rebuild cache")
         _drop_cache_database(engine)
@@ -164,7 +206,7 @@ def initialize_cache(
 
     with engine.connect() as connection:
         cached_schema_hashes = dict(
-            connection.execute(  # type: ignore
+            connection.execute(
                 select(
                     schema_table.c.column_name,
                     schema_table.c.schema_hash,
@@ -191,17 +233,30 @@ def initialize_cache(
     return engine, schema_table, file_table, path_table
 
 
-def _get_uncached_hashes(
+def _get_uncached_rows(
     engine: Engine,
     file_table: Table,
     file_paths: Sequence[_FilePathRow],
-) -> list[str]:
-    ordered_hashes = list(dict.fromkeys(result.hash for result in file_paths))
+) -> list[_FilePathRow]:
+    ordered_rows_by_key: dict[_CachePathKey, _FilePathRow] = {}
+
+    for row in file_paths:
+        key = _row_cache_key(row)
+        if key not in ordered_rows_by_key:
+            ordered_rows_by_key[key] = row
 
     with engine.connect() as connection:
-        cached_hashes = set(connection.scalars(select(file_table.c.hash)))
+        cached_keys = {
+            _CachePathKey(hash=row.hash, root=row.root, relative=row.relative)
+            for row in connection.execute(
+                select(
+                    file_table.c.hash,
+                    file_table.c.root,
+                    file_table.c.relative,
+                ),)
+        }
 
-    return [file_hash for file_hash in ordered_hashes if file_hash not in cached_hashes]
+    return [row for key, row in ordered_rows_by_key.items() if key not in cached_keys]
 
 
 def _store_path_hashes(
@@ -253,26 +308,30 @@ def store_missing_file_columns(
     engine: Engine,
     file_table: Table,
     file_paths: Sequence[_FilePathRow],
-    missing_hashes: Sequence[str],
+    missing_rows: Sequence[_FilePathRow],
     db: IndexDatabase,
     indexers: Sequence[BaseIndexer],
     columns: Sequence[FileTreeColumnSpec],
 ) -> None:
-    if not missing_hashes:
+    if not missing_rows:
         return
 
-    representative_paths = {result.hash: result.path for result in file_paths}
+    missing_hashes = list(dict.fromkeys(row.hash for row in missing_rows))
     assets_by_hash = fetch_indexer_assets(ctx, db, missing_hashes, indexers)
 
     rows: list[dict[str, str]] = []
 
-    with ctx.trace_scope("populate file tree cache", file_count=len(missing_hashes)):
-        for hash_value in missing_hashes:
-            path = Path(representative_paths[hash_value])
-            file_hash = FileHash(hash=hash_value)
-            assets = assets_by_hash[hash_value]
+    with ctx.trace_scope("populate file tree cache", file_count=len(missing_rows)):
+        for row_data in missing_rows:
+            path = Path(row_data.path)
+            file_hash = FileHash(hash=row_data.hash)
+            assets = assets_by_hash[row_data.hash]
 
-            row: dict[str, str] = {"hash": hash_value}
+            row: dict[str, str] = {
+                "hash": row_data.hash,
+                "root": row_data.root,
+                "relative": row_data.relative,
+            }
 
             for column in columns:
                 assert path.exists(), str(path)
@@ -284,6 +343,9 @@ def store_missing_file_columns(
                     nested=[],
                 )
 
+                if "file_name" == column.column_name:
+                    assert str(path).endswith(data.name), f"{path} --> {data.name}"
+
                 row[column.column_name] = json.dumps(
                     None if data is None else model_to_json_data(data),
                     separators=(",", ":"),
@@ -293,8 +355,11 @@ def store_missing_file_columns(
 
     with engine.begin() as connection:
         connection.execute(
-            sqlite_insert(file_table).on_conflict_do_nothing(
-                index_elements=[file_table.c.hash],),
+            sqlite_insert(file_table).on_conflict_do_nothing(index_elements=[
+                file_table.c.hash,
+                file_table.c.root,
+                file_table.c.relative,
+            ],),
             rows,
         )
 
@@ -311,7 +376,7 @@ def populate_cache(
 ) -> None:
     _store_path_hashes(engine, path_table, file_paths)
 
-    missing_hashes = _get_uncached_hashes(
+    missing_rows = _get_uncached_rows(
         engine,
         file_table,
         file_paths,
@@ -322,7 +387,7 @@ def populate_cache(
         engine,
         file_table,
         file_paths,
-        missing_hashes,
+        missing_rows,
         db,
         indexers,
         columns,

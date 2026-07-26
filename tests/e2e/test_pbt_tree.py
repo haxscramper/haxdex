@@ -243,10 +243,15 @@ def test_generated_indexer_directory(
         assert metadata_path.exists()
 
     index = init_index_service(stable_test_dir)
+
     index.service.run_index()
 
     assert materialized.root == index.root_dir
     tree_config = init_file_tree_config(index)
+
+    assert tree_config.cfg.file_tree_view
+    assert not tree_config.cfg.file_tree_view.visual_tree_cache_path.exists()
+    assert not tree_config.cfg.file_tree_view.reference_tree_cache_path.exists()
 
     assert tree_config.cfg.file_tree_view
     core = FileTreeQueryCore(
@@ -287,11 +292,12 @@ def test_generated_indexer_directory(
     df = qt_model_to_dataframe(table)
     rec_basenames = [e.name for e in rec_entries]
 
-    assert set(rec_basenames) == (set(df["Name"]) - {"data"}), pformat(
+    assert set(rec_basenames) == (set(df["name"]) - {"data"}), pformat(
         dict(
             rec_basenames=set(rec_basenames),
-            model_names=set(df["Name"]),
+            model_names=set(df["name"]),
             original_model=simple_dump(core.model, max_col=1),
+            real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
         ))
 
     log.info("\n" + str(df))

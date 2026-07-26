@@ -188,16 +188,18 @@ class FileTreeQueryWindow(QMainWindow):
         QCoreApplication.setOrganizationName("haxscramper")
         QCoreApplication.setApplicationName("haxdex-tree-view")
 
-        self.core = FileTreeQueryCore(ctx=ctx,
-                                      db=db,
-                                      cfg=cfg,
-                                      indexer_instances=indexer_instances,
-                                      columns=FileTreeQueryCore.build_default_columns(
-                                          ctx=ctx,
-                                          db=db,
-                                          cfg=cfg,
-                                          indexer_instances=indexer_instances,
-                                      ))
+        self.core = FileTreeQueryCore(
+            ctx=ctx,
+            db=db,
+            cfg=cfg,
+            indexer_instances=indexer_instances,
+            columns=FileTreeQueryCore.build_default_columns(
+                ctx=ctx,
+                db=db,
+                cfg=cfg,
+                indexer_instances=indexer_instances,
+            ),
+        )
 
         self.columns = self.core.columns
         self.regions: list[FileTreeRegion] = []

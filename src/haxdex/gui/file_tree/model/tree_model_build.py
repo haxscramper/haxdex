@@ -26,7 +26,7 @@ from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
 from haxdex.services.file_iteration import match_root, RootFilter, prepare_root_filters
-from haxdex.services.pydantic_utils import model_from_json_data
+from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 
 log = logging.getLogger(__name__)
 
@@ -44,8 +44,13 @@ def _load_flat_file_nodes(
         path_table.c.root,
         path_table.c.relative,
         *[file_table.c[column.column_name] for column in columns],
-    ).select_from(path_table.join(
-        file_table, path_table.c.hash == file_table.c.hash)).order_by(path_table.c.path))
+    ).select_from(
+        path_table.join(
+            file_table,
+            (path_table.c.hash == file_table.c.hash) &
+            (path_table.c.root == file_table.c.root) &
+            (path_table.c.relative == file_table.c.relative),
+        )).order_by(path_table.c.path))
 
     flat_nodes: list[tuple[Path, FileTreeNode]] = []
 
@@ -69,6 +74,10 @@ def _load_flat_file_nodes(
                 node_columns[column.column_name] = (None if json_data is None else
                                                     model_from_json_data(
                                                         json_data, column.column_type))
+
+            if "file_name" in node_columns:
+                fn = node_columns["file_name"]
+                assert str(path).endswith(fn.name), f"{path} --> {fn.name}"
 
             flat_nodes.append((
                 root_filter.root_path,
@@ -134,22 +143,24 @@ def _build_directory_tree(
 
         assert directory_path.exists()
 
+        col_data = {
+            column.column_name:
+                column.initColumnData(
+                    path=directory_path,
+                    hash=None,
+                    is_directory=True,
+                    assets={},
+                    nested=nested,
+                ) for column in columns
+        }
+
         return FileTreeNode(
             path=directory_path,
             is_directory=True,
             hash=None,
             root=root_names.get(root_path),
             root_relative=_root_relative(directory_path, root_path),
-            columns={
-                column.column_name:
-                    column.initColumnData(
-                        path=directory_path,
-                        hash=None,
-                        is_directory=True,
-                        assets={},
-                        nested=nested,
-                    ) for column in columns
-            },
+            columns=col_data,
             nested=nested,
         )
 
@@ -191,10 +202,12 @@ def build_file_tree(
 ) -> list[FileTreeNode]:
     root_filters = prepare_root_filters(root_directories)
     if not root_filters:
+        log.warning("no root filters")
         return []
 
     file_paths = fetch_file_paths(ctx, db, root_filters)
 
+    log.debug("??")
     log.info("Build file tree")
 
     engine, _, file_table, path_table = initialize_cache(
@@ -222,6 +235,9 @@ def build_file_tree(
             root_filters,
             columns,
         )
+
+        Path("/tmp/nodes.json").write_text(
+            json.dumps([model_to_json_data(n) for n in nodes], indent=2))
 
         user_edit_rows = load_user_edits(user_edit_path, columns)
         apply_user_edits(nodes, columns, user_edit_rows)

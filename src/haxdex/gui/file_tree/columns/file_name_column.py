@@ -9,6 +9,10 @@ from pydantic import BaseModel
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
 from haxdex.services.core.types import FileHash
 
+import logging
+
+log = logging.getLogger(__name__)
+
 
 class FileNameData(BaseModel, extra="forbid"):
     name: str
@@ -27,10 +31,11 @@ class FileNameColumnSpec(FileTreeColumnSpec):
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> BaseModel:
+        log.debug(f"name column {path} -> {path.name}")
         return FileNameData(name=path.name)
 
     def __init__(self) -> None:
-        super().__init__("Name")
+        super().__init__("name")
 
     def data(
         self,
