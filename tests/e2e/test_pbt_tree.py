@@ -1,17 +1,18 @@
 from pathlib import Path
 from pprint import pformat
-from beartype.typing import Iterable
+from beartype.typing import Iterable, Any
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
 import pytest
+import plumbum
 
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX
+    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
 import logging
 
@@ -76,7 +77,7 @@ def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
     ])
 
 
-def _relset(items: list[GeneratedIndexerFile]) -> set[Path]:
+def _relset(items: list[GeneratedIndexerEntry]) -> set[Path]:
     return {item.relative_path for item in items}
 
 
@@ -109,6 +110,16 @@ def test_generated_directory_collect_methods_match_content(
     stable_test_dir.mkdir(parents=True, exist_ok=True)
 
     gen_dir = stable_test_dir / "data"
+
+    physical_dir_listing = plumbum.local["exa"].run(["--tree", str(gen_dir)])
+    dbg = f"full directory listing:\n{physical_dir_listing}"
+
+    def pformat_dir(value: Any) -> str:
+        return f"""
+{pformat(value)}
+{dbg}
+        """
+
     materialized = write_generated_directory(gen_dir, directory)
     assert_generated_directory_entries_exact(materialized.root, directory)
 
@@ -120,10 +131,11 @@ def test_generated_directory_collect_methods_match_content(
     fs_entries_default = [
         p.relative_to(materialized.root) for p in materialized.root.glob("*")
     ]
-    assert len(direct_entries_default) == len(fs_entries_default), pformat(
+    assert len(direct_entries_default) == len(fs_entries_default), pformat_dir(
         dict(direct_entries=direct_entries_default, file_entries=fs_entries_default))
+
     assert set(direct_entries_default) == set(
-        _fs_entries_direct(materialized.root, Path(".")))
+        _fs_entries_direct(materialized.root, Path("."))), dbg
 
     # collect_entries_direct(Path(".")) explicitly
     assert _relset(directory.collect_entries_direct(Path("."))) == set(
@@ -132,15 +144,16 @@ def test_generated_directory_collect_methods_match_content(
     for query in _all_query_paths_from_files(fs_files):
         expected_files_direct = set(_fs_files_direct(materialized.root, query))
         actual_files_direct = _relset(directory.collect_files_direct(query))
-        assert len(actual_files_direct) == len(expected_files_direct), pformat(
+        assert len(actual_files_direct) == len(expected_files_direct), pformat_dir(
             dict(query=query,
                  actual=sorted(actual_files_direct),
                  expected=sorted(expected_files_direct)))
+
         assert actual_files_direct == expected_files_direct
 
         expected_files_recursive = set(_fs_files_recursive(materialized.root, query))
         actual_files_recursive = _relset(directory.collect_files_recursive(query))
-        assert len(actual_files_recursive) == len(expected_files_recursive), pformat(
+        assert len(actual_files_recursive) == len(expected_files_recursive), pformat_dir(
             dict(query=query,
                  actual=sorted(actual_files_recursive),
                  expected=sorted(expected_files_recursive)))
@@ -148,7 +161,7 @@ def test_generated_directory_collect_methods_match_content(
 
         expected_dirs_direct = set(_fs_directories_direct(materialized.root, query))
         actual_dirs_direct = _relset(directory.collect_directories_direct(query))
-        assert len(actual_dirs_direct) == len(expected_dirs_direct), pformat(
+        assert len(actual_dirs_direct) == len(expected_dirs_direct), pformat_dir(
             dict(query=query,
                  actual=sorted(actual_dirs_direct),
                  expected=sorted(expected_dirs_direct)))
@@ -156,7 +169,7 @@ def test_generated_directory_collect_methods_match_content(
 
         expected_dirs_recursive = set(_fs_directories_recursive(materialized.root, query))
         actual_dirs_recursive = _relset(directory.collect_directories_recursive(query))
-        assert len(actual_dirs_recursive) == len(expected_dirs_recursive), pformat(
+        assert len(actual_dirs_recursive) == len(expected_dirs_recursive), pformat_dir(
             dict(query=query,
                  actual=sorted(actual_dirs_recursive),
                  expected=sorted(expected_dirs_recursive)))
@@ -164,7 +177,7 @@ def test_generated_directory_collect_methods_match_content(
 
         expected_entries_direct = set(_fs_entries_direct(materialized.root, query))
         actual_entries_direct = _relset(directory.collect_entries_direct(query))
-        assert len(actual_entries_direct) == len(expected_entries_direct), pformat(
+        assert len(actual_entries_direct) == len(expected_entries_direct), pformat_dir(
             dict(query=query,
                  actual=sorted(actual_entries_direct),
                  expected=sorted(expected_entries_direct)))
@@ -172,10 +185,11 @@ def test_generated_directory_collect_methods_match_content(
 
         expected_entries_recursive = set(_fs_entries_recursive(materialized.root, query))
         actual_entries_recursive = _relset(directory.collect_entries_recursive(query))
-        assert len(actual_entries_recursive) == len(expected_entries_recursive), pformat(
-            dict(query=query,
-                 actual=sorted(actual_entries_recursive),
-                 expected=sorted(expected_entries_recursive)))
+        assert len(actual_entries_recursive) == len(
+            expected_entries_recursive), pformat_dir(
+                dict(query=query,
+                     actual=sorted(actual_entries_recursive),
+                     expected=sorted(expected_entries_recursive)))
         assert actual_entries_recursive == expected_entries_recursive
 
     for rel in fs_files:

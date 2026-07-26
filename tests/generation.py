@@ -28,98 +28,134 @@ from pydantic import BaseModel
 @dataclass(frozen=True)
 class GeneratedIndexerFile:
     relative_path: Path
-    results: dict[str, BaseModel]
+    results: dict[str, object]
 
 
 @dataclass(frozen=True)
+class GeneratedIndexerDirectory:
+    relative_path: Path
+
+
+GeneratedIndexerEntry = GeneratedIndexerFile | GeneratedIndexerDirectory
+
+
+@dataclass
 class GeneratedDirectory:
     files: list[GeneratedIndexerFile]
 
-    @staticmethod
-    def _as_relative_path(path: Path | str) -> Path:
-        path = Path(path)
-        if path.is_absolute():
-            raise ValueError(f"Expected relative path, got absolute: {path}")
-        return path
+    def _as_relative_path(self, path: Path | str = Path(".")) -> Path:
+        rel_path = Path(path)
+        return rel_path if rel_path != Path("") else Path(".")
+
+    def _sorted_paths(self, paths: Iterable[Path]) -> list[Path]:
+        return sorted(set(paths), key=lambda path: (len(path.parts), str(path)))
+
+    def _all_directory_paths(self) -> set[Path]:
+        result: set[Path] = set()
+        for file in self.files:
+            current = file.relative_path.parent
+            while current != Path("."):
+                result.add(current)
+                current = current.parent
+        return result
 
     def collect_directories_direct(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-
-        for item in self.files:
-            parent = item.relative_path.parent
-            if parent != Path(".") and parent.parent == path:
-                result.append(item)
-
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerDirectory]:
+        query_path = self._as_relative_path(query)
+        result: set[Path] = set()
+        for file in self.collect_files_recursive(query_path):
+            nested = file.relative_path.relative_to(query_path) if query_path != Path(
+                ".") else file.relative_path
+            if len(nested.parts) <= 1:
+                continue
+            direct_dir = Path(nested.parts[0]) if query_path == Path(
+                ".") else query_path / nested.parts[0]
+            result.add(direct_dir)
+        return [
+            GeneratedIndexerDirectory(relative_path=path)
+            for path in self._sorted_paths(result)
+        ]
 
     def collect_directories_recursive(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-        for item in self.files:
-            parent = item.relative_path.parent
-            if parent == Path("."):
-                continue
-
-            if path == Path("."):
-                result.append(item)
-                continue
-
-            if parent.is_relative_to(path) and parent != path:
-                result.append(item)
-
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerDirectory]:
+        query_path = self._as_relative_path(query)
+        result: set[Path] = set()
+        for file in self.collect_files_recursive(query_path):
+            current = file.relative_path.parent
+            while current != query_path and current != Path("."):
+                result.add(current)
+                current = current.parent
+        return [
+            GeneratedIndexerDirectory(relative_path=path)
+            for path in self._sorted_paths(result)
+        ]
 
     def collect_files_direct(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-        for item in self.files:
-            if item.relative_path.parent == path:
-                result.append(item)
-
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerFile]:
+        query_path = self._as_relative_path(query)
+        return [file for file in self.files if file.relative_path.parent == query_path]
 
     def collect_files_recursive(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-        for item in self.files:
-            if path == Path("."):
-                result.append(item)
-                continue
-
-            if item.relative_path.is_relative_to(path):
-                result.append(item)
-
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerFile]:
+        query_path = self._as_relative_path(query)
+        if query_path == Path("."):
+            return list(self.files)
+        return [
+            file for file in self.files if file.relative_path.is_relative_to(query_path)
+        ]
 
     def collect_entries_direct(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-        result.extend(self.collect_directories_direct(path))
-        result.extend(self.collect_files_direct(path))
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerEntry]:
+        return [
+            *self.collect_files_direct(query),
+            *self.collect_directories_direct(query),
+        ]
 
     def collect_entries_recursive(
-        self, path: Path | str = Path(".")) -> list[GeneratedIndexerFile]:
-        path = self._as_relative_path(path)
-        result: list[GeneratedIndexerFile] = []
-        result.extend(self.collect_directories_recursive(path))
-        result.extend(self.collect_files_recursive(path))
-        return result
+            self,
+            query: Path | str = Path("."),
+    ) -> list[GeneratedIndexerEntry]:
+        return [
+            *self.collect_files_recursive(query),
+            *self.collect_directories_recursive(query),
+        ]
 
-    def get_file_by_relative_name(self,
-                                  relative_name: Path | str) -> GeneratedIndexerFile:
-        relative_name = self._as_relative_path(relative_name)
-        for item in self.files:
-            if item.relative_path == relative_name:
-                return item
+    def get_file_by_relative_name(self, name: Path | str) -> GeneratedIndexerFile:
+        rel_name = self._as_relative_path(name)
+        for file in self.files:
+            if file.relative_path == rel_name:
+                return file
+        raise KeyError(f"File entry is missing for relative path '{rel_name}'")
 
-        raise KeyError(f"Generated indexer file not found: {relative_name}")
+    def get_directory_by_relative_name(self,
+                                       name: Path | str) -> GeneratedIndexerDirectory:
+        rel_name = self._as_relative_path(name)
+        if rel_name == Path("."):
+            raise KeyError("Root path '.' is not a generated directory entry")
+        dirs = self._all_directory_paths()
+        if rel_name in dirs:
+            return GeneratedIndexerDirectory(relative_path=rel_name)
+        raise KeyError(f"Directory entry is missing for relative path '{rel_name}'")
+
+    def get_entry_by_relative_name(self, name: Path | str) -> GeneratedIndexerEntry:
+        rel_name = self._as_relative_path(name)
+        for file in self.files:
+            if file.relative_path == rel_name:
+                return file
+        if rel_name in self._all_directory_paths():
+            return GeneratedIndexerDirectory(relative_path=rel_name)
+        raise KeyError(
+            f"File or directory entry is missing for relative path '{rel_name}'")
 
 
 @dataclass(frozen=True)
