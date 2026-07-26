@@ -51,7 +51,6 @@ class StorageMixin:
         self,
         ref: FileHash | FileRef,
         indexer: BaseIndexProtocol | str,
-        short_circuit_this_check: bool = False,
     ) -> bool:
         collection_name = self.get_collection_name(indexer)
         file_hash = self.get_file_hash(ref)
@@ -59,7 +58,7 @@ class StorageMixin:
         if file_hash in self._indexer_hashes.get(collection_name, set()):
             return True
 
-        if self.only_short_curcuit_checks or short_circuit_this_check:
+        if self.only_short_curcuit_checks:
             return False
 
         exists = cast(bool, self._db.collection(collection_name).has(file_hash))

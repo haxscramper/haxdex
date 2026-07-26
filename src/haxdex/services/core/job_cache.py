@@ -1,172 +1,158 @@
-from __future__ import annotations
-
+import hashlib
 import json
-import logging
+import re
 from datetime import datetime, timezone
-from pathlib import Path
+from functools import wraps
+from time import perf_counter
+from typing import Any, Callable, ClassVar, Optional, ParamSpec
 
-from beartype import beartype
-from beartype.typing import Any, Optional
-from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, create_engine, select
+from sqlalchemy import (
+    JSON,
+    Column,
+    DateTime,
+    Float,
+    MetaData,
+    String,
+    Table,
+    select,
+)
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection
+import logging
 
-from haxdex.services.core.job_types import BaseIndexer
-from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
+from haxdex.services.core.job_types import BaseIndexer, RunContext
+from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
-from haxdex.services.utils import get_xdg_cache_dir
+from haxdex.services.utils import get_xdg_cache_dir, ExceptionContextNote
 
 log = logging.getLogger(__name__)
 
+P = ParamSpec("P")
 
-@beartype
-class JobCache:
 
-    def __init__(self, cache_file: Optional[Path] = None) -> None:
-        default_path = get_xdg_cache_dir(["haxdex"]) / "indexer_cache.sqlite"
-        self.cache_file = cache_file or default_path
-        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-        self._meta_results: dict[tuple[str, str], IndexerOutput] = {}
-        self._engine: Optional[Engine] = None
-        self._available = False
+def cache_indexer_run(
+    decorated: Callable[P, IndexerOutput],) -> Callable[P, IndexerOutput]:
 
-        metadata = MetaData()
-        self._table = Table(
-            "indexer_result_cache",
-            metadata,
-            Column("file_hash", String, primary_key=True),
-            Column("indexer_id", String, primary_key=True),
-            Column("result", JSON, nullable=False),
-            Column("updated_at", DateTime(timezone=True), nullable=False),
+    @wraps(decorated)
+    def wrapper(
+        self: BaseIndexer,
+        ctx: RunContext,
+        request: IndexerRequest,
+        resources: dict[str, object],
+        assets: dict[str, object],
+    ) -> IndexerOutput:
+        file_hash = request.file_ref.hash.hash
+
+        schema_hash = hashlib.sha256(
+            json.dumps(
+                self.result_model.model_json_schema(),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8"),).hexdigest()
+
+        def store_cache_record(
+            result: IndexerOutput,
+            *,
+            function_started_at: datetime,
+            function_duration_seconds: float,
+        ) -> None:
+            result_json = model_to_json_data(result)
+            assert isinstance(result_json, dict)
+
+            upsert = sqlite_insert(self.cache_table).values(
+                file_hash=file_hash,
+                schema_hash=schema_hash,
+                result=result_json,
+                function_started_at=function_started_at,
+                function_duration_seconds=function_duration_seconds,
+            )
+
+            upsert = upsert.on_conflict_do_update(
+                index_elements=[self.cache_table.c.file_hash],
+                set_={
+                    "schema_hash":
+                        upsert.excluded.schema_hash,
+                    "result":
+                        upsert.excluded.result,
+                    "function_started_at":
+                        upsert.excluded.function_started_at,
+                    "function_duration_seconds":
+                        upsert.excluded.function_duration_seconds,
+                },
+            )
+
+            with (
+                    ctx.trace_scope(
+                        "store cache database record",
+                        indexer=self.asset_name,
+                        file_hash=file_hash,
+                    ),
+                    self.database.begin() as database,
+            ):
+                database.execute(upsert)
+
+        if self.should_load_cache:
+            with (
+                    ctx.trace_scope(
+                        "load cache database record",
+                        indexer=self.asset_name,
+                        file_hash=file_hash,
+                    ),
+                    self.database.connect() as database,
+            ):
+                cache_row = database.execute(
+                    select(
+                        self.cache_table.c.schema_hash,
+                        self.cache_table.c.result,
+                    ).where(self.cache_table.c.file_hash == file_hash,),
+                ).mappings().one_or_none()
+
+            if cache_row is not None:
+                if cache_row["schema_hash"] == schema_hash:
+                    try:
+                        parsed = model_from_json_data(
+                            cache_row["result"],
+                            IndexerOutput,
+                        )
+                        assert parsed.indexer_id == self.asset_name
+
+                        result_value = self.result_model.model_validate(parsed.result,)
+
+                        return IndexerOutput(
+                            indexer_id=self.asset_name,
+                            result=result_value,
+                        )
+
+                    except (json.JSONDecodeError, ValueError, TypeError) as err:
+                        log.error(
+                            f"Could not parse cached database value for "
+                            f"{self.asset_name}: {err}",)
+                else:
+                    log.info(
+                        "Cache schema mismatch for indexer {} "
+                        "(cached={}, current={}), recomputing.".format(
+                            self.asset_name,
+                            cache_row["schema_hash"],
+                            schema_hash,
+                        ),)
+
+        function_started_at = datetime.now(timezone.utc)
+        execution_started = perf_counter()
+
+        result = decorated(
+            self,  # type: ignore[arg-type]
+            ctx=ctx,  # type: ignore[arg-type]
+            request=request,  # type: ignore[arg-type]
+            resources=resources,  # type: ignore[arg-type]
+            assets=assets,  # type: ignore[arg-type]
         )
 
-        try:
-            self._engine = create_engine(f"sqlite:///{self.cache_file}")
-            metadata.create_all(self._engine, checkfirst=True)
-            self._available = True
-        except Exception as err:
-            self._available = False
-            self._engine = None
-            log.warning(f"sqlite cache unavailable at {self.cache_file}: {err}")
-
-    def is_available(self) -> bool:
-        return self._available
-
-    def _normalize_hash(self, ref: FileHash | FileRef) -> str:
-        match ref:
-            case FileHash():
-                return ref.hash
-            case FileRef():
-                return ref.hash.hash
-            case _:
-                raise TypeError(f"unsupported ref type {type(ref)} for cache access")
-
-    def _normalize_indexer(self, indexer: BaseIndexer | str) -> str:
-        match indexer:
-            case str():
-                return indexer
-            case BaseIndexer():
-                return indexer.asset_name
-            case _:
-                raise TypeError(
-                    f"unsupported indexer type {type(indexer)} for cache access")
-
-    def has_output(self, ref: FileHash | FileRef, indexer: BaseIndexer | str) -> bool:
-        file_hash = self._normalize_hash(ref)
-        indexer_id = self._normalize_indexer(indexer)
-        key = (file_hash, indexer_id)
-
-        if key in self._meta_results:
-            return True
-
-        if not self._available or self._engine is None:
-            return False
-
-        with self._engine.connect() as connection:
-            row = connection.execute(
-                select(self._table.c.file_hash).where(
-                    self._table.c.file_hash == file_hash,
-                    self._table.c.indexer_id == indexer_id,
-                )).first()
-        return row is not None
-
-    def get_output(
-        self,
-        ref: FileHash | FileRef,
-        indexer: BaseIndexer | str,
-    ) -> Optional[IndexerOutput]:
-        file_hash = self._normalize_hash(ref)
-        indexer_id = self._normalize_indexer(indexer)
-        key = (file_hash, indexer_id)
-
-        if key in self._meta_results:
-            return self._meta_results[key]
-
-        if not self._available or self._engine is None:
-            return None
-
-        with self._engine.connect() as connection:
-            row = connection.execute(
-                select(self._table.c.result).where(
-                    self._table.c.file_hash == file_hash,
-                    self._table.c.indexer_id == indexer_id,
-                )).mappings().one_or_none()
-
-        if row is None:
-            return None
-
-        parsed = model_from_json_data(row["result"], IndexerOutput)
-        return parsed
-
-    def store_output(self, ref: FileHash | FileRef, output: IndexerOutput) -> None:
-        file_hash = self._normalize_hash(ref)
-        payload = model_to_json_data(output)
-        assert isinstance(payload, dict), (
-            f"cache payload must be a dict, got {type(payload)} for {output.indexer_id}")
-
-        self._meta_results[(file_hash, output.indexer_id)] = output
-
-        if not self._available or self._engine is None:
-            return
-
-        upsert = sqlite_insert(self._table).values(
-            file_hash=file_hash,
-            indexer_id=output.indexer_id,
-            result=payload,
-            updated_at=datetime.now(timezone.utc),
-        )
-        upsert = upsert.on_conflict_do_update(
-            index_elements=[self._table.c.file_hash, self._table.c.indexer_id],
-            set_={
-                "result": upsert.excluded.result,
-                "updated_at": upsert.excluded.updated_at,
-            },
+        store_cache_record(
+            result,
+            function_started_at=function_started_at,
+            function_duration_seconds=perf_counter() - execution_started,
         )
 
-        with self._engine.begin() as connection:
-            connection.execute(upsert)
+        return result
 
-    def register_meta_results(self, ref: FileRef, results: dict[str, dict[str,
-                                                                          Any]]) -> None:
-        for indexer_id, result_payload in results.items():
-            parsed = model_from_json_data(result_payload, IndexerOutput)
-            if parsed.indexer_id != indexer_id:
-                raise ValueError(
-                    f"meta cache result indexer mismatch for {ref.hash.hash}: "
-                    f"dict key is '{indexer_id}', payload indexer_id is '{parsed.indexer_id}'"
-                )
-            self._meta_results[(ref.hash.hash, indexer_id)] = parsed
-
-    def register_meta_file(self, ref: FileRef, meta_file: Path) -> None:
-        payload = json.loads(meta_file.read_text())
-        if "results" not in payload:
-            raise ValueError(f"meta file '{meta_file}' does not contain 'results' key")
-        results = payload["results"]
-        if not isinstance(results, dict):
-            raise TypeError(
-                f"meta file '{meta_file}' has non-dict results value: {type(results)}")
-        self.register_meta_results(ref, results)
-
-
-def cache_indexer_run(decorated):
-    return decorated
+    return wrapper

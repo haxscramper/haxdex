@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from enum import StrEnum
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Annotated, Any, ClassVar, Literal, Optional
+from beartype.typing import Annotated, Any, ClassVar, Optional
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, PlainValidator
 
 AnyModel = Annotated[
@@ -31,7 +30,7 @@ class VectorIndexConfig(BaseModel, extra="forbid"):
 class FullTextIndexConfig(BaseModel, extra="forbid"):
     index_path: str
     analyzer: str = "text_en"
-    bm25: bool = True
+    bm25: bool = True  # use BM25 scoring, else TFIDF
 
 
 class IndexDocument(BaseModel, extra="forbid"):
@@ -55,31 +54,13 @@ class IndexMultiDocument(IndexDocument, extra="forbid"):
 class MultiDocumentModel(BaseModel, extra="forbid"):
     edge_type: ClassVar[Any]
     document_type: ClassVar[Any]
+
     edges: list[IndexEdge]
     documents: list[IndexMultiDocument]
 
 
-class IndexerResultKind(StrEnum):
-    DOCUMENT = "document"
-    MISSING_ASSETS = "missing_assets"
-    CANNOT_PROCESS = "cannot_process"
-    ERROR = "error"
-
-
 class IndexerOutputError(BaseModel, extra="forbid"):
-    kind: Literal[IndexerResultKind.ERROR] = IndexerResultKind.ERROR
     description: str
-
-
-class MissingAssets(BaseModel, extra="forbid"):
-    kind: Literal[IndexerResultKind.MISSING_ASSETS] = IndexerResultKind.MISSING_ASSETS
-    assets: list[str]
-    reason: str
-
-
-class CannotProcess(BaseModel, extra="forbid"):
-    kind: Literal[IndexerResultKind.CANNOT_PROCESS] = IndexerResultKind.CANNOT_PROCESS
-    reason: str
 
 
 class IndexerNotApplicable(BaseModel, extra="forbid"):
@@ -113,8 +94,7 @@ class FileRef(BaseModel, extra="forbid"):
 class IndexerOutput(BaseModel, extra="forbid"):
     model_config = ConfigDict(frozen=True)
     indexer_id: str
-    result_kind: IndexerResultKind = IndexerResultKind.DOCUMENT
-    result: AnyModel | MissingAssets | CannotProcess | IndexerOutputError
+    result: AnyModel | IndexerOutputError | IndexerNotApplicable
 
 
 @beartype

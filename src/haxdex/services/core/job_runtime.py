@@ -1,31 +1,28 @@
 from __future__ import annotations
 
 from collections import deque
-import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from graphlib import TopologicalSorter
-from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Sequence, Optional
 from graphviz import Digraph
+
 from time import monotonic
 
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_cache import JobCache
-from haxdex.services.core.job_types import BaseIndexer, BaseResource, META_SUFFIX, RunContext
+from haxdex.services.core.job_types import (
+    BaseIndexer,
+    BaseResource,
+    RunContext,
+)
 from haxdex.services.core.types import (
-    CannotProcess,
     FileHash,
     FileRef,
     IndexerOutput,
-    IndexerOutputError,
     IndexerRequest,
-    IndexerResultKind,
-    MissingAssets,
-    RootRef,
 )
 from haxdex.services.utils import ExceptionContextNote
 
@@ -39,7 +36,6 @@ class PlannedIndexerBatch:
     file_refs: list[FileRef]
     sub_batches: list[list[FileRef]]
     window_id: int
-    cached_outputs: list[tuple[FileRef, IndexerOutput]]
 
 
 @beartype
@@ -50,8 +46,7 @@ class ExecutionPlan:
     dependencies: dict[str, tuple[str, ...]]
 
     def total_runs(self) -> int:
-        return sum(
-            len(batch.file_refs) for batch in self.batches if len(batch.sub_batches) != 0)
+        return sum(len(batch.file_refs) for batch in self.batches)
 
     def get_indexer_names(self) -> list[str]:
         names: list[str] = []
@@ -74,11 +69,11 @@ class ExecutionPlan:
             lines.append("    - batch " + str(batch_idx) + "/" + str(len(self.batches)) +
                          ": indexer=" + batch.indexer_name + ", window=" +
                          str(batch.window_id) + ", files=" + str(len(batch.file_refs)) +
-                         ", sub_batches=" + str(len(batch.sub_batches)) +
-                         ", cached_outputs=" + str(len(batch.cached_outputs)))
+                         ", sub_batches=" + str(len(batch.sub_batches)))
             for sub_idx, sub in enumerate(batch.sub_batches, start=1):
                 lines.append("      - sub_batch " + str(sub_idx) + "/" +
                              str(len(batch.sub_batches)) + ": size=" + str(len(sub)))
+
         return "\n".join(lines)
 
     def to_graphviz(self) -> Digraph:
@@ -107,16 +102,14 @@ class ExecutionPlan:
 class IndexRuntime:
 
     def __init__(
-        self,
-        ctx: RunContext,
-        db: IndexDatabase,
-        indexer_types: Sequence[BaseIndexer] = list(),
-        resource_types: Sequence[BaseResource] = list(),
-        cache: Optional[JobCache] = None,
+            self,
+            ctx: RunContext,
+            db: IndexDatabase,
+            indexer_types: Sequence[BaseIndexer] = list(),
+            resource_types: Sequence[BaseResource] = list(),
     ) -> None:
         self.db = db
         self.ctx = ctx
-        self.cache = cache or JobCache()
         self._resource_instances: dict[str, BaseResource] = {
             inst.resource_key: inst for inst in resource_types
         }
@@ -125,6 +118,7 @@ class IndexRuntime:
         }
 
         self.db.ensure_collections(list(self._indexer_instances.values()))  # type: ignore
+
         self._indexer_order = self._compute_order()
 
     def _compute_order(self) -> list[str]:
@@ -181,6 +175,7 @@ class IndexRuntime:
         for res_name in set(left_sig.keys()) & set(right_sig.keys()):
             if left_sig[res_name] != right_sig[res_name]:
                 return False
+
         return True
 
     def _exclusive_signature(self, indexer_name: str) -> dict[str, str]:
@@ -237,41 +232,6 @@ class IndexRuntime:
             windows.extend(self._group_layer_into_windows(layer))
         return windows
 
-    def _is_success_output(self, output: IndexerOutput) -> bool:
-        match output.result_kind:
-            case IndexerResultKind.DOCUMENT:
-                return True
-            case IndexerResultKind.MISSING_ASSETS:
-                return False
-            case IndexerResultKind.CANNOT_PROCESS:
-                return False
-            case IndexerResultKind.ERROR:
-                return False
-        raise ValueError(
-            f"unsupported result kind for {output.indexer_id}: {output.result_kind}")
-
-    def load_meta_cache_for_root(self, root: RootRef, meta_files: list[Path]) -> None:
-        for meta_path in meta_files:
-            if not str(meta_path).endswith(META_SUFFIX):
-                raise ValueError(
-                    f"unexpected non-meta file passed for cache preload: {meta_path}")
-            source_path = Path(str(meta_path)[:len(str(meta_path)) - len(META_SUFFIX)])
-            if not source_path.exists():
-                raise ValueError(
-                    f"meta cache file '{meta_path}' points to missing source file '{source_path}'"
-                )
-            ref = self.db.as_ref(root, source_path)
-            payload = json.loads(meta_path.read_text())
-            if "indexers" not in payload:
-                raise ValueError(
-                    f"meta file '{meta_path}' does not contain required 'indexers'")
-            indexers = payload["indexers"]
-            if not isinstance(indexers, dict):
-                raise TypeError(
-                    f"meta file '{meta_path}' has invalid 'indexers' type {type(indexers)}"
-                )
-            self.cache.register_meta_results(ref, indexers)
-
     def create_plan(self, files: list[FileRef], names: list[str]) -> ExecutionPlan:
         windows = self.build_windows(names)
         requested = {name for window in windows for name in window}
@@ -287,65 +247,30 @@ class IndexRuntime:
         for window_id, window in enumerate(windows):
             for name in window:
                 indexer = self._indexer_instances[name]
-                stage_files: list[FileRef] = []
-                hydrate_outputs: list[tuple[FileRef, IndexerOutput]] = []
+                stage_files = [
+                    ref for ref in files if indexer.can_run(self.db.get_path(ref)) and
+                    not self.db.has_indexer_result(ref, name)
+                ]
+                if not stage_files:
+                    continue
+                chunk_size = max(1, indexer.max_parallel)
+                sub_batches = [
+                    stage_files[i:i + chunk_size]
+                    for i in range(0, len(stage_files), chunk_size)
+                ]
+                planned.append(
+                    PlannedIndexerBatch(
+                        indexer_name=name,
+                        file_refs=stage_files,
+                        sub_batches=sub_batches,
+                        window_id=window_id,
+                    ))
 
-                for ref in files:
-                    file_path = self.db.get_path(ref)
-
-                    if not indexer.can_run(file_path):
-                        cannot_process = IndexerOutput(
-                            indexer_id=name,
-                            result_kind=IndexerResultKind.CANNOT_PROCESS,
-                            result=CannotProcess(
-                                reason=
-                                f"indexer '{name}' cannot process file '{file_path}'"),
-                        )
-                        self.cache.store_output(ref, cannot_process)
-                        continue
-
-                    has_db_result = self.db.has_indexer_result(
-                        ref,
-                        name,
-                        short_circuit_this_check=True,
-                    )
-                    if has_db_result:
-                        continue
-
-                    cached_result = self.cache.get_output(ref, name)
-                    if cached_result is None:
-                        stage_files.append(ref)
-                        continue
-
-                    if self._is_success_output(cached_result):
-                        hydrate_outputs.append((ref, cached_result))
-
-                if hydrate_outputs:
-                    planned.append(
-                        PlannedIndexerBatch(
-                            indexer_name=name,
-                            file_refs=[ref for ref, _ in hydrate_outputs],
-                            sub_batches=[],
-                            window_id=window_id,
-                            cached_outputs=hydrate_outputs,
-                        ))
-
-                if stage_files:
-                    chunk_size = max(1, indexer.max_parallel)
-                    sub_batches = [
-                        stage_files[i:i + chunk_size]
-                        for i in range(0, len(stage_files), chunk_size)
-                    ]
-                    planned.append(
-                        PlannedIndexerBatch(
-                            indexer_name=name,
-                            file_refs=stage_files,
-                            sub_batches=sub_batches,
-                            window_id=window_id,
-                            cached_outputs=[],
-                        ))
-
-        return ExecutionPlan(batches=planned, windows=windows, dependencies=dependencies)
+        return ExecutionPlan(
+            batches=planned,
+            windows=windows,
+            dependencies=dependencies,
+        )
 
     def execute_plan(self, plan: ExecutionPlan) -> None:
         total_batches = len(plan.batches)
@@ -355,11 +280,11 @@ class IndexRuntime:
             completed_batches = batch_idx - 1
             elapsed = monotonic() - plan_started_at
 
-            if 0 < completed_batches and 0 < elapsed:
+            if completed_batches > 0 and elapsed > 0:
                 batches_per_min = (completed_batches / elapsed) * 60.0
                 eta_plan_sec = ((total_batches - completed_batches) /
                                 (batches_per_min / 60.0)
-                                if 0 < batches_per_min else float("inf"))
+                                if batches_per_min > 0 else float("inf"))
                 batches_per_min_str = f"{batches_per_min:.2f}"
                 eta_plan_str = f"{eta_plan_sec:.1f}s"
             else:
@@ -367,7 +292,7 @@ class IndexRuntime:
                 eta_plan_str = "unknown"
 
             log.debug(
-                "batch {}/{}: indexer={} window={} files={} sub_batches={} cached_outputs={} batches_per_min={} eta_plan={}"
+                "batch {}/{}: indexer={} window={} files={} sub_batches={} batches_per_min={} eta_plan={}"
                 .format(
                     batch_idx,
                     total_batches,
@@ -375,10 +300,9 @@ class IndexRuntime:
                     batch.window_id,
                     len(batch.file_refs),
                     len(batch.sub_batches),
-                    len(batch.cached_outputs),
                     batches_per_min_str,
                     eta_plan_str,
-                ))
+                ),)
 
             with self.ctx.trace_scope(
                     "execute batch",
@@ -388,7 +312,6 @@ class IndexRuntime:
                     window=batch.window_id,
                     files=len(batch.file_refs),
                     sub_batches=len(batch.sub_batches),
-                    cached_outputs=len(batch.cached_outputs),
             ):
                 self._run_indexer_batch(batch)
 
@@ -396,10 +319,14 @@ class IndexRuntime:
         self.db.truncate_all(list(self._indexer_instances.keys()))
 
     def run_indexers(self, files: list[FileRef], names: list[str]) -> None:
-        with self.ctx.trace_scope("plan construction",
-                                  files=len(files),
-                                  indexers=len(names)):
+        with self.ctx.trace_scope(
+                "plan construction",
+                files=len(files),
+                indexers=len(names),
+        ):
             plan = self.create_plan(files, names)
+
+        # log.debug(f"\n{plan.to_text()}")
 
         with self.ctx.trace_scope(
                 "plan execution",
@@ -416,7 +343,7 @@ class IndexRuntime:
         assert self.get_indexer(name).result_model
         return IndexerOutput(
             indexer_id=name,
-            result=self.db.get_indexer_result(
+            result=self.db.get_indexer_result(  # type: ignore
                 hash if isinstance(hash, FileHash) else hash.hash,
                 self.get_indexer(name),
             ),
@@ -427,44 +354,15 @@ class IndexRuntime:
 
     def _run_indexer_batch(self, batch: PlannedIndexerBatch) -> None:
         indexer = self._indexer_instances[batch.indexer_name]
-
-        if batch.cached_outputs:
-            with self.ctx.trace_scope("hydrate cached indexer outputs",
-                                      indexer=indexer.asset_name):
-                for ref, output in batch.cached_outputs:
-                    if self._is_success_output(output):
-                        self.db.store_indexer_output(ref, output)
-            return
-
         resources = self._resources_for_indexer(indexer)
 
         def work(ref: FileRef) -> Optional[tuple[FileRef, IndexerOutput]]:
             assets: dict[str, IndexerOutput | None] = {}
             for name in indexer.required_assets:
-                has_db_result = self.db.has_indexer_result(
-                    ref,
-                    name,
-                    short_circuit_this_check=True,
-                )
-                if has_db_result:
+                if self.db.has_indexer_result(ref, name):
                     assets[name] = self.get_indexer_result(ref.hash, name)
                 else:
-                    assets[name] = self.cache.get_output(ref, name)
-
-            missing_asset_names = [
-                name for name, value in assets.items() if value is None
-            ]
-            if missing_asset_names:
-                missing_output = IndexerOutput(
-                    indexer_id=indexer.asset_name,
-                    result_kind=IndexerResultKind.MISSING_ASSETS,
-                    result=MissingAssets(
-                        assets=missing_asset_names,
-                        reason=
-                        f"missing required assets for indexer '{indexer.asset_name}'",
-                    ),
-                )
-                return ref, missing_output
+                    assets[name] = None
 
             request = IndexerRequest(file_ref=ref, dependency_results=assets)
 
@@ -482,11 +380,6 @@ class IndexRuntime:
                     assets=assets,  # type: ignore
                 )
 
-            if out.indexer_id != indexer.asset_name:
-                raise ValueError(
-                    f"indexer '{indexer.asset_name}' returned mismatched output indexer_id '{out.indexer_id}'"
-                )
-
             return ref, out
 
         total_sub_batches = len(batch.sub_batches)
@@ -496,8 +389,8 @@ class IndexRuntime:
             remaining_sub_batches = total_sub_batches - sub_idx + 1
 
             if recent_sub_batch_times:
-                average_sub_batch_sec = sum(recent_sub_batch_times) / len(
-                    recent_sub_batch_times)
+                average_sub_batch_sec = (sum(recent_sub_batch_times) /
+                                         len(recent_sub_batch_times))
                 sub_batches_per_sec = 1 / average_sub_batch_sec
                 eta_batch_sec = remaining_sub_batches * average_sub_batch_sec
                 sub_batches_per_sec_str = f"{sub_batches_per_sec:.2f}"
@@ -515,7 +408,7 @@ class IndexRuntime:
                     len(chunk),
                     sub_batches_per_sec_str,
                     eta_batch_str,
-                ))
+                ),)
 
             sub_batch_started_at = monotonic()
 
@@ -526,7 +419,7 @@ class IndexRuntime:
                     total_sub_batches=total_sub_batches,
                     size=len(chunk),
             ):
-                if 1 < len(chunk) and 1 < indexer.max_parallel:
+                if len(chunk) > 1 and indexer.max_parallel > 1:
                     with ThreadPoolExecutor(max_workers=indexer.max_parallel) as ex:
                         completed_1 = list(ex.map(work, chunk))
                 else:
@@ -534,10 +427,10 @@ class IndexRuntime:
 
                 completed = [c for c in completed_1 if c is not None]
 
-                for ref, out in completed:
-                    with ExceptionContextNote(f"indexer asset: {indexer.asset_name}"):
-                        self.cache.store_output(ref, out)
-                        if self._is_success_output(out):
+                with self.ctx.trace_scope("store all indexer results",
+                                          indexer=indexer.asset_name):
+                    for ref, out in completed:
+                        with ExceptionContextNote(f"indexer asset: {indexer.asset_name}"):
                             self.db.store_indexer_output(ref, out)
 
             recent_sub_batch_times.append(monotonic() - sub_batch_started_at)
