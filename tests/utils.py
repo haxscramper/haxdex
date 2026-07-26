@@ -18,6 +18,8 @@ from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
 from haxdex.services.indexers.file_size import FileSizeIndexer
+from haxdex.services.indexers.file_stats import FileStatsIndexer
+from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 
 
 @beartype
@@ -43,8 +45,9 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
         ),
         indexers={
             FFProbeIndexer.asset_name: FFProbeIndexer.config_model(),
-            FileSizeIndexer.asset_name: FileSizeIndexer.config_model(),
             ExifMetadataIndexer.asset_name: ExifMetadataIndexer.config_model(),
+            FileStatsIndexer.asset_name: FileStatsIndexer.config_model(),
+            FileMimeIndexer.asset_name: FileMimeIndexer.config_model(),
         },
         resources={},
         index_cache=stable_test_dir.joinpath("index_cache.sqlite"),
@@ -68,7 +71,7 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
 def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec]:
     return cast(list[FileTreeColumnSpec], [
         FileNameColumnSpec(),
-        TrivialDataColumnSpec("is_directory"),
+        TrivialDataColumnSpec("trivial"),
         FileMimeColumnSpec("mime"),
         EntrySizeColumnSpec("size"),
         SizeShareColumnSpec("share", [index.root_dir]),

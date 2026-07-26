@@ -1,3 +1,4 @@
+import dataclasses
 from pathlib import Path
 from pprint import pformat
 from beartype.typing import Iterable, Any
@@ -32,6 +33,50 @@ pd.set_option("display.max_columns", None)
 pd.set_option("display.width", None)
 pd.set_option("display.max_colwidth", None)
 pd.set_option("display.colheader_justify", "left")
+
+
+@pytest.fixture(autouse=True)
+def _pytest_only_logging():
+    logger = logging.getLogger("haxdex")
+    logger.handlers.clear()  # remove StreamHandler that writes to stderr
+    logger.propagate = True  # let pytest capture via root logger
+
+
+def _cell_to_dict(v):
+    if v is None:
+        return {}
+    if isinstance(v, dict):
+        return v
+    if dataclasses.is_dataclass(v):
+        return dataclasses.asdict(v)
+    if hasattr(v, "model_dump"):  # pydantic v2
+        return v.model_dump()
+    if hasattr(v, "__dict__"):
+        return {k: val for k, val in vars(v).items() if not k.startswith("_")}
+    return {}
+
+
+def split_columns_by_rules(
+    df: pd.DataFrame,
+    rules: list[tuple[str, list[str | tuple[str, str]]]],
+) -> pd.DataFrame:
+    out = df.copy()
+
+    for col, fields in rules:
+        mapped = out[col].map(_cell_to_dict)
+
+        for field in fields:
+            if isinstance(field, tuple):
+                field_key, res_name = field
+
+            else:
+                field_key, res_name = field, field
+
+            out[res_name] = mapped.map(lambda d: d.get(field_key))
+
+    out = out.drop(columns=[col for col, _ in rules])
+
+    return out
 
 
 def _fs_content_files(root: Path) -> list[Path]:
@@ -313,8 +358,16 @@ def test_generated_indexer_directory(
                                    CustomModelRole.FullDataRole.value: "data",
                                })
 
-    log.info("\n" + str(df))
+    assert "name" in df.columns, str(df.columns)
 
+    rules = [
+        ("trivial", ["assets", "is_directory", "root", "root_relative"]),
+        ("size", ["size_self", "size_parent"]),
+        ("name", ["name"]),
+    ]
+    df = split_columns_by_rules(df, rules)
+
+    log.info("\n" + df.to_string(justify="left"))
     rec_basenames = [e.name for e in rec_entries]
 
     assert set(rec_basenames) == (set(df["name"]) - {"data"}), pformat(
@@ -324,5 +377,8 @@ def test_generated_indexer_directory(
             original_model=simple_dump(core.model, max_col=1),
             real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
         ))
+
+    assert df["size_self"].notna().all(), "`size_self` contains None values"
+    assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
 
     assert False
