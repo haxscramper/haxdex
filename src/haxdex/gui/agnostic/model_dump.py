@@ -48,6 +48,15 @@ class ItemFormatContext:
     roles: list[IndexRoleRepr]
     final_repr: str
 
+    def get_role_lines(self) -> list[str]:
+        result = list()
+        name_width = max([1, 1] + [len(role.role_name) for role in self.roles])
+
+        for role in self.roles:
+            result.append(f"{role.role_name:<{name_width}} = {role.role_value}")
+
+        return result
+
 
 class ModelStructure(str, enum.Enum):
     VALUE = "value"
@@ -185,7 +194,7 @@ class ModelRichDumpConfig:
     @beartype
     def create_role_table(self) -> Table:
         table = Table.grid(expand=False)
-        table.add_column(justify="right", style=self.style_role_name, no_wrap=True)
+        table.add_column(justify="left", style=self.style_role_name, no_wrap=True)
         table.add_column(style=self.style_role_value, overflow="fold")
         return table
 
@@ -552,8 +561,8 @@ def _default_item_renderable(
 
     if 0 < len(context.roles):
         role_table = config.create_role_table()
-        for role in context.roles:
-            role_table.add_row(f"{role.role_name} = {role.role_value}")
+        for role in context.get_role_lines():
+            role_table.add_row(role)
         parts.append(role_table)
 
     return Group(*parts)
@@ -782,13 +791,7 @@ def _tree_value_line(context: ItemFormatContext,
         return [context.final_repr]
 
     if 0 < len(context.roles):
-        result = list()
-        name_width = max([1, 1] + [len(role.role_name) for role in context.roles])
-
-        for role in context.roles:
-            result.append(f"{role.role_name:<{name_width}} = {role.role_value}")
-
-        return result
+        return context.get_role_lines()
 
     else:
         return [""]

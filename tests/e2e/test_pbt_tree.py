@@ -8,7 +8,8 @@ import pytest
 import plumbum
 
 from haxdex.gui.agnostic import model_dump
-from haxdex.gui.agnostic.model_dump import render_text
+from haxdex.gui.agnostic.model_dump import render_text, simple_dump
+from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
@@ -256,8 +257,7 @@ def test_generated_indexer_directory(
     )
 
     # log.info(simple_dump(core.model))
-    flat_tree = model_dump.dump(core.model)
-    log.info("\n" + render_text(flat_tree))
+    # log.info("\n" + render_text(model_dump.dump(core.model)))
 
     tree_root = core.model.index(0, 0, QModelIndex())
     m = core.model
@@ -273,5 +273,13 @@ def test_generated_indexer_directory(
         assert nested is not None
         assert m.rowCount(nested) == len(
             directory.collect_entries_direct(entry.relative_path))
+
+    table = TreeToTableProxyModel()
+    table.setSourceModel(core.model)
+    log.info("\n" + render_text(model_dump.dump(table)))
+    rec_entries = [e.relative_path for e in directory.collect_entries_recursive()]
+    # tree table also adds the root `data` directory as a row, the generated directory
+    # does not.
+    assert table.rowCount(QModelIndex()) == len(rec_entries) + 1, pformat(rec_entries)
 
     assert False
