@@ -12,15 +12,11 @@ from haxdex.gui.agnostic.model_dump import render_text
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry
+    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
 import logging
 
 log = logging.getLogger(__name__)
-
-
-def _sorted_rel(paths: Iterable[Path]) -> list[Path]:
-    return sorted(set(paths), key=lambda p: (len(p.parts), str(p)))
 
 
 def _fs_content_files(root: Path) -> list[Path]:
@@ -54,13 +50,14 @@ def _fs_files_recursive(root: Path, query: Path) -> list[Path]:
 
 
 def _fs_directories_direct(root: Path, query: Path) -> list[Path]:
-    files_recursive = _fs_files_recursive(root, query)
-    return _sorted_rel(rel for rel in files_recursive if rel.parent.parent == query)
+    base = root if query == Path(".") else root / query
+    return _sorted_rel(path.relative_to(root) for path in base.glob("*") if path.is_dir())
 
 
 def _fs_directories_recursive(root: Path, query: Path) -> list[Path]:
-    files_recursive = _fs_files_recursive(root, query)
-    return _sorted_rel(rel for rel in files_recursive if rel.parent != query)
+    base = root if query == Path(".") else root / query
+    return _sorted_rel(
+        path.relative_to(root) for path in base.rglob("*") if path.is_dir())
 
 
 def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
@@ -72,7 +69,7 @@ def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
 
 def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
     return _sorted_rel([
-        *_fs_files_direct(root, query),
+        *_fs_files_recursive(root, query),
         *_fs_directories_recursive(root, query),
     ])
 
@@ -111,6 +108,9 @@ def test_generated_directory_collect_methods_match_content(
 
     gen_dir = stable_test_dir / "data"
 
+    materialized = write_generated_directory(gen_dir, directory)
+    assert_generated_directory_entries_exact(materialized.root, directory)
+
     physical_dir_listing = plumbum.local["exa"].run(["--tree", str(gen_dir)])
     dbg = f"full directory listing:\n{physical_dir_listing}"
 
@@ -119,9 +119,6 @@ def test_generated_directory_collect_methods_match_content(
 {pformat(value)}
 {dbg}
         """
-
-    materialized = write_generated_directory(gen_dir, directory)
-    assert_generated_directory_entries_exact(materialized.root, directory)
 
     fs_files = _fs_content_files(materialized.root)
     assert set(fs_files) == {item.relative_path for item in directory.files}

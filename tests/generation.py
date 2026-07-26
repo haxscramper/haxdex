@@ -5,16 +5,13 @@ import decimal
 import json
 import math
 import re
-from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from types import NoneType, UnionType
 
 from beartype import beartype
-from beartype.typing import Any, ClassVar, Literal, Sequence, Union, get_args, get_origin
+from beartype.typing import Any, Literal, Sequence, Union, get_args, get_origin, Iterable
 from hypothesis import assume, strategies as st
 from hypothesis.strategies import SearchStrategy
-from pydantic import BaseModel
 
 from haxdex.services.core.job_types import BaseIndexer, META_SUFFIX
 from haxdex.services.pydantic_utils import model_to_json_data
@@ -39,6 +36,10 @@ class GeneratedIndexerDirectory:
 GeneratedIndexerEntry = GeneratedIndexerFile | GeneratedIndexerDirectory
 
 
+def _sorted_rel(paths: Iterable[Path]) -> list[Path]:
+    return sorted(set(paths), key=lambda p: (len(p.parts), str(p)))
+
+
 @dataclass
 class GeneratedDirectory:
     files: list[GeneratedIndexerFile]
@@ -61,37 +62,35 @@ class GeneratedDirectory:
 
     def collect_directories_direct(
             self,
-            query: Path | str = Path("."),
+            query: Path = Path("."),
     ) -> list[GeneratedIndexerDirectory]:
-        query_path = self._as_relative_path(query)
-        result: set[Path] = set()
-        for file in self.collect_files_recursive(query_path):
-            nested = file.relative_path.relative_to(query_path) if query_path != Path(
-                ".") else file.relative_path
-            if len(nested.parts) <= 1:
+        query = self._as_relative_path(query)
+        direct_dirs: set[Path] = set()
+        for file in self.collect_files_recursive(query):
+            rel = file.relative_path if query == Path(
+                ".") else file.relative_path.relative_to(query)
+            if len(rel.parts) <= 1:
                 continue
-            direct_dir = Path(nested.parts[0]) if query_path == Path(
-                ".") else query_path / nested.parts[0]
-            result.add(direct_dir)
+            direct = Path(rel.parts[0]) if query == Path(".") else query / rel.parts[0]
+            direct_dirs.add(direct)
         return [
             GeneratedIndexerDirectory(relative_path=path)
-            for path in self._sorted_paths(result)
+            for path in _sorted_rel(direct_dirs)
         ]
 
     def collect_directories_recursive(
             self,
-            query: Path | str = Path("."),
+            query: Path = Path("."),
     ) -> list[GeneratedIndexerDirectory]:
-        query_path = self._as_relative_path(query)
-        result: set[Path] = set()
-        for file in self.collect_files_recursive(query_path):
+        query = self._as_relative_path(query)
+        dirs: set[Path] = set()
+        for file in self.collect_files_recursive(query):
             current = file.relative_path.parent
-            while current != query_path and current != Path("."):
-                result.add(current)
+            while current != query and current != Path("."):
+                dirs.add(current)
                 current = current.parent
         return [
-            GeneratedIndexerDirectory(relative_path=path)
-            for path in self._sorted_paths(result)
+            GeneratedIndexerDirectory(relative_path=path) for path in _sorted_rel(dirs)
         ]
 
     def collect_files_direct(
@@ -114,7 +113,7 @@ class GeneratedDirectory:
 
     def collect_entries_direct(
             self,
-            query: Path | str = Path("."),
+            query: Path = Path("."),
     ) -> list[GeneratedIndexerEntry]:
         return [
             *self.collect_files_direct(query),
@@ -123,7 +122,7 @@ class GeneratedDirectory:
 
     def collect_entries_recursive(
             self,
-            query: Path | str = Path("."),
+            query: Path = Path("."),
     ) -> list[GeneratedIndexerEntry]:
         return [
             *self.collect_files_recursive(query),
