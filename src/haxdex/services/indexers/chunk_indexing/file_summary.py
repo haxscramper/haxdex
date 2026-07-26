@@ -7,6 +7,7 @@ from beartype.typing import cast
 from pydantic import BaseModel
 
 from haxdex.services.core.job_types import (BaseIndexer, BaseIndexerConfig, RunContext)
+from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from haxdex.services.resources.text_summary import (
     SummarizeRequest,
@@ -42,6 +43,7 @@ class FileSummaryIndexer(BaseIndexer):
         else:
             return False
 
+    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

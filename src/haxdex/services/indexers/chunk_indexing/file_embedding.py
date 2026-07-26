@@ -7,6 +7,7 @@ from pydantic import Field
 from beartype.typing import Annotated, Optional
 from sqlalchemy import Engine
 
+from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.job_types import BaseIndexer, RunContext, BaseIndexerConfig
 from haxdex.services.core.types import IndexerOutput, IndexerRequest, MultiDocumentModel, VectorIndexConfig
 from haxdex.services.indexers.chunk_indexing.chunking import (
@@ -73,6 +74,7 @@ class FileEmbeddingIndexer(BaseIndexer):
     def __init__(self, database: Engine, config: FileEmbeddingIndexerConfig) -> None:
         super().__init__(config=config, database=database)
 
+    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

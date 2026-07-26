@@ -6,6 +6,7 @@ import glom
 from pydantic import Field
 from beartype.typing import Annotated, Optional
 
+from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import FullTextIndexConfig, IndexerOutput, IndexerRequest, MultiDocumentModel, VectorIndexConfig
 from haxdex.services.indexers.chunk_indexing.chunking import (
@@ -56,6 +57,7 @@ class FullTextIndexer(BaseIndexer):
             start_overlap_max=200,
         )
 
+    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

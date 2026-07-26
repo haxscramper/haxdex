@@ -4,6 +4,7 @@ from pathlib import Path
 from beartype.typing import cast
 from sqlalchemy import Engine
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.resources.wd_tagger import WdTag, WdTagger
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from PIL import Image
@@ -25,6 +26,7 @@ class WdTagIndexer(BaseIndexer):
     def can_run(self, path: Path) -> bool:
         return path.suffix.lower() in [".png", ".webp", ".jpg", ".jpeg"]
 
+    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

@@ -16,6 +16,7 @@ from haxdex.services.indexers.exif_metadata import (
     ExifMetadataIndexerResult,
 )
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.pydantic_utils import to_json_safe
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from pydantic import BaseModel
@@ -229,6 +230,7 @@ class GenerationParamsIndexer(BaseIndexer):
     def can_run(self, path: Path) -> bool:
         return path.suffix.lower() in [".png", ".webp", ".jpg", ".jpeg"]
 
+    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,
