@@ -6,7 +6,7 @@ from pathlib import Path
 from haxdex.cli.cli_config import IndexPathConfig, IndexConfig
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import RunContext
+from haxdex.services.core.job_types import RunContext, META_SUFFIX
 from haxdex.services.core.types import FileRef, RootRef
 from haxdex.services.file_iteration import RootFilter, prepare_root_filters, DirConfig
 
@@ -68,6 +68,9 @@ def collect_files_for_path(
 
         for file in candidates:
             if file in seen:
+                continue
+
+            if str(file).endswith(META_SUFFIX):
                 continue
 
             if not _is_file_selected_by_filters(file, filters):

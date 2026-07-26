@@ -1,4 +1,6 @@
 from pathlib import Path
+from pprint import pformat
+from beartype.typing import Iterable
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
@@ -9,39 +11,76 @@ from haxdex.gui.agnostic.model_dump import render_text
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, GeneratedIndexerFile
+    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
 import logging
 
 log = logging.getLogger(__name__)
 
 
+def _sorted_rel(paths: Iterable[Path]) -> list[Path]:
+    return sorted(set(paths), key=lambda p: (len(p.parts), str(p)))
+
+
 def _fs_content_files(root: Path) -> list[Path]:
-    return sorted(
-        (path.relative_to(root)
-         for path in root.rglob("*")
-         if path.is_file() and not path.name.endswith(".haxdex-meta.json")),
-        key=lambda p: (len(p.parts), str(p)),
-    )
+    return _sorted_rel(
+        path.relative_to(root)
+        for path in root.rglob("*")
+        if path.is_file() and not path.name.endswith(META_SUFFIX))
 
 
 def _all_query_paths_from_files(files: list[Path]) -> list[Path]:
     result: set[Path] = {Path(".")}
     for rel in files:
-        parent = rel.parent
-        while True:
-            result.add(parent)
-            if parent == Path("."):
-                break
-            parent = parent.parent
-    return sorted(result, key=lambda p: (len(p.parts), str(p)))
+        result.update(rel.parents)
+    return _sorted_rel(result)
+
+
+def _fs_files_direct(root: Path, query: Path) -> list[Path]:
+    base = root if query == Path(".") else root / query
+    return _sorted_rel(
+        path.relative_to(root)
+        for path in base.glob("*")
+        if path.is_file() and not path.name.endswith(META_SUFFIX))
+
+
+def _fs_files_recursive(root: Path, query: Path) -> list[Path]:
+    base = root if query == Path(".") else root / query
+    return _sorted_rel(
+        path.relative_to(root)
+        for path in base.rglob("*")
+        if path.is_file() and not path.name.endswith(META_SUFFIX))
+
+
+def _fs_directories_direct(root: Path, query: Path) -> list[Path]:
+    files_recursive = _fs_files_recursive(root, query)
+    return _sorted_rel(rel for rel in files_recursive if rel.parent.parent == query)
+
+
+def _fs_directories_recursive(root: Path, query: Path) -> list[Path]:
+    files_recursive = _fs_files_recursive(root, query)
+    return _sorted_rel(rel for rel in files_recursive if rel.parent != query)
+
+
+def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
+    return _sorted_rel([
+        *_fs_files_direct(root, query),
+        *_fs_directories_direct(root, query),
+    ])
+
+
+def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
+    return _sorted_rel([
+        *_fs_files_direct(root, query),
+        *_fs_directories_recursive(root, query),
+    ])
 
 
 def _relset(items: list[GeneratedIndexerFile]) -> set[Path]:
     return {item.relative_path for item in items}
 
 
-@settings(suppress_health_check=[HealthCheck.function_scoped_fixture],)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(directory=directory_structure(
     indexer_types=[FileStatsIndexer],
     min_files=2,
@@ -76,41 +115,68 @@ def test_generated_directory_collect_methods_match_content(
     fs_files = _fs_content_files(materialized.root)
     assert set(fs_files) == {item.relative_path for item in directory.files}
 
-    for path in _all_query_paths_from_files(fs_files):
-        expected_files_direct = {rel for rel in fs_files if rel.parent == path}
+    # collect_entries_direct() default argument
+    direct_entries_default = [p.relative_path for p in directory.collect_entries_direct()]
+    fs_entries_default = [
+        p.relative_to(materialized.root) for p in materialized.root.glob("*")
+    ]
+    assert len(direct_entries_default) == len(fs_entries_default), pformat(
+        dict(direct_entries=direct_entries_default, file_entries=fs_entries_default))
+    assert set(direct_entries_default) == set(
+        _fs_entries_direct(materialized.root, Path(".")))
 
-        if path == Path("."):
-            expected_files_recursive = set(fs_files)
-        else:
-            expected_files_recursive = {
-                rel for rel in fs_files if rel.is_relative_to(path)
-            }
+    # collect_entries_direct(Path(".")) explicitly
+    assert _relset(directory.collect_entries_direct(Path("."))) == set(
+        _fs_entries_direct(materialized.root, Path(".")))
 
-        expected_dirs_direct = {
-            rel for rel in fs_files
-            if rel.parent != Path(".") and rel.parent.parent == path
-        }
+    for query in _all_query_paths_from_files(fs_files):
+        expected_files_direct = set(_fs_files_direct(materialized.root, query))
+        actual_files_direct = _relset(directory.collect_files_direct(query))
+        assert len(actual_files_direct) == len(expected_files_direct), pformat(
+            dict(query=query,
+                 actual=sorted(actual_files_direct),
+                 expected=sorted(expected_files_direct)))
+        assert actual_files_direct == expected_files_direct
 
-        if path == Path("."):
-            expected_dirs_recursive = {rel for rel in fs_files if rel.parent != Path(".")}
-        else:
-            expected_dirs_recursive = {
-                rel for rel in fs_files if rel.parent != Path(".") and
-                rel.parent.is_relative_to(path) and rel.parent != path
-            }
+        expected_files_recursive = set(_fs_files_recursive(materialized.root, query))
+        actual_files_recursive = _relset(directory.collect_files_recursive(query))
+        assert len(actual_files_recursive) == len(expected_files_recursive), pformat(
+            dict(query=query,
+                 actual=sorted(actual_files_recursive),
+                 expected=sorted(expected_files_recursive)))
+        assert actual_files_recursive == expected_files_recursive
 
-        assert _relset(directory.collect_files_direct(path)) == expected_files_direct
-        assert _relset(
-            directory.collect_files_recursive(path)) == expected_files_recursive
-        assert _relset(directory.collect_directories_direct(path)) == expected_dirs_direct
-        assert _relset(
-            directory.collect_directories_recursive(path)) == expected_dirs_recursive
+        expected_dirs_direct = set(_fs_directories_direct(materialized.root, query))
+        actual_dirs_direct = _relset(directory.collect_directories_direct(query))
+        assert len(actual_dirs_direct) == len(expected_dirs_direct), pformat(
+            dict(query=query,
+                 actual=sorted(actual_dirs_direct),
+                 expected=sorted(expected_dirs_direct)))
+        assert actual_dirs_direct == expected_dirs_direct
 
-        assert _relset(directory.collect_entries_direct(path)) == (expected_dirs_direct |
-                                                                   expected_files_direct)
-        assert _relset(
-            directory.collect_entries_recursive(path)) == (expected_dirs_recursive |
-                                                           expected_files_recursive)
+        expected_dirs_recursive = set(_fs_directories_recursive(materialized.root, query))
+        actual_dirs_recursive = _relset(directory.collect_directories_recursive(query))
+        assert len(actual_dirs_recursive) == len(expected_dirs_recursive), pformat(
+            dict(query=query,
+                 actual=sorted(actual_dirs_recursive),
+                 expected=sorted(expected_dirs_recursive)))
+        assert actual_dirs_recursive == expected_dirs_recursive
+
+        expected_entries_direct = set(_fs_entries_direct(materialized.root, query))
+        actual_entries_direct = _relset(directory.collect_entries_direct(query))
+        assert len(actual_entries_direct) == len(expected_entries_direct), pformat(
+            dict(query=query,
+                 actual=sorted(actual_entries_direct),
+                 expected=sorted(expected_entries_direct)))
+        assert actual_entries_direct == expected_entries_direct
+
+        expected_entries_recursive = set(_fs_entries_recursive(materialized.root, query))
+        actual_entries_recursive = _relset(directory.collect_entries_recursive(query))
+        assert len(actual_entries_recursive) == len(expected_entries_recursive), pformat(
+            dict(query=query,
+                 actual=sorted(actual_entries_recursive),
+                 expected=sorted(expected_entries_recursive)))
+        assert actual_entries_recursive == expected_entries_recursive
 
     for rel in fs_files:
         assert directory.get_file_by_relative_name(rel).relative_path == rel
@@ -184,6 +250,11 @@ def test_generated_indexer_directory(
 
     tree_root = core.model.index(0, 0, QModelIndex())
     m = core.model
+
+    direct_entries = [p.relative_path for p in directory.collect_entries_direct()]
+    file_entries = list(f for f in gen_dir.glob("*") if not str(f).endswith(META_SUFFIX))
+    assert len(direct_entries) == len(file_entries), pformat(
+        dict(direct_entries=direct_entries, file_entries=file_entries))
 
     assert m.rowCount(tree_root) == len(directory.collect_entries_direct())
     for entry_idx, entry in enumerate(directory.collect_files_direct()):

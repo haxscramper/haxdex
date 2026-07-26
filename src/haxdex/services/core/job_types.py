@@ -149,6 +149,9 @@ def get_indexer_cache_table(asset_name: str) -> Table:
     )
 
 
+META_SUFFIX = ".haxdex-meta.json"
+
+
 @beartype
 class BaseIndexer(ABC):
     asset_name: str

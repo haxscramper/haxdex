@@ -16,7 +16,7 @@ from hypothesis import assume, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import BaseModel
 
-from haxdex.services.core.job_types import BaseIndexer
+from haxdex.services.core.job_types import BaseIndexer, META_SUFFIX
 from haxdex.services.pydantic_utils import model_to_json_data
 
 from dataclasses import dataclass
@@ -304,8 +304,9 @@ def _string_strategy(metadata: Sequence[Any]) -> SearchStrategy[str]:
     if pattern is None:
         return st.text(min_size=min_length, max_size=max_length)
 
-    return st.from_regex(pattern, fullmatch=True).filter(
-        lambda value: min_length <= len(value) and len(value) <= max_length)
+    else:
+        return st.from_regex(pattern, fullmatch=True).filter(
+            lambda value: min_length <= len(value) and len(value) <= max_length)
 
 
 @beartype
@@ -546,7 +547,7 @@ def write_generated_directory(
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.touch(exist_ok=True)
 
-        metadata_path = file_path.with_name(f"{file_path.name}.haxdex-meta.json")
+        metadata_path = file_path.with_name(f"{file_path.name}{META_SUFFIX}")
         metadata = {
             "indexers": {
                 asset_name: model_to_json_data(result)
@@ -576,7 +577,7 @@ def assert_generated_directory_entries_exact(
     for gfile in generated.files:
         rel = gfile.relative_path
         expected_files.add(rel)
-        expected_files.add(rel.with_name(f"{rel.name}.haxdex-meta.json"))
+        expected_files.add(rel.with_name(f"{rel.name}{META_SUFFIX}"))
 
     expected_dirs: set[Path] = set()
     for rel_file in expected_files:

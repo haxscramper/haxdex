@@ -34,7 +34,11 @@ class FullTextIndexConfig(BaseModel, extra="forbid"):
 
 
 class IndexDocument(BaseModel, extra="forbid"):
-    hash: str
+    hash: str = Field(
+        min_length=64,
+        max_length=64,
+        pattern="[0-9A-Fa-f]{64}",
+    )
     vector_index: ClassVar[Optional[VectorIndexConfig]] = None
     full_text_index: ClassVar[Optional[FullTextIndexConfig]] = None
 

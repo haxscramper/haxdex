@@ -5,15 +5,16 @@ from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FileStatsIndexerResult(IndexDocument, extra="forbid"):
-    size_bytes: int
-    mode: int
-    mtime: float
-    ctime: float
-    modification_time: str
+    size_bytes: int = Field(ge=0)
+    mode: int = Field(ge=0)
+    mtime: float = Field(ge=0)
+    ctime: float = Field(ge=0)
+    modification_time: str = Field(
+        pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?$")
 
 
 class FileStatsIndexer(BaseIndexer):
