@@ -51,6 +51,7 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
         action_file=stable_test_dir.joinpath("actions.jsonl"),
     )
 
+    IndexService.reset_for_config(cfg)
     service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
 
     return IndexServiceConfig(service=service, root_dir=root_dir, cfg=cfg)

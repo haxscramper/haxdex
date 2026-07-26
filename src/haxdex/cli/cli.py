@@ -62,6 +62,15 @@ warnings.showwarning = showwarning
 @beartype
 class IndexService():
 
+    @staticmethod
+    def reset_for_config(cfg: AppConfig):
+        IndexDatabase.reset_database(
+            host=cfg.db.host,
+            db_name=cfg.db.db_name,
+            username=cfg.db.username,
+            password=cfg.db.password,
+        )
+
     def get_indexer(self, s: str) -> BaseIndexer:
         for i in self.indexer_instances:
             if i.asset_name == s:
@@ -264,12 +273,7 @@ def main() -> None:
         return
 
     if args.command == "index" and cfg.index and cfg.index.reset:
-        IndexDatabase.reset_database(
-            host=cfg.db.host,
-            db_name=cfg.db.db_name,
-            username=cfg.db.username,
-            password=cfg.db.password,
-        )
+        IndexService.reset_for_config(cfg)
 
     service = IndexService(
         cfg,

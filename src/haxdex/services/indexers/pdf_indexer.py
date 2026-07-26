@@ -3,7 +3,6 @@ from pathlib import Path
 from beartype.typing import cast
 from sqlalchemy import Engine
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.resources.pdf.pdf_extractor import (
     PdfExtractor,
     PdfExtractorRequest,
@@ -29,7 +28,6 @@ class PdfIndexer(BaseIndexer):
     def can_run(self, path: Path) -> bool:
         return path.suffix.lower() == ".pdf"
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

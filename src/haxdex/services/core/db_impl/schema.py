@@ -1,3 +1,5 @@
+from pprint import pformat
+
 from beartype import beartype
 from beartype.typing import Any, Optional, Dict
 
@@ -127,8 +129,12 @@ class SchemaMixin:
                 return
 
             else:
-                raise RuntimeError(f"schema mismatch for collection {name!r}: "
-                                   f"expected {expected_schema!r}, got {actual_schema!r}")
+                raise RuntimeError(f"""schema mismatch for collection {name!r}: 
+expected
+{pformat(expected_schema)}
+got 
+{pformat(actual_schema)}
+                """)
 
     def ensure_collections(
         self,

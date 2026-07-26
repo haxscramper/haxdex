@@ -3,8 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Annotated, Any, ClassVar, Optional
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, PlainValidator
+from beartype.typing import Annotated, Any, ClassVar, Literal, Optional, Union
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    PlainValidator,
+    TypeAdapter,
+)
 
 AnyModel = Annotated[
     BaseModel,
@@ -30,10 +37,11 @@ class VectorIndexConfig(BaseModel, extra="forbid"):
 class FullTextIndexConfig(BaseModel, extra="forbid"):
     index_path: str
     analyzer: str = "text_en"
-    bm25: bool = True  # use BM25 scoring, else TFIDF
+    bm25: bool = True
 
 
 class IndexDocument(BaseModel, extra="forbid"):
+    kind: Literal["processed"] = "processed"
     hash: str = Field(
         min_length=64,
         max_length=64,
@@ -52,6 +60,7 @@ class IndexMultiDocument(IndexDocument, extra="forbid"):
 
 
 class MultiDocumentModel(BaseModel, extra="forbid"):
+    kind: Literal["processed"] = "processed"
     edge_type: ClassVar[Any]
     document_type: ClassVar[Any]
 
@@ -59,12 +68,42 @@ class MultiDocumentModel(BaseModel, extra="forbid"):
     documents: list[IndexMultiDocument]
 
 
-class IndexerOutputError(BaseModel, extra="forbid"):
-    description: str
+class MissingAssets(BaseModel, extra="forbid"):
+    kind: Literal["missing_assets"] = "missing_assets"
+    missing_assets: list[str] = Field(default_factory=list)
+    description: str = ""
 
 
-class IndexerNotApplicable(BaseModel, extra="forbid"):
+class CannotProcess(BaseModel, extra="forbid"):
+    kind: Literal["cannot_process"] = "cannot_process"
     reason: str
+
+
+IndexerResultValue = Annotated[
+    Union[IndexDocument, MissingAssets, CannotProcess],
+    Field(discriminator="kind"),
+]
+"Discriminated alias used to parse serialized indexer results. Concrete "
+"'processed' payloads are validated against the indexer's own result model."
+
+_result_adapter: TypeAdapter[Any] = TypeAdapter(IndexerResultValue)
+
+
+def is_processed_result(result: BaseModel) -> bool:
+    return getattr(result, "kind", None) == "processed"
+
+
+def parse_indexer_result(result_model: type[BaseModel], data: Any) -> BaseModel:
+    """Parse a serialized `IndexerOutput.result` payload.
+
+    The concrete type of a 'processed' payload is only known to the indexer
+    itself, so it is validated against `result_model`; error categories are
+    parsed via the discriminated alias.
+    """
+    if isinstance(data, dict) and data.get("kind") == "processed":
+        return result_model.model_validate(data)
+
+    return _result_adapter.validate_python(data)
 
 
 @beartype
@@ -94,7 +133,7 @@ class FileRef(BaseModel, extra="forbid"):
 class IndexerOutput(BaseModel, extra="forbid"):
     model_config = ConfigDict(frozen=True)
     indexer_id: str
-    result: AnyModel | IndexerOutputError | IndexerNotApplicable
+    result: AnyModel | MissingAssets | CannotProcess
 
 
 @beartype

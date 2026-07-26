@@ -12,7 +12,6 @@ import magic
 from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from haxdex.services.resources.whisper_transcribe import (
     WhisperTranscribeRequest,
@@ -56,7 +55,6 @@ class MediaTranscriptionIndexer(BaseIndexer):
         mime = self._magic.from_file(str(path.resolve()))
         return mime.startswith("audio/") or mime.startswith("video/")
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

@@ -8,7 +8,6 @@ import magic
 from beartype import beartype
 from beartype.typing import Any, cast
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 from plumbum import local
 from pydantic import BaseModel
@@ -114,7 +113,6 @@ class FFProbeIndexer(BaseIndexer):
         mime = self._magic.from_file(path.absolute())
         return mime.startswith("video/")
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

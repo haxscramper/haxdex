@@ -8,7 +8,6 @@ from pathlib import Path
 from beartype.typing import Any, ClassVar, cast
 from pydantic import BaseModel, Field, model_validator, model_serializer
 
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexerResult
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
@@ -204,7 +203,6 @@ class ComfyInputIndexer(BaseIndexer):
     def can_run(self, path: Path) -> bool:
         return path.suffix in [".png", ".jpg", ".webp", ".jpeg"]
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

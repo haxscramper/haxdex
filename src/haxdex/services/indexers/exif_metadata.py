@@ -16,7 +16,6 @@ import magic
 from beartype import beartype
 from beartype.typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.pydantic_utils import try_parse_json
 from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
@@ -551,7 +550,6 @@ class ExifMetadataIndexer(BaseIndexer):
             "image/jpeg",
         }
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

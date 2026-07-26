@@ -156,6 +156,16 @@ def run_indexing_per_root_plan(
                 indexed_total += len(refs)
 
                 with ctx.trace_scope(
+                        "prepare files",
+                        root=root.name,
+                        batch=batch_idx,
+                        total_batches=total_batches,
+                        files=len(refs),
+                        indexers=len(indexers),
+                ):
+                    prepared = runner.prepare_files(refs, list(indexers))
+
+                with ctx.trace_scope(
                         "root plan construction",
                         root=root.name,
                         batch=batch_idx,
@@ -163,15 +173,7 @@ def run_indexing_per_root_plan(
                         files=len(refs),
                         indexers=len(indexers),
                 ):
-                    plan = runner.create_plan(refs, list(indexers))
-
-                # log.info("execution plan for root={} path={} batch={}/{}\n{}".format(
-                #     root.name,
-                #     str(path_cfg.root_path),
-                #     batch_idx,
-                #     total_batches,
-                #     plan.to_text(),
-                # ))
+                    plan = runner.create_plan(prepared, list(indexers))
 
                 with ctx.trace_scope(
                         "root plan execution",
