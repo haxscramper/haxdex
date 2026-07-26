@@ -1,13 +1,17 @@
 import dataclasses
+import functools
+import shutil
+from contextlib import redirect_stderr
 from pathlib import Path
 from pprint import pformat
-from beartype.typing import Iterable, Any
+from beartype.typing import Iterable, Any, Iterator
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
 import pytest
 import plumbum
 import pandas as pd
+from contextlib import contextmanager
 
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump
@@ -35,11 +39,83 @@ pd.set_option("display.max_colwidth", None)
 pd.set_option("display.colheader_justify", "left")
 
 
-@pytest.fixture(autouse=True)
-def _pytest_only_logging():
-    logger = logging.getLogger("haxdex")
-    logger.handlers.clear()  # remove StreamHandler that writes to stderr
-    logger.propagate = True  # let pytest capture via root logger
+@contextmanager
+def capture_all_logs_to_test_file(
+    stable_test_dir: Path,
+    test_name: str,
+    level: int = logging.DEBUG,
+) -> Iterator[Path]:
+    run_log_path = stable_test_dir / f"{test_name}"
+    run_log_path.parent.mkdir(parents=True, exist_ok=True)
+    print(run_log_path)
+
+    root = logging.getLogger()
+    old_root_handlers = list(root.handlers)
+    old_root_level = root.level
+
+    touched: list[tuple[logging.Logger, bool]] = []
+    for obj in logging.root.manager.loggerDict.values():
+        if isinstance(obj, logging.Logger):
+            touched.append((obj, obj.propagate))
+            obj.propagate = True
+
+    run_log_path.write_text("")
+    with run_log_path.open("w", encoding="utf-8") as log_file, redirect_stderr(log_file):
+        root.handlers.clear()
+        root.setLevel(level)
+
+        handler = logging.StreamHandler(log_file)
+        handler.setLevel(level)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s"))
+        root.addHandler(handler)
+
+        try:
+            yield run_log_path
+        finally:
+            root.removeHandler(handler)
+            handler.close()
+            root.handlers[:] = old_root_handlers
+            root.setLevel(old_root_level)
+            for logger, old_propagate in touched:
+                logger.propagate = old_propagate
+
+
+def capture_logs(test_name: str | None = None, level: int = logging.DEBUG):
+
+    def decorator(func):
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with capture_all_logs_to_test_file(
+                    kwargs["stable_test_dir"],
+                    test_name or func.__name__,
+                    level,
+            ):
+                return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def clean_test_dir(func=None):
+
+    def decorator(f):
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            test_dir: Path = kwargs["stable_test_dir"]
+            if test_dir.exists():
+                shutil.rmtree(test_dir)
+
+            test_dir.mkdir(parents=True, exist_ok=True)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator if func is None else decorator(func)
 
 
 def _cell_to_dict(v):
@@ -281,18 +357,14 @@ def test_generated_directory_collect_methods_match_content(
         "text/markdown",
     ),
 ))
+@clean_test_dir
+@capture_logs(test_name="main.log")
 def test_generated_indexer_directory(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
 ) -> None:
     propagate_logger_level("haxdex", logging.DEBUG)
     log.info("run")
-    import shutil
-    if stable_test_dir.exists():
-        shutil.rmtree(stable_test_dir)
-
-    stable_test_dir.mkdir(parents=True, exist_ok=True)
-
     gen_dir = stable_test_dir / "data"
     materialized = write_generated_directory(gen_dir, directory)
     assert_generated_directory_entries_exact(materialized.root, directory)
@@ -362,18 +434,18 @@ def test_generated_indexer_directory(
 
     rules = [
         ("trivial", ["assets", "is_directory", "root", "root_relative"]),
-        ("size", ["size_self", "size_parent"]),
-        ("name", ["name"]),
+        ("share", ["size_self", "size_parent"]),
+        ("name", [("name", "entry_name")]),
     ]
     df = split_columns_by_rules(df, rules)
 
     log.info("\n" + df.to_string(justify="left"))
     rec_basenames = [e.name for e in rec_entries]
 
-    assert set(rec_basenames) == (set(df["name"]) - {"data"}), pformat(
+    assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
         dict(
             rec_basenames=set(rec_basenames),
-            model_names=set(df["name"]),
+            model_names=set(df["entry_name"]),
             original_model=simple_dump(core.model, max_col=1),
             real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
         ))
