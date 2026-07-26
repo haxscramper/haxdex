@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import json
 import shutil
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -20,6 +21,7 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
+from haxdex.services.pydantic_utils import to_json_safe
 from haxdex.services.utils import propagate_logger_level
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
     assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
@@ -453,17 +455,26 @@ def test_generated_indexer_directory(
 
     assert "name" in df.columns, str(df.columns)
 
-    rules = [
-        ("trivial", ["assets", "is_directory", "root", "root_relative"]),
-        ("share", ["size_self", "size_parent"]),
-        ("mime", ["mime_type"]),
-        ("name", [("name", "entry_name")]),
-        ("framerate", [("probe.fps", "video_framerate")]),
-        ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
-        ("video_resolution", [("probe.width", "video_width"),
-                              ("probe.height", "video_height")]),
-    ]
+    rules = [("trivial", ["assets", "is_directory", "root", "root_relative"]),
+             ("share", ["size_self", "size_parent"]), ("mime", ["mime_type"]),
+             ("name", [("name", "entry_name")]),
+             ("framerate", [("probe.fps", "video_framerate")]),
+             ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
+             ("video_resolution", [
+                 ("probe.width", "video_width"),
+                 ("probe.height", "video_height"),
+             ]),
+             ("file_duplicates", [
+                 ("hash", "file_hash"),
+                 ("matches", "duplicate_paths"),
+                 ("duplicate_count", "rec_duplicate_count"),
+                 ("total_count", "rec_total_count"),
+             ])]
+    stable_test_dir.joinpath("df_pre_split.json").write_text(
+        json.dumps(to_json_safe(df), indent=2))
     df = split_columns_by_rules(df, rules).sort_values("root_relative")
+    stable_test_dir.joinpath("df_post_split.json").write_text(
+        json.dumps(to_json_safe(df), indent=2))
 
     log.info("\n" + df.to_string(justify="left", formatters=left_align_formatters(df)))
     rec_basenames = [e.name for e in rec_entries]
@@ -487,3 +498,11 @@ def test_generated_indexer_directory(
     assert df.loc[video_mask, "video_bitrate"].notna().all()
     assert df.loc[video_mask, "video_width"].notna().all()
     assert df.loc[video_mask, "video_height"].notna().all()
+
+    assert len(df[~df["is_directory"]]) == len(directory.collect_files_recursive())
+
+    row = df.loc[df["root_relative"].eq("")]
+    assert len(row) == 1
+    row = row.iloc[0]
+
+    assert len(df[~df["is_directory"]]) == row["rec_total_count"]

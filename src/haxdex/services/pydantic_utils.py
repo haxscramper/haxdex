@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+from io import StringIO
+
 import glom
 import math
 from pydantic import AfterValidator
@@ -14,6 +16,7 @@ import PIL.TiffImagePlugin
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticSerializationError
 import logging
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +73,55 @@ register_type(
     str,
     dump=lambda it: it.isoformat(),
     load=lambda it: datetime.fromisoformat(it),
+)
+
+register_type(
+    pd.DataFrame,
+    "pd.DataFrame",
+    dict[str, Any],
+    dump=lambda it: {
+        "columns": list(it.columns),
+        "index": it.index.tolist(),
+        "rows": it.to_dict(orient="records"),
+    },
+    load=lambda it: pd.DataFrame(it["rows"], columns=it["columns"]).set_index(
+        pd.Index(it["index"])),
+)
+
+register_type(
+    pd.Series,
+    "pd.Series",
+    dict[str, Any],
+    dump=lambda it: {
+        "name": it.name,
+        "index": it.index.tolist(),
+        "values": it.tolist(),
+    },
+    load=lambda it: pd.Series(it["values"], index=it["index"], name=it["name"]),
+)
+
+register_type(
+    pd.Timestamp,
+    "pd.Timestamp",
+    str,
+    dump=lambda it: it.isoformat(),
+    load=lambda it: pd.Timestamp(it),
+)
+
+register_type(
+    pd.Timedelta,
+    "pd.Timedelta",
+    str,
+    dump=lambda it: it.isoformat(),
+    load=lambda it: pd.Timedelta(it),
+)
+
+register_type(
+    type(pd.NA),
+    "pd.NA",
+    type(None),
+    dump=lambda it: None,
+    load=lambda it: pd.NA,
 )
 
 
