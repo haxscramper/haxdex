@@ -269,12 +269,15 @@ class IndexRuntime:
             windows.extend(self._group_layer_into_windows(layer))
         return windows
 
-    # ---- file-level preparation plan ----
-
-    def prepare_files(self, refs: list[FileRef], names: list[str]) -> list[PreparedFile]:
+    def prepare_files(
+        self,
+        refs: list[FileRef],
+        indexers: Sequence[BaseIndexer],
+    ) -> list[PreparedFile]:
         """Classify each (file, indexer) pair against Arango and the SQLite
-        cache without running any indexer."""
-        requested = self._expand_requested(names)
+        cache without running any indexer. `can_run` filtering happens here,
+        during plan construction."""
+        requested = self._expand_requested([i.asset_name for i in indexers])
         prepared: list[PreparedFile] = []
 
         for ref in refs:
@@ -289,7 +292,8 @@ class IndexRuntime:
                 if not indexer.can_run(path):
                     continue
 
-                if self.db.has_indexer_result(ref, indexer,
+                if self.db.has_indexer_result(ref,
+                                              indexer.asset_name,
                                               short_circuit_this_check=True):
                     arango.add(name)
                 elif has_cached_result(indexer, ref.hash.hash):
@@ -308,10 +312,13 @@ class IndexRuntime:
 
         return prepared
 
-    def build_actions(self, prepared: list[PreparedFile],
-                      names: list[str]) -> list[IndexerAction]:
+    def build_actions(
+        self,
+        prepared: list[PreparedFile],
+        indexers: Sequence[BaseIndexer],
+    ) -> list[IndexerAction]:
         """Materialize the NxM file x indexer action grid."""
-        requested = self._expand_requested(names)
+        requested = self._expand_requested([i.asset_name for i in indexers])
         actions: list[IndexerAction] = []
 
         for pf in prepared:
@@ -330,10 +337,9 @@ class IndexRuntime:
 
         return actions
 
-    # ---- indexer execution plan ----
-
     def create_plan(self, prepared: list[PreparedFile],
-                    names: list[str]) -> ExecutionPlan:
+                    indexers: Sequence[BaseIndexer]) -> ExecutionPlan:
+        names = [i.asset_name for i in indexers]
         windows = self.build_windows(names)
         requested = {name for window in windows for name in window}
         dependencies = {
@@ -343,7 +349,7 @@ class IndexRuntime:
                       if dep in requested) for name in sorted(requested)
         }
 
-        actions = self.build_actions(prepared, names)
+        actions = self.build_actions(prepared, indexers)
         actions_by_indexer: dict[str, dict[ActionKind, list[FileRef]]] = {}
         for action in actions:
             if action.kind == ActionKind.skip:
@@ -448,20 +454,24 @@ class IndexRuntime:
     def truncate_all(self) -> None:
         self.db.truncate_all(list(self._indexer_instances.keys()))
 
-    def run_indexers(self, files: list[FileRef], names: list[str]) -> None:
+    def run_indexers(
+        self,
+        files: list[FileRef],
+        indexers: Sequence[BaseIndexer],
+    ) -> None:
         with self.ctx.trace_scope(
                 "file preparation",
                 files=len(files),
-                indexers=len(names),
+                indexers=len(indexers),
         ):
-            prepared = self.prepare_files(files, names)
+            prepared = self.prepare_files(files, indexers)
 
         with self.ctx.trace_scope(
                 "plan construction",
                 files=len(files),
-                indexers=len(names),
+                indexers=len(indexers),
         ):
-            plan = self.create_plan(prepared, names)
+            plan = self.create_plan(prepared, indexers)
 
         with self.ctx.trace_scope(
                 "plan execution",
@@ -484,8 +494,8 @@ class IndexRuntime:
             ),
         )
 
-    def run_indexer(self, file: FileRef, names: list[str]):
-        self.run_indexers([file], names)
+    def run_indexer(self, file: FileRef, indexers: Sequence[BaseIndexer]):
+        self.run_indexers([file], indexers)
 
     def _read_meta_output(self, indexer: BaseIndexer, path: Path) -> IndexerOutput | None:
         """Read this indexer's cached output from the sidecar meta file, if

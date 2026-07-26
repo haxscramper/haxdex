@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from beartype.typing import Sequence
 
 from haxdex.cli.cli_config import IndexPathConfig, IndexConfig
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import RunContext, META_SUFFIX
+from haxdex.services.core.job_types import BaseIndexer, RunContext, META_SUFFIX
 from haxdex.services.core.types import FileRef, RootRef
 from haxdex.services.file_iteration import RootFilter, prepare_root_filters, DirConfig
 
@@ -99,7 +100,7 @@ def run_indexing_per_root_plan(
     runner: IndexRuntime,
     ctx: RunContext,
     cfg: IndexConfig,
-    indexers: tuple[str, ...],
+    indexers: Sequence[BaseIndexer],
 ) -> None:
     indexed_total = 0
     log.info("constructing index jobs plan")
@@ -163,7 +164,7 @@ def run_indexing_per_root_plan(
                         files=len(refs),
                         indexers=len(indexers),
                 ):
-                    prepared = runner.prepare_files(refs, list(indexers))
+                    prepared = runner.prepare_files(refs, indexers)
 
                 with ctx.trace_scope(
                         "root plan construction",
@@ -173,7 +174,7 @@ def run_indexing_per_root_plan(
                         files=len(refs),
                         indexers=len(indexers),
                 ):
-                    plan = runner.create_plan(prepared, list(indexers))
+                    plan = runner.create_plan(prepared, indexers)
 
                 with ctx.trace_scope(
                         "root plan execution",

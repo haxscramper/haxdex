@@ -10,6 +10,7 @@ import plumbum
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
+from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
@@ -276,10 +277,23 @@ def test_generated_indexer_directory(
 
     table = TreeToTableProxyModel()
     table.setSourceModel(core.model)
-    log.info("\n" + render_text(model_dump.dump(table)))
+    stable_test_dir.joinpath("table_model.txt").write_text(
+        render_text(model_dump.dump(table)))
     rec_entries = [e.relative_path for e in directory.collect_entries_recursive()]
     # tree table also adds the root `data` directory as a row, the generated directory
     # does not.
     assert table.rowCount(QModelIndex()) == len(rec_entries) + 1, pformat(rec_entries)
+
+    df = qt_model_to_dataframe(table)
+    rec_basenames = [e.name for e in rec_entries]
+
+    assert set(rec_basenames) == (set(df["Name"]) - {"data"}), pformat(
+        dict(
+            rec_basenames=set(rec_basenames),
+            model_names=set(df["Name"]),
+            original_model=simple_dump(core.model, max_col=1),
+        ))
+
+    log.info("\n" + str(df))
 
     assert False

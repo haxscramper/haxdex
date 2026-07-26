@@ -1265,7 +1265,9 @@ def render_text(renderable: object, width: int = 220) -> str:
 
 
 @beartype
-def simple_dump(model: QAbstractItemModel, indentation_step: str = "  ") -> str:
+def simple_dump(model: QAbstractItemModel,
+                indentation_step: str = "  ",
+                max_col: int = 256) -> str:
 
     @beartype
     def format_display_value(value: object) -> str:
@@ -1283,7 +1285,7 @@ def simple_dump(model: QAbstractItemModel, indentation_step: str = "  ") -> str:
     def traverse(parent_index: QModelIndex, path: List[Tuple[int, int]],
                  depth: int) -> None:
         row_count = model.rowCount(parent_index)
-        column_count = model.columnCount(parent_index)
+        column_count = min(model.columnCount(parent_index), max_col)
         for row in range(row_count):
             for col in range(column_count):
                 nested_index = model.index(row, col, parent_index)

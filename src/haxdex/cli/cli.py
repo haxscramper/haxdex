@@ -207,7 +207,7 @@ class IndexService():
             db=self.db,
             runner=runner,
             ctx=self.ctx,
-            indexers=tuple(self.cfg.indexers.keys()),
+            indexers=self.indexer_instances,
             cfg=index_cfg,
         )
 
