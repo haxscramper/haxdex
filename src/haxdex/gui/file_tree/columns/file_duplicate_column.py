@@ -5,6 +5,7 @@ from beartype import beartype
 from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
@@ -25,8 +26,8 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
     column_name = "file_duplicate"
     column_type = FileDuplicateData
 
-    def __init__(self, reference_tree: Optional[FileTreeNode]) -> None:
-        super().__init__("Duplicate")
+    def __init__(self, name: str, reference_tree: Optional[FileTreeNode]) -> None:
+        super().__init__(name)
 
         self._paths_by_hash: dict[str, list[Path]] = {}
         self._match_cache: dict[tuple[Path, str], list[Path]] = {}
@@ -131,6 +132,9 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
             Optional[FileDuplicateData],
             self.getColumnData(index),
         )
+
+        if role == CustomModelRole.FullDataRole.value:
+            return duplicate_data
 
         if duplicate_data is None:
             return None

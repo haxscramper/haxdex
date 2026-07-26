@@ -7,6 +7,7 @@ from beartype.typing import cast
 
 from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
+from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
@@ -16,6 +17,7 @@ from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateData, VideoBitrateColumnSpec
 from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
 from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
+from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
@@ -71,7 +73,8 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
 
 
 @beartype
-def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec]:
+def init_file_tree_columns(index: IndexServiceConfig,
+                           reference_tree: FileTreeNode) -> list[FileTreeColumnSpec]:
     return cast(list[FileTreeColumnSpec], [
         FileNameColumnSpec(),
         TrivialDataColumnSpec("trivial"),
@@ -81,6 +84,7 @@ def init_file_tree_columns(index: IndexServiceConfig) -> list[FileTreeColumnSpec
         VideoFramerateColumnSpec("framerate"),
         VideoBitrateColumnSpec("bitrate"),
         VideoResolutionColumnSpec("video_resolution"),
+        FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree),
     ])
 
 
@@ -104,6 +108,7 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
             visual_tree_cache_path=index.stable_test_dir.joinpath(
                 "input_tree_cache.sqlite"),
             user_edit_path=index.stable_test_dir.joinpath("user_actions.sqlite"),
+            reference_dir=index.cfg.index.paths[0].paths[0],
         ),
     ))
 

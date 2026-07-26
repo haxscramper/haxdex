@@ -358,6 +358,8 @@ def test_generated_directory_collect_methods_match_content(
     max_nesting=3,
     corpus_manifest=corpus_manifest,
     corpus_root=corpus_root,
+    min_duplicates=2,
+    max_duplicates=5,
     mime_types=(
         "image/png",
         "application/pdf",
@@ -398,12 +400,22 @@ def test_generated_indexer_directory(
     assert not tree_config.cfg.file_tree_view.reference_tree_cache_path.exists()
 
     assert tree_config.cfg.file_tree_view
+
+    reference_tree = FileTreeQueryCore.build_reference_tree(
+        ctx=tree_config.service.ctx,
+        db=tree_config.service.db,
+        cfg=tree_config.cfg,
+        indexer_instances=tree_config.service.indexer_instances,
+    )
+
+    assert reference_tree is not None
+
     core = FileTreeQueryCore(
         ctx=tree_config.service.ctx,
         db=tree_config.service.db,
         cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
-        columns=init_file_tree_columns(index),
+        columns=init_file_tree_columns(index=index, reference_tree=reference_tree[0]),
     )
 
     # log.info(simple_dump(core.model))

@@ -49,11 +49,11 @@ class FileTreeQueryCore:
     @staticmethod
     def build_reference_tree(
         ctx: RunContext,
-        columns: Sequence[FileTreeColumnSpec],
         cfg: AppConfig,
         db: IndexDatabase,
         indexer_instances: Sequence[BaseIndexer],
     ) -> list[FileTreeNode] | None:
+        assert cfg.file_tree_view
         if cfg.file_tree_view.drop_cache_files:
             if cfg.file_tree_view.reference_tree_cache_path.exists():
                 cfg.file_tree_view.reference_tree_cache_path.unlink()
@@ -67,7 +67,7 @@ class FileTreeQueryCore:
                 db=db,
                 root_directories=[cfg.file_tree_view.reference_dir],
                 indexers=indexer_instances,
-                columns=list(columns) + [FileDuplicateColumnSpec(None)],
+                columns=[FileDuplicateColumnSpec("file_duplicate", None)],
                 cache_path=cfg.file_tree_view.reference_tree_cache_path,
                 user_edit_path=cfg.file_tree_view.user_edit_path,
             )
@@ -104,7 +104,9 @@ class FileTreeQueryCore:
                 db=db,
                 indexer_instances=indexer_instances,
             )
-            columns.append(FileDuplicateColumnSpec(reference_tree=reference_tree[0]))
+            columns.append(
+                FileDuplicateColumnSpec("file_duplicates",
+                                        reference_tree=reference_tree[0]))
 
         return columns
 

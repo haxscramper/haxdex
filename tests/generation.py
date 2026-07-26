@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from tests.generation_full_file import CorpusManifest, initialize_persistent_corpus, _MIME_SUFFIXES
+from tests.generation_full_file import CorpusManifest, initialize_persistent_corpus, _MIME_SUFFIXES, CorpusFileEntry
 
 
 @dataclass(frozen=True)
@@ -479,15 +479,17 @@ def pydantic_value_strategy(
 @st.composite
 @beartype
 def directory_structure(
-        draw: Any,
-        indexer_types: Sequence[type[BaseIndexer]],
-        corpus_manifest: CorpusManifest,
-        corpus_root: Path,
-        min_files: int = 1,
-        max_files: int = 16,
-        min_nesting: int = 0,
-        max_nesting: int = 3,
-        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
+    draw: Any,
+    indexer_types: Sequence[type[BaseIndexer]],
+    corpus_manifest: CorpusManifest,
+    corpus_root: Path,
+    min_files: int = 1,
+    max_files: int = 16,
+    min_nesting: int = 0,
+    max_nesting: int = 3,
+    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
+    min_duplicates: int = 0,
+    max_duplicates: int = 0,
 ) -> GeneratedDirectory:
     if max_files < min_files:
         raise ValueError(
@@ -497,6 +499,25 @@ def directory_structure(
     if max_nesting < min_nesting:
         raise ValueError(
             f"max_nesting must be at least min_nesting, got min_nesting={min_nesting} and max_nesting={max_nesting}"
+        )
+
+    if min_duplicates < 0:
+        raise ValueError(
+            f"min_duplicates must be non-negative, got min_duplicates={min_duplicates}")
+
+    if max_duplicates < min_duplicates:
+        raise ValueError(
+            f"max_duplicates must be at least min_duplicates, got min_duplicates={min_duplicates} and max_duplicates={max_duplicates}"
+        )
+
+    if max_files < (min_duplicates + 1):
+        raise ValueError(
+            f"Cannot satisfy min_duplicates={min_duplicates} with max_files={max_files}. Need at least min_duplicates + 1 files."
+        )
+
+    if max_duplicates > (max_files - 1):
+        raise ValueError(
+            f"max_duplicates must be at most max_files - 1, got max_duplicates={max_duplicates} and max_files={max_files}"
         )
 
     asset_names = [indexer_type.asset_name for indexer_type in indexer_types]
@@ -530,27 +551,71 @@ def directory_structure(
         for indexer_type in indexer_types
     }
 
-    file_count = draw(st.integers(min_value=min_files, max_value=max_files))
-    generated_files: list[GeneratedIndexerFile] = []
-    relative_paths: set[Path] = set()
+    eligible_entries = [
+        entry for mime_type in mime_types for entry in entries_by_mime[mime_type]
+    ]
+    if len(eligible_entries) == 0:
+        raise ValueError("No corpus entries available for selected MIME types")
 
-    for _ in range(file_count):
+    min_file_count = max(min_files, min_duplicates + 1)
+    file_count = draw(st.integers(min_value=min_file_count, max_value=max_files))
+
+    duplicate_min_for_file = max(min_duplicates, file_count - len(eligible_entries))
+    duplicate_max_for_file = min(max_duplicates, file_count - 1)
+    assume(duplicate_min_for_file <= duplicate_max_for_file)
+
+    duplicate_count = draw(
+        st.integers(
+            min_value=duplicate_min_for_file,
+            max_value=duplicate_max_for_file,
+        ))
+    unique_count = file_count - duplicate_count
+
+    relative_paths: set[Path] = set()
+    generated_files: list[GeneratedIndexerFile] = []
+
+    def draw_parent_path(different_from: Path | None = None) -> Path:
         depth = draw(st.integers(min_value=min_nesting, max_value=max_nesting))
-        nested_parts = draw(
+        parts = draw(
             st.lists(
-                st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                        min_size=8,
-                        max_size=8),
+                st.text(
+                    alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+                    min_size=8,
+                    max_size=8,
+                ),
                 min_size=depth,
                 max_size=depth,
             ))
+        parent = Path(*parts)
+        if different_from is not None:
+            assume(parent != different_from)
+        return parent
+
+    def draw_stem(different_from: str | None = None) -> str:
         stem = draw(
-            st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                    min_size=8,
-                    max_size=8))
-        mime_type = draw(st.sampled_from(tuple(mime_types)))
-        selected_entry = draw(st.sampled_from(entries_by_mime[mime_type]))
-        relative_path = Path(*nested_parts, f"{stem}{_MIME_SUFFIXES[mime_type]}")
+            st.text(
+                alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+                min_size=8,
+                max_size=8,
+            ))
+        if different_from is not None:
+            assume(stem != different_from)
+        return stem
+
+    unique_indices = draw(
+        st.lists(
+            st.integers(min_value=0, max_value=len(eligible_entries) - 1),
+            min_size=unique_count,
+            max_size=unique_count,
+            unique=True,
+        ))
+
+    for entry_index in unique_indices:
+        selected_entry = eligible_entries[entry_index]
+        mime_type = selected_entry.file_spec.mime_type
+        parent = draw_parent_path()
+        stem = draw_stem()
+        relative_path = parent / f"{stem}{_MIME_SUFFIXES[mime_type]}"
         assume(relative_path not in relative_paths)
         relative_paths.add(relative_path)
 
@@ -564,6 +629,44 @@ def directory_structure(
                 relative_path=relative_path,
                 results=results,
                 corpus_source_path=corpus_root / selected_entry.relative_path,
+            ))
+
+    for _ in range(duplicate_count):
+        anchor = draw(st.sampled_from(generated_files))
+        anchor_parent = anchor.relative_path.parent
+        anchor_stem = anchor.relative_path.stem
+        anchor_suffix = anchor.relative_path.suffix
+
+        modes = ["different_name_same_dir"]
+        if 0 < max_nesting:
+            modes.extend(["same_name_different_dir", "different_name_different_dir"])
+
+        mode = draw(st.sampled_from(tuple(modes)))
+
+        if mode == "different_name_same_dir":
+            parent = anchor_parent
+            stem = draw_stem(different_from=anchor_stem)
+        elif mode == "same_name_different_dir":
+            parent = draw_parent_path(different_from=anchor_parent)
+            stem = anchor_stem
+        else:
+            parent = draw_parent_path(different_from=anchor_parent)
+            stem = draw_stem(different_from=anchor_stem)
+
+        relative_path = parent / f"{stem}{anchor_suffix}"
+        assume(relative_path not in relative_paths)
+        relative_paths.add(relative_path)
+
+        results = {
+            asset_name: draw(strategy)
+            for asset_name, strategy in indexer_strategies.items()
+        }
+
+        generated_files.append(
+            GeneratedIndexerFile(
+                relative_path=relative_path,
+                results=results,
+                corpus_source_path=anchor.corpus_source_path,
             ))
 
     return GeneratedDirectory(files=generated_files)
