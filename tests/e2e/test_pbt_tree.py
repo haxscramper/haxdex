@@ -6,10 +6,12 @@ from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
 import pytest
 import plumbum
+import pandas as pd
 
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
@@ -24,6 +26,11 @@ log = logging.getLogger(__name__)
 
 corpus_root = Path("/tmp/haxdex_tests/pbt_corpus")
 corpus_manifest = create_default_persistent_corpus(corpus_root)
+
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
 
 
 def _fs_content_files(root: Path) -> list[Path]:
@@ -299,7 +306,14 @@ def test_generated_indexer_directory(
     # does not.
     assert table.rowCount(QModelIndex()) == len(rec_entries) + 1, pformat(rec_entries)
 
-    df = qt_model_to_dataframe(table)
+    df = qt_model_to_dataframe(table,
+                               role=CustomModelRole.FullDataRole.value,
+                               role_names={
+                                   CustomModelRole.FullDataRole.value: "data",
+                               })
+
+    log.info("\n" + str(df))
+
     rec_basenames = [e.name for e in rec_entries]
 
     assert set(rec_basenames) == (set(df["name"]) - {"data"}), pformat(
@@ -309,7 +323,5 @@ def test_generated_indexer_directory(
             original_model=simple_dump(core.model, max_col=1),
             real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
         ))
-
-    log.info("\n" + str(df))
 
     assert False

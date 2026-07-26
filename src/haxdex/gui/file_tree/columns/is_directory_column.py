@@ -15,14 +15,14 @@ import logging
 log = logging.getLogger(__name__)
 
 
-class FileNameData(BaseModel, extra="forbid"):
-    name: str
+class IsDirectoryData(BaseModel, extra="forbid"):
+    is_directory: bool
 
 
 @beartype
-class FileNameColumnSpec(FileTreeColumnSpec):
-    column_type = FileNameData
-    column_name = "file_name"
+class IsDirectoryColumnSpec(FileTreeColumnSpec):
+    column_type = IsDirectoryData
+    column_name = "is_directory"
 
     def initColumnData(
         self,
@@ -32,22 +32,18 @@ class FileNameColumnSpec(FileTreeColumnSpec):
         assets: dict[str, BaseModel],
         nested: list[FileTreeNode],
     ) -> BaseModel:
-        log.debug(f"name column {path} -> {path.name}")
-        return FileNameData(name=path.name)
-
-    def __init__(self) -> None:
-        super().__init__("name")
+        return IsDirectoryData(is_directory=is_directory)
 
     def data(
         self,
         index: QModelIndex,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        data = cast(FileNameData, self.getColumnData(index))
+        data = cast(IsDirectoryData, self.getColumnData(index))
         assert data is not None, "File name column spec cannot be null"
         match role:
             case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
-                return data.name
+                return str(data.is_directory)
 
             case CustomModelRole.FullDataRole.value:
                 return data

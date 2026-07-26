@@ -5,6 +5,7 @@ from beartype import beartype
 from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer, FileMimeIndexerResult
@@ -46,5 +47,9 @@ class FileMimeColumnSpec(FileTreeColumnSpec):
         match role:
             case Qt.ItemDataRole.DisplayRole:
                 return mime.mime_type
+
+            case CustomModelRole.FullDataRole.value:
+                return mime
+
             case _:
                 return None

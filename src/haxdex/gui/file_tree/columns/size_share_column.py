@@ -15,6 +15,7 @@ from beartype import beartype
 from beartype.typing import Any, Literal, Optional, cast
 from pydantic import BaseModel
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
@@ -167,8 +168,13 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
         match role:
             case Qt.ItemDataRole.DisplayRole:
                 return f"{entry.size_parent * 100:.1f}%"
+
             case Qt.ItemDataRole.UserRole:
                 return float(entry.size_self) / float(entry.size_parent)
+
+            case CustomModelRole.FullDataRole.value:
+                return entry
+
             case _:
                 return None
 
