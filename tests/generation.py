@@ -5,6 +5,7 @@ import decimal
 import json
 import math
 import re
+import shutil
 from enum import Enum
 from types import NoneType, UnionType
 
@@ -21,11 +22,14 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
+from tests.generation_full_file import CorpusManifest, initialize_persistent_corpus, _MIME_SUFFIXES
+
 
 @dataclass(frozen=True)
 class GeneratedIndexerFile:
     relative_path: Path
     results: dict[str, object]
+    corpus_source_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -161,17 +165,6 @@ class GeneratedDirectory:
 class MaterializedDirectory:
     root: Path
     files: list[Path]
-
-
-_MIME_SUFFIXES: dict[str, str] = {
-    "image/png": ".png",
-    "application/pdf": ".pdf",
-    "video/mp4": ".mp4",
-    "audio/mpeg": ".mp3",
-    "text/plain": ".txt",
-    "text/org": ".org",
-    "text/markdown": ".md",
-}
 
 
 @beartype
@@ -488,6 +481,8 @@ def pydantic_value_strategy(
 def directory_structure(
         draw: Any,
         indexer_types: Sequence[type[BaseIndexer]],
+        corpus_manifest: CorpusManifest,
+        corpus_root: Path,
         min_files: int = 1,
         max_files: int = 16,
         min_nesting: int = 0,
@@ -496,33 +491,45 @@ def directory_structure(
 ) -> GeneratedDirectory:
     if max_files < min_files:
         raise ValueError(
-            f"max_files must be at least min_files, got min_files={min_files} "
-            f"and max_files={max_files}")
+            f"max_files must be at least min_files, got min_files={min_files} and max_files={max_files}"
+        )
 
     if max_nesting < min_nesting:
-        raise ValueError(f"max_nesting must be at least min_nesting, got "
-                         f"min_nesting={min_nesting} and max_nesting={max_nesting}")
+        raise ValueError(
+            f"max_nesting must be at least min_nesting, got min_nesting={min_nesting} and max_nesting={max_nesting}"
+        )
 
     asset_names = [indexer_type.asset_name for indexer_type in indexer_types]
     duplicate_names = {name for name in asset_names if 1 < asset_names.count(name)}
-
-    if duplicate_names:
-        raise ValueError(f"Indexer asset names must be unique, duplicate names are "
-                         f"{sorted(duplicate_names)}")
+    if 0 < len(duplicate_names):
+        raise ValueError(
+            f"Indexer asset names must be unique, duplicate names are {sorted(duplicate_names)}"
+        )
 
     unsupported_mime_types = [
         mime_type for mime_type in mime_types if mime_type not in _MIME_SUFFIXES
     ]
-
-    if unsupported_mime_types:
+    if 0 < len(unsupported_mime_types):
         raise ValueError(
-            f"Unsupported MIME types: {unsupported_mime_types}. Supported MIME "
-            f"types are {sorted(_MIME_SUFFIXES)}")
+            f"Unsupported MIME types: {unsupported_mime_types}. Supported MIME types are {sorted(_MIME_SUFFIXES)}"
+        )
+
+    entries_by_mime: dict[str, list[CorpusFileEntry]] = {mime: [] for mime in mime_types}
+    for entry in corpus_manifest.entries:
+        if entry.file_spec.mime_type in entries_by_mime:
+            entries_by_mime[entry.file_spec.mime_type].append(entry)
+
+    missing = [mime for mime, values in entries_by_mime.items() if len(values) == 0]
+    if 0 < len(missing):
+        raise ValueError(
+            f"Corpus does not contain files for MIME types {missing}, available MIME types are {sorted(entries_by_mime)}"
+        )
 
     indexer_strategies = {
         indexer_type.asset_name: pydantic_model_strategy(indexer_type.result_model)
         for indexer_type in indexer_types
     }
+
     file_count = draw(st.integers(min_value=min_files, max_value=max_files))
     generated_files: list[GeneratedIndexerFile] = []
     relative_paths: set[Path] = set()
@@ -531,23 +538,18 @@ def directory_structure(
         depth = draw(st.integers(min_value=min_nesting, max_value=max_nesting))
         nested_parts = draw(
             st.lists(
-                st.text(
-                    alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                    min_size=8,
-                    max_size=8,
-                ),
+                st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+                        min_size=8,
+                        max_size=8),
                 min_size=depth,
                 max_size=depth,
             ))
-
         stem = draw(
-            st.text(
-                alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                min_size=8,
-                max_size=8,
-            ))
-
+            st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+                    min_size=8,
+                    max_size=8))
         mime_type = draw(st.sampled_from(tuple(mime_types)))
+        selected_entry = draw(st.sampled_from(entries_by_mime[mime_type]))
         relative_path = Path(*nested_parts, f"{stem}{_MIME_SUFFIXES[mime_type]}")
         assume(relative_path not in relative_paths)
         relative_paths.add(relative_path)
@@ -556,10 +558,12 @@ def directory_structure(
             asset_name: draw(strategy)
             for asset_name, strategy in indexer_strategies.items()
         }
+
         generated_files.append(
             GeneratedIndexerFile(
                 relative_path=relative_path,
                 results=results,
+                corpus_source_path=corpus_root / selected_entry.relative_path,
             ))
 
     return GeneratedDirectory(files=generated_files)
@@ -570,7 +574,6 @@ def write_generated_directory(
     root: Path,
     directory: GeneratedDirectory,
 ) -> MaterializedDirectory:
-    import shutil
     if root.exists():
         shutil.rmtree(root)
 
@@ -578,9 +581,18 @@ def write_generated_directory(
     materialized_files: list[Path] = []
 
     for generated_file in directory.files:
+        if generated_file.corpus_source_path is None:
+            raise ValueError(
+                f"Generated file '{generated_file.relative_path}' does not define corpus_source_path"
+            )
+        if not generated_file.corpus_source_path.exists():
+            raise ValueError(
+                f"Corpus source path '{generated_file.corpus_source_path}' for '{generated_file.relative_path}' does not exist"
+            )
+
         file_path = root / generated_file.relative_path
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.touch(exist_ok=True)
+        shutil.copy2(generated_file.corpus_source_path, file_path)
 
         metadata_path = file_path.with_name(f"{file_path.name}{META_SUFFIX}")
         metadata = {
@@ -589,15 +601,20 @@ def write_generated_directory(
                 for asset_name, result in generated_file.results.items()
             }
         }
-        metadata_path.write_text(
-            json.dumps(metadata, indent=2),
-            encoding="utf-8",
-        )
+        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
         materialized_files.append(file_path)
 
-    return MaterializedDirectory(
-        root=root,
-        files=materialized_files,
+    return MaterializedDirectory(root=root, files=materialized_files)
+
+
+@beartype
+def create_default_persistent_corpus(corpus_root: Path) -> CorpusManifest:
+    seeds = list(range(0, 240))
+    return initialize_persistent_corpus(
+        corpus_root=corpus_root,
+        seeds=seeds,
+        mime_types=tuple(_MIME_SUFFIXES),
+        allow_empty=True,
     )
 
 

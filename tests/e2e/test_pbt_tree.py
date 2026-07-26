@@ -13,12 +13,17 @@ from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.services.indexers.file_stats import FileStatsIndexer
+from haxdex.services.utils import propagate_logger_level
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel
+    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
+    create_default_persistent_corpus
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
 import logging
 
 log = logging.getLogger(__name__)
+
+corpus_root = Path("/tmp/haxdex_tests/pbt_corpus")
+corpus_manifest = create_default_persistent_corpus(corpus_root)
 
 
 def _fs_content_files(root: Path) -> list[Path]:
@@ -82,11 +87,13 @@ def _relset(items: list[GeneratedIndexerEntry]) -> set[Path]:
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(directory=directory_structure(
-    indexer_types=[FileStatsIndexer],
+    indexer_types=[],
     min_files=2,
     max_files=16,
     min_nesting=1,
     max_nesting=4,
+    corpus_manifest=corpus_manifest,
+    corpus_root=corpus_root,
     mime_types=(
         "image/png",
         "application/pdf",
@@ -204,11 +211,13 @@ def test_generated_directory_collect_methods_match_content(
     max_examples=1,
 )
 @given(directory=directory_structure(
-    indexer_types=[FileStatsIndexer],
+    indexer_types=[],
     min_files=2,
     max_files=8,
     min_nesting=1,
     max_nesting=4,
+    corpus_manifest=corpus_manifest,
+    corpus_root=corpus_root,
     mime_types=(
         "image/png",
         "application/pdf",
@@ -223,6 +232,7 @@ def test_generated_indexer_directory(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
 ) -> None:
+    propagate_logger_level("haxdex", logging.DEBUG)
     log.info("run")
     import shutil
     if stable_test_dir.exists():

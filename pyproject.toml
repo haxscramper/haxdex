@@ -45,6 +45,7 @@ dependencies = [
     "pytest-qt>=4.5.0",
     "python-arango==8.1.6",
     "python-magic>=0.4.27",
+    "reportlab>=5.0.0",
     "rich>=15.0.0",
     "sqlalchemy>=2.0.51",
     "tiktoken>=0.13.0",
