@@ -7,7 +7,6 @@ from pathlib import Path
 from beartype.typing import Any
 from sqlalchemy import Engine
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.pydantic_utils import try_parse_json
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from pydantic import BaseModel
@@ -96,7 +95,6 @@ class SafetensorIndexer(BaseIndexer):
     def can_run(self, path: Path) -> bool:
         return path.suffix.lower() in [".safetensors"]
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

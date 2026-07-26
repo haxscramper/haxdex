@@ -3,7 +3,6 @@ from pathlib import Path
 from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from pydantic import BaseModel
 
@@ -19,7 +18,6 @@ class FileSizeIndexer(BaseIndexer):
     def __init__(self, config: BaseIndexerConfig, database: Engine) -> None:
         super().__init__(config=config, database=database)
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

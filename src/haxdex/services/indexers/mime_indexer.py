@@ -6,7 +6,6 @@ from sqlalchemy import Engine
 import magic
 from magic import Magic, libmagic
 
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 
@@ -62,7 +61,6 @@ class FileMimeIndexer(BaseIndexer):
             cleaned = msg.split(" name use count ")[0].strip()
             return cleaned or default
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,

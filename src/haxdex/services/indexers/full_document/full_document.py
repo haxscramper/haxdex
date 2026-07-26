@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 import plumbum
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.job_cache import cache_indexer_run
 from haxdex.services.core.types import (
     IndexDocument,
     IndexerOutput,
@@ -91,7 +90,6 @@ class DocumentBlockIndexer(BaseIndexer):
         result = reader in self.supported_readers if reader else False
         return result
 
-    @cache_indexer_run
     def run(
         self,
         ctx: RunContext,
