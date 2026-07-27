@@ -6,6 +6,8 @@ from collections import defaultdict
 from contextlib import redirect_stderr
 from pathlib import Path
 from pprint import pformat
+
+from beartype import beartype
 from beartype.typing import Iterable, Any, Iterator
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
@@ -22,6 +24,7 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeData, FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.indexers.file_stats import FileStatsIndexer
@@ -534,14 +537,21 @@ def test_generated_indexer_directory(
         nonlocal nodes_visited
         nodes_visited += len(nodes)
         for node in nodes:
-            assert FileMimeColumnSpec.column_name in node.columns, str(
-                node.columns.keys())
-            mime = node.columns[FileMimeColumnSpec.column_name]
-            assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
-            if mime is not None:
-                mime_types[mime.mime_type] += 1
-                if mime.mime_type.startswith("video/"):
-                    result.append(node)
+            assert TrivialDataColumnSpec.column_name in node.columns
+            trivial = node.columns[TrivialDataColumnSpec.column_name]
+            assert isinstance(trivial, TrivialDataColumnSpec.column_type)
+            if trivial.is_directory:
+                result.append(node)
+
+            else:
+                assert FileMimeColumnSpec.column_name in node.columns, str(
+                    node.columns.keys())
+                mime = node.columns[FileMimeColumnSpec.column_name]
+                assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
+                if mime is not None:
+                    mime_types[mime.mime_type] += 1
+                    if mime.mime_type.startswith("video/"):
+                        result.append(node)
 
         return result
 
@@ -556,5 +566,10 @@ def test_generated_indexer_directory(
 
     video_df = qt_tree_to_df(video_only_model)
     log.info("video df:\n" + fmt_df(video_df))
+
+    @beartype
+    def map_trivial(trivial: TrivialEntryData) -> bool:
+        return not trivial.is_directory
+
     assert len(df[df["mime_type"].str.startswith("video/")]) == len(
-        video_df[video_df["trivial"].map(lambda x: x.is_directory)])
+        video_df[video_df["trivial"].map(map_trivial)])
