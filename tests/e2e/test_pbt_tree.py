@@ -2,6 +2,7 @@ import dataclasses
 import functools
 import json
 import shutil
+from collections import defaultdict
 from contextlib import redirect_stderr
 from pathlib import Path
 from pprint import pformat
@@ -19,7 +20,10 @@ from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
+from haxdex.gui.file_tree.columns.file_mime_column import FileMimeData, FileMimeColumnSpec
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
+from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from haxdex.services.pydantic_utils import to_json_safe
 from haxdex.services.utils import propagate_logger_level
@@ -50,6 +54,18 @@ def left_align_formatters(df):
 
     return [(lambda width: (lambda value: f"{str(value):<{width}}"))(widths[column])
             for column in df.columns]
+
+
+def qt_tree_to_df(model: QAbstractItemModel) -> pd.DataFrame:
+    table = TreeToTableProxyModel()
+    table.setSourceModel(model)
+    return qt_model_to_dataframe(model=table,
+                                 role=CustomModelRole.FullDataRole.value,
+                                 role_names={CustomModelRole.FullDataRole.value: "data"})
+
+
+def fmt_df(df: pd.DataFrame) -> str:
+    return df.to_string(justify="left", formatters=left_align_formatters(df))
 
 
 @contextmanager
@@ -472,11 +488,12 @@ def test_generated_indexer_directory(
              ])]
     stable_test_dir.joinpath("df_pre_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
+    log.info("base flat model:\n" + fmt_df(df))
     df = split_columns_by_rules(df, rules).sort_values("root_relative")
     stable_test_dir.joinpath("df_post_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
 
-    log.info("\n" + df.to_string(justify="left", formatters=left_align_formatters(df)))
+    log.info("base spliced model:\n" + fmt_df(df))
     rec_basenames = [e.name for e in rec_entries]
 
     assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
@@ -506,3 +523,38 @@ def test_generated_indexer_directory(
     row = row.iloc[0]
 
     assert len(df[~df["is_directory"]]) == row["rec_total_count"]
+
+    video_eval = QueryFilterEvaluator()
+
+    nodes_visited = 0
+    mime_types: defaultdict[str, int] = defaultdict(lambda: 0)
+
+    def get_only_video(nodes: list[FileTreeNode]) -> list[FileTreeNode]:
+        result = list()
+        nonlocal nodes_visited
+        nodes_visited += len(nodes)
+        for node in nodes:
+            assert FileMimeColumnSpec.column_name in node.columns, str(
+                node.columns.keys())
+            mime = node.columns[FileMimeColumnSpec.column_name]
+            assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
+            if mime is not None:
+                mime_types[mime.mime_type] += 1
+                if mime.mime_type.startswith("video/"):
+                    result.append(node)
+
+        return result
+
+    video_only_model = video_eval.filter_model(
+        core.model,
+        query_text=QueryProgram(filter_fn=get_only_video),
+    )
+
+    # FIXME: Root `data` nodes are not visited during iteration
+    assert nodes_visited + 1 == len(df)
+    assert len(mime_types) == df["mime_type"].nunique()
+
+    video_df = qt_tree_to_df(video_only_model)
+    log.info("video df:\n" + fmt_df(video_df))
+    assert len(df[df["mime_type"].str.startswith("video/")]) == len(
+        video_df[video_df["trivial"].map(lambda x: x.is_directory)])

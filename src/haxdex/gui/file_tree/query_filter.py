@@ -28,11 +28,11 @@ QueryResultModel = AbstractColumnItemModel | ActionListModel
 
 @dataclass(slots=True)
 class QueryProgram:
-    filter_fn: FilterFn | None
-    actions_fn: ActionsFn | None
-    pre_traverse_fn: TraverseFn | None
-    post_traverse_fn: TraverseFn | None
-    action_provider: ActionProvider | None
+    filter_fn: FilterFn | None = None
+    actions_fn: ActionsFn | None = None
+    pre_traverse_fn: TraverseFn | None = None
+    post_traverse_fn: TraverseFn | None = None
+    action_provider: ActionProvider | None = None
 
 
 @beartype
@@ -158,13 +158,17 @@ class QueryFilterEvaluator:
     def filter_model(
         self,
         model: AbstractColumnItemModel,
-        query_text: str,
+        query_text: str | QueryProgram,
         *,
         scope_nodes: list[FileTreeNode] | None = None,
         parent: QObject | None = None,
     ) -> QueryResultModel:
         try:
-            program = self._build_program(query_text)
+            if isinstance(query_text, QueryProgram):
+                program = query_text
+            else:
+                program = self._build_program(query_text)
+
             scope = scope_nodes if scope_nodes else model.index(
                 0,
                 0,
