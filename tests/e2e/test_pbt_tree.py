@@ -247,6 +247,68 @@ def test_generated_directory_collect_methods_match_content(
         directory.get_file_by_relative_name(Path("__missing__") / "nope.txt")
 
 
+def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
+                            rec_entries: list[Path], core: FileTreeQueryCore,
+                            gen_dir: Path, directory: GeneratedDirectory) -> pd.DataFrame:
+
+    assert "name" in df.columns, str(df.columns)
+
+    rules = [("trivial", ["assets", "is_directory", "root", "root_relative"]),
+             ("share", ["size_self", "size_parent"]), ("mime", ["mime_type"]),
+             ("name", [("name", "entry_name")]),
+             ("framerate", [("probe.fps", "video_framerate")]),
+             ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
+             ("video_resolution", [
+                 ("probe.width", "video_width"),
+                 ("probe.height", "video_height"),
+             ]),
+             ("file_duplicates", [
+                 ("hash", "file_hash"),
+                 ("matches", "duplicate_paths"),
+                 ("duplicate_count", "rec_duplicate_count"),
+                 ("total_count", "rec_total_count"),
+             ])]
+    stable_test_dir.joinpath("df_pre_split.json").write_text(
+        json.dumps(to_json_safe(df), indent=2))
+    log.info("base flat model:\n" + fmt_df(df))
+    df = split_columns_by_rules(df, rules).sort_values("root_relative")
+    stable_test_dir.joinpath("df_post_split.json").write_text(
+        json.dumps(to_json_safe(df), indent=2))
+
+    log.info("base spliced model:\n" + fmt_df(df))
+    rec_basenames = [e.name for e in rec_entries]
+
+    assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
+        dict(
+            rec_basenames=set(rec_basenames),
+            model_names=set(df["entry_name"]),
+            original_model=simple_dump(core.model, max_col=1),
+            real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
+        ))
+
+    assert df["size_self"].notna().all(), "`size_self` contains None values"
+    assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
+    assert (df["size_self"]
+            <= df["size_parent"]).all(), "entry size cannot be larger than the parent"
+
+    video_mask = df["mime_type"].str.startswith("video/", na=False)
+
+    assert df.loc[video_mask, "video_framerate"].notna().all()
+    assert df.loc[video_mask, "video_bitrate"].notna().all()
+    assert df.loc[video_mask, "video_width"].notna().all()
+    assert df.loc[video_mask, "video_height"].notna().all()
+
+    assert len(df[~df["is_directory"]]) == len(directory.collect_files_recursive())
+
+    row = df.loc[df["root_relative"].eq("")]
+    assert len(row) == 1
+    row = row.iloc[0]
+
+    assert len(df[~df["is_directory"]]) == row["rec_total_count"]
+
+    return df
+
+
 def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
     video_eval = QueryFilterEvaluator()
 
@@ -403,59 +465,13 @@ def test_generated_indexer_directory(
                                    CustomModelRole.FullDataRole.value: "data",
                                })
 
-    assert "name" in df.columns, str(df.columns)
-
-    rules = [("trivial", ["assets", "is_directory", "root", "root_relative"]),
-             ("share", ["size_self", "size_parent"]), ("mime", ["mime_type"]),
-             ("name", [("name", "entry_name")]),
-             ("framerate", [("probe.fps", "video_framerate")]),
-             ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
-             ("video_resolution", [
-                 ("probe.width", "video_width"),
-                 ("probe.height", "video_height"),
-             ]),
-             ("file_duplicates", [
-                 ("hash", "file_hash"),
-                 ("matches", "duplicate_paths"),
-                 ("duplicate_count", "rec_duplicate_count"),
-                 ("total_count", "rec_total_count"),
-             ])]
-    stable_test_dir.joinpath("df_pre_split.json").write_text(
-        json.dumps(to_json_safe(df), indent=2))
-    log.info("base flat model:\n" + fmt_df(df))
-    df = split_columns_by_rules(df, rules).sort_values("root_relative")
-    stable_test_dir.joinpath("df_post_split.json").write_text(
-        json.dumps(to_json_safe(df), indent=2))
-
-    log.info("base spliced model:\n" + fmt_df(df))
-    rec_basenames = [e.name for e in rec_entries]
-
-    assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
-        dict(
-            rec_basenames=set(rec_basenames),
-            model_names=set(df["entry_name"]),
-            original_model=simple_dump(core.model, max_col=1),
-            real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
-        ))
-
-    assert df["size_self"].notna().all(), "`size_self` contains None values"
-    assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
-    assert (df["size_self"]
-            <= df["size_parent"]).all(), "entry size cannot be larger than the parent"
-
-    video_mask = df["mime_type"].str.startswith("video/", na=False)
-
-    assert df.loc[video_mask, "video_framerate"].notna().all()
-    assert df.loc[video_mask, "video_bitrate"].notna().all()
-    assert df.loc[video_mask, "video_width"].notna().all()
-    assert df.loc[video_mask, "video_height"].notna().all()
-
-    assert len(df[~df["is_directory"]]) == len(directory.collect_files_recursive())
-
-    row = df.loc[df["root_relative"].eq("")]
-    assert len(row) == 1
-    row = row.iloc[0]
-
-    assert len(df[~df["is_directory"]]) == row["rec_total_count"]
+    df = run_main_model_splicing(
+        df,
+        stable_test_dir=stable_test_dir,
+        rec_entries=rec_entries,
+        core=core,
+        gen_dir=gen_dir,
+        directory=directory,
+    )
 
     run_video_file_filtering(df, core)
