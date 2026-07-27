@@ -8,34 +8,31 @@ from pathlib import Path
 from pprint import pformat
 
 from beartype import beartype
-from beartype.typing import Iterable, Any, Iterator
+from beartype.typing import Any
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
 import pytest
 import plumbum
 import pandas as pd
-from contextlib import contextmanager
 
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
-from haxdex.gui.file_tree.columns.file_mime_column import FileMimeData, FileMimeColumnSpec
+from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
-from haxdex.services.indexers.file_stats import FileStatsIndexer
 from haxdex.services.pydantic_utils import to_json_safe
-from haxdex.services.utils import propagate_logger_level
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, GeneratedIndexerFile, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
+    assert_generated_directory_entries_exact, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
     create_default_persistent_corpus
-from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name
+from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name, \
+    clean_test_dir, capture_logs, split_columns_by_rules
 import logging
-import glom
 
 log = logging.getLogger(__name__)
 
@@ -69,121 +66,6 @@ def qt_tree_to_df(model: QAbstractItemModel) -> pd.DataFrame:
 
 def fmt_df(df: pd.DataFrame) -> str:
     return df.to_string(justify="left", formatters=left_align_formatters(df))
-
-
-@contextmanager
-def capture_all_logs_to_test_file(
-    stable_test_dir: Path,
-    test_name: str,
-    level: int = logging.DEBUG,
-) -> Iterator[Path]:
-    run_log_path = stable_test_dir / f"{test_name}"
-    run_log_path.parent.mkdir(parents=True, exist_ok=True)
-
-    root = logging.getLogger()
-    old_root_handlers = list(root.handlers)
-    old_root_level = root.level
-
-    touched: list[tuple[logging.Logger, bool]] = []
-    for obj in logging.root.manager.loggerDict.values():
-        if isinstance(obj, logging.Logger):
-            touched.append((obj, obj.propagate))
-            obj.propagate = True
-
-    run_log_path.write_text("")
-    with run_log_path.open("w", encoding="utf-8") as log_file, redirect_stderr(log_file):
-        root.handlers.clear()
-        root.setLevel(level)
-
-        handler = logging.StreamHandler(log_file)
-        handler.setLevel(level)
-        handler.setFormatter(
-            logging.Formatter(
-                "%(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s"))
-        root.addHandler(handler)
-
-        try:
-            yield run_log_path
-        finally:
-            root.removeHandler(handler)
-            handler.close()
-            root.handlers[:] = old_root_handlers
-            root.setLevel(old_root_level)
-            for logger, old_propagate in touched:
-                logger.propagate = old_propagate
-
-
-def capture_logs(test_name: str | None = None, level: int = logging.DEBUG):
-
-    def decorator(func):
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            with capture_all_logs_to_test_file(
-                    kwargs["stable_test_dir"],
-                    test_name or func.__name__,
-                    level,
-            ):
-                return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
-
-
-def clean_test_dir(func=None):
-
-    def decorator(f):
-
-        @functools.wraps(f)
-        def wrapper(*args, **kwargs):
-            test_dir: Path = kwargs["stable_test_dir"]
-            if test_dir.exists():
-                shutil.rmtree(test_dir)
-
-            test_dir.mkdir(parents=True, exist_ok=True)
-            return f(*args, **kwargs)
-
-        return wrapper
-
-    return decorator if func is None else decorator(func)
-
-
-def _cell_to_dict(v):
-    if v is None:
-        return {}
-    if isinstance(v, dict):
-        return v
-    if dataclasses.is_dataclass(v):
-        return dataclasses.asdict(v)
-    if hasattr(v, "model_dump"):  # pydantic v2
-        return v.model_dump()
-    if hasattr(v, "__dict__"):
-        return {k: val for k, val in vars(v).items() if not k.startswith("_")}
-    return {}
-
-
-def split_columns_by_rules(
-    df: pd.DataFrame,
-    rules: list[tuple[str, list[str | tuple[Any, str]]]],
-) -> pd.DataFrame:
-    out = df.copy()
-
-    for col, fields in rules:
-        mapped = out[col].map(_cell_to_dict)
-
-        for field in fields:
-            if isinstance(field, str):
-                field_key, res_name = field, field
-
-            else:
-                field_key, res_name = field
-
-            out[res_name] = mapped.map(lambda d: glom.glom(d, field_key, default=None))
-
-    out = out.drop(columns=[col for col, _ in rules])
-
-    return out
 
 
 def _fs_content_files(root: Path) -> list[Path]:
@@ -365,6 +247,55 @@ def test_generated_directory_collect_methods_match_content(
         directory.get_file_by_relative_name(Path("__missing__") / "nope.txt")
 
 
+def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
+    video_eval = QueryFilterEvaluator()
+
+    nodes_visited = 0
+    mime_types: defaultdict[str, int] = defaultdict(lambda: 0)
+
+    def get_only_video(nodes: list[FileTreeNode]) -> list[FileTreeNode]:
+        result = list()
+        nonlocal nodes_visited
+        nodes_visited += len(nodes)
+        for node in nodes:
+            assert TrivialDataColumnSpec.column_name in node.columns
+            trivial = node.columns[TrivialDataColumnSpec.column_name]
+            assert isinstance(trivial, TrivialDataColumnSpec.column_type)
+            if trivial.is_directory:
+                result.append(node)
+
+            else:
+                assert FileMimeColumnSpec.column_name in node.columns, str(
+                    node.columns.keys())
+                mime = node.columns[FileMimeColumnSpec.column_name]
+                assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
+                if mime is not None:
+                    mime_types[mime.mime_type] += 1
+                    if mime.mime_type.startswith("video/"):
+                        result.append(node)
+
+        return result
+
+    video_only_model = video_eval.filter_model(
+        core.model,
+        query_text=QueryProgram(filter_fn=get_only_video),
+    )
+
+    # FIXME: Root `data` nodes are not visited during iteration
+    assert nodes_visited + 1 == len(df)
+    assert len(mime_types) == df["mime_type"].nunique()
+
+    video_df = qt_tree_to_df(video_only_model)
+    log.info("video df:\n" + fmt_df(video_df))
+
+    @beartype
+    def map_trivial(trivial: TrivialEntryData) -> bool:
+        return not trivial.is_directory
+
+    assert len(df[df["mime_type"].str.startswith("video/")]) == len(
+        video_df[video_df["trivial"].map(map_trivial)])
+
+
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
@@ -527,49 +458,4 @@ def test_generated_indexer_directory(
 
     assert len(df[~df["is_directory"]]) == row["rec_total_count"]
 
-    video_eval = QueryFilterEvaluator()
-
-    nodes_visited = 0
-    mime_types: defaultdict[str, int] = defaultdict(lambda: 0)
-
-    def get_only_video(nodes: list[FileTreeNode]) -> list[FileTreeNode]:
-        result = list()
-        nonlocal nodes_visited
-        nodes_visited += len(nodes)
-        for node in nodes:
-            assert TrivialDataColumnSpec.column_name in node.columns
-            trivial = node.columns[TrivialDataColumnSpec.column_name]
-            assert isinstance(trivial, TrivialDataColumnSpec.column_type)
-            if trivial.is_directory:
-                result.append(node)
-
-            else:
-                assert FileMimeColumnSpec.column_name in node.columns, str(
-                    node.columns.keys())
-                mime = node.columns[FileMimeColumnSpec.column_name]
-                assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
-                if mime is not None:
-                    mime_types[mime.mime_type] += 1
-                    if mime.mime_type.startswith("video/"):
-                        result.append(node)
-
-        return result
-
-    video_only_model = video_eval.filter_model(
-        core.model,
-        query_text=QueryProgram(filter_fn=get_only_video),
-    )
-
-    # FIXME: Root `data` nodes are not visited during iteration
-    assert nodes_visited + 1 == len(df)
-    assert len(mime_types) == df["mime_type"].nunique()
-
-    video_df = qt_tree_to_df(video_only_model)
-    log.info("video df:\n" + fmt_df(video_df))
-
-    @beartype
-    def map_trivial(trivial: TrivialEntryData) -> bool:
-        return not trivial.is_directory
-
-    assert len(df[df["mime_type"].str.startswith("video/")]) == len(
-        video_df[video_df["trivial"].map(map_trivial)])
+    run_video_file_filtering(df, core)

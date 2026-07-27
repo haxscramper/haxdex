@@ -1,9 +1,17 @@
+import dataclasses
+import functools
+import logging
+import shutil
+from contextlib import contextmanager, redirect_stderr
 from dataclasses import dataclass
 from pathlib import Path
 
+import glom
 from PyQt6.QtCore import QModelIndex
 from beartype import beartype
-from beartype.typing import cast
+from beartype.typing import cast, Iterator, Any
+
+import pandas as pd
 
 from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
@@ -14,15 +22,12 @@ from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, Fi
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
-from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateData, VideoBitrateColumnSpec
+from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
 from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
 from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
-from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
-from haxdex.services.default_job_types import DEFAULT_INDEXER_TYPES, DEFAULT_RESOURCE_TYPES
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
-from haxdex.services.indexers.file_size import FileSizeIndexer
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 
@@ -136,3 +141,118 @@ def sub_row_by_name(index: QModelIndex, suffix: str, name_column: int = 0) -> QM
             return row_idx
 
     raise ValueError(f"no index for {suffix}")
+
+
+@contextmanager
+def capture_all_logs_to_test_file(
+    stable_test_dir: Path,
+    test_name: str,
+    level: int = logging.DEBUG,
+) -> Iterator[Path]:
+    run_log_path = stable_test_dir / f"{test_name}"
+    run_log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    root = logging.getLogger()
+    old_root_handlers = list(root.handlers)
+    old_root_level = root.level
+
+    touched: list[tuple[logging.Logger, bool]] = []
+    for obj in logging.root.manager.loggerDict.values():
+        if isinstance(obj, logging.Logger):
+            touched.append((obj, obj.propagate))
+            obj.propagate = True
+
+    run_log_path.write_text("")
+    with run_log_path.open("w", encoding="utf-8") as log_file, redirect_stderr(log_file):
+        root.handlers.clear()
+        root.setLevel(level)
+
+        handler = logging.StreamHandler(log_file)
+        handler.setLevel(level)
+        handler.setFormatter(
+            logging.Formatter(
+                "%(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s"))
+        root.addHandler(handler)
+
+        try:
+            yield run_log_path
+        finally:
+            root.removeHandler(handler)
+            handler.close()
+            root.handlers[:] = old_root_handlers
+            root.setLevel(old_root_level)
+            for logger, old_propagate in touched:
+                logger.propagate = old_propagate
+
+
+def capture_logs(test_name: str | None = None, level: int = logging.DEBUG):
+
+    def decorator(func):
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with capture_all_logs_to_test_file(
+                    kwargs["stable_test_dir"],
+                    test_name or func.__name__,
+                    level,
+            ):
+                return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def clean_test_dir(func=None):
+
+    def decorator(f):
+
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            test_dir: Path = kwargs["stable_test_dir"]
+            if test_dir.exists():
+                shutil.rmtree(test_dir)
+
+            test_dir.mkdir(parents=True, exist_ok=True)
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    return decorator if func is None else decorator(func)
+
+
+def _cell_to_dict(v):
+    if v is None:
+        return {}
+    if isinstance(v, dict):
+        return v
+    if dataclasses.is_dataclass(v):
+        return dataclasses.asdict(v)
+    if hasattr(v, "model_dump"):  # pydantic v2
+        return v.model_dump()
+    if hasattr(v, "__dict__"):
+        return {k: val for k, val in vars(v).items() if not k.startswith("_")}
+    return {}
+
+
+def split_columns_by_rules(
+    df: pd.DataFrame,
+    rules: list[tuple[str, list[str | tuple[Any, str]]]],
+) -> pd.DataFrame:
+    out = df.copy()
+
+    for col, fields in rules:
+        mapped = out[col].map(_cell_to_dict)
+
+        for field in fields:
+            if isinstance(field, str):
+                field_key, res_name = field, field
+
+            else:
+                field_key, res_name = field
+
+            out[res_name] = mapped.map(lambda d: glom.glom(d, field_key, default=None))
+
+    out = out.drop(columns=[col for col, _ in rules])
+
+    return out
