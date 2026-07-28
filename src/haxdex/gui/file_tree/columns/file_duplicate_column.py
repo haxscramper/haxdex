@@ -86,7 +86,7 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
                 total_count=total_count,
             )
 
-        if hash is None:
+        if args.hash is None:
             return None
 
         matches = self._matches(args.path, args.hash.hash)
@@ -94,7 +94,7 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
         return FileDuplicateData(
             hash=args.hash.hash,
             matches=matches,
-            duplicate_count=1 if matches else 0,
+            duplicate_count=len(matches),
             total_count=1,
         )
 

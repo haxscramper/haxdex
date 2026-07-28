@@ -21,6 +21,7 @@ from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
+from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
@@ -358,6 +359,40 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
         video_df[video_df["trivial"].map(map_trivial)])
 
 
+def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
+    evaluator = QueryFilterEvaluator()
+
+    act = ActionProvider()
+
+    kept: set[str] = set()
+
+    def actions(act: ActionProvider, nodes: list[FileTreeNode]):
+        for node in nodes:
+            if node.columns[TrivialDataColumnSpec.column_name].is_directory:
+                continue
+
+            duplicates = node.columns["file_duplicate"]
+            if not (0 < duplicates.duplicate_count and duplicates.hash is not None):
+                continue
+
+            h = duplicates.hash
+            if h in kept:
+                # trash all but first entry of this hash
+                act.trash(node)
+            else:
+                kept.add(h)
+
+    action_model = evaluator.filter_model(
+        core.model,
+        query_text=QueryProgram(actions_fn=actions, action_provider=act),
+    )
+
+    assert isinstance(action_model, ActionListModel)
+    with_duplicates = df[df["rec_duplicate_count"] == 1 & ~df["is_directory"]]
+    log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
+    assert sum(with_duplicates["rec_duplicate_count"]) == len(action_model.actions()) * 2
+
+
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
@@ -475,3 +510,4 @@ def test_generated_indexer_directory(
     )
 
     run_video_file_filtering(df, core)
+    run_remove_duplicate_action(df, core)
