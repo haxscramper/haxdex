@@ -22,7 +22,7 @@ from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel
-from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData
+from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData, FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
@@ -35,6 +35,7 @@ from tests.generation import directory_structure, GeneratedDirectory, write_gene
 from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name, \
     clean_test_dir, capture_logs, split_columns_by_rules
 import logging
+from hypothesis.control import current_build_context
 
 log = logging.getLogger(__name__)
 
@@ -367,11 +368,15 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
 
     kept: set[str] = set()
     duplicate_files: int = 0
+    deleted_files: int = 0
 
     def actions(act: ActionProvider, nodes: list[FileTreeNode]):
         nonlocal duplicate_files
+        nonlocal deleted_files
         for node in nodes:
-            duplicates = node.columns["file_duplicate"]
+            duplicates = node.columns[FileDuplicateColumnSpec.column_name]
+            trivial = node.columns[TrivialDataColumnSpec.column_name]
+            assert isinstance(trivial, TrivialEntryData)
             assert isinstance(duplicates, FileDuplicateData)
             if not (0 < duplicates.duplicate_count and duplicates.hash is not None):
                 continue
@@ -379,9 +384,12 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
             duplicate_files += 1
 
             h = duplicates.hash
+            log.debug(f"{trivial.root_relative} in kept: {h in kept}")
             if h in kept:
                 # trash all but first entry of this hash
                 act.trash(node)
+                deleted_files += 1
+
             else:
                 kept.add(h)
 
@@ -391,23 +399,33 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
     )
 
     assert isinstance(action_model, ActionListModel)
+
+    assert len(action_model.actions()) == deleted_files
+
     with_duplicates = df[(1 <= df["rec_duplicate_count"]) & (df["is_directory"] == False)]
-    # with_duplicates = with_duplicates[""]
+    with_duplicates["duplicate_paths"] = with_duplicates["duplicate_paths"].map(
+        lambda paths: list(map(lambda it: it.name, paths)))
+    with_duplicates = with_duplicates[[
+        "is_directory", "rec_duplicate_count", "root_relative", "duplicate_paths"
+    ]]
+    with_duplicates["no_first"] = (with_duplicates["rec_duplicate_count"] /
+                                   (with_duplicates["rec_duplicate_count"] + 1))
+
     log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
-    assert sum(with_duplicates["rec_duplicate_count"]) == len(action_model.actions()) * 2
+    assert round(with_duplicates["no_first"].sum()) == len(action_model.actions())
 
 
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
-    max_examples=1,
+    max_examples=20,
     deadline=2000,
 )
 @given(directory=directory_structure(
     indexer_types=[],
-    min_files=8,
-    max_files=32,
+    min_files=24,
+    max_files=48,
     min_nesting=1,
     max_nesting=3,
     corpus_manifest=corpus_manifest,
@@ -430,6 +448,7 @@ def test_generated_indexer_directory(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
 ) -> None:
+    log.info(f"hypothesis example {current_build_context().data.index}")
     gen_dir = stable_test_dir / "data"
     materialized = write_generated_directory(gen_dir, directory)
     assert_generated_directory_entries_exact(materialized.root, directory)
