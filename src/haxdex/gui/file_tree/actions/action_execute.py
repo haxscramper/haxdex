@@ -81,9 +81,9 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+@beartype
 class ActionExecutor:
 
-    @beartype
     def __init__(self, config: ActionExecutionConfig) -> None:
         self.config = config
         self.engine = create_engine(f"sqlite+pysqlite:///{self.config.sqlite_path}",
@@ -106,12 +106,10 @@ class ActionExecutor:
                 )
         }
 
-    @beartype
     def init_db(self) -> None:
         from haxdex.gui.file_tree.actions.action_db import Base
         Base.metadata.create_all(self.engine)
 
-    @beartype
     def verify_actions_consistency(self, actions: Sequence[BaseAction]) -> None:
         move_counts: dict[Path, int] = {}
         convert_counts: dict[Path, int] = {}
@@ -154,7 +152,6 @@ class ActionExecutor:
                 raise ValueError(
                     f"Conflicting video_convert and trash action for source path: {src}")
 
-    @beartype
     def register_actions(self, actions: Sequence[BaseAction]) -> None:
         self.verify_actions_consistency(actions)
 
@@ -212,12 +209,10 @@ class ActionExecutor:
 
             session.commit()
 
-    @beartype
     def _load_action(self, row: OperationRow) -> BaseAction:
         model_type = _model_type_from_name(row.action_type)
         return model_from_json_data(row.action_data, model_type)
 
-    @beartype
     def execute_pending(self, max_operations: Optional[int] = None) -> int:
         self.config.trash_root.mkdir(parents=True, exist_ok=True)
         executed = 0
@@ -240,7 +235,6 @@ class ActionExecutor:
                 executed += 1
         return executed
 
-    @beartype
     def revert_done(self) -> int:
         reverted = 0
         with Session(self.engine) as session:

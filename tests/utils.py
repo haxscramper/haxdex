@@ -14,7 +14,8 @@ from beartype.typing import cast, Iterator, Any
 import pandas as pd
 
 from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
+from haxdex.cli.cli_config import ActionConfig, AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
+from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
@@ -44,6 +45,17 @@ class IndexServiceConfig():
 def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
     root_dir = stable_test_dir.joinpath("data")
     root_dir.mkdir(parents=True, exist_ok=True)
+
+    act_conf = ActionExecutionConfig(
+        trash_root=stable_test_dir.joinpath("trash"),
+        sqlite_path=stable_test_dir.joinpath("actions.sqlite"),
+        output_directory=stable_test_dir.joinpath("action_output"),
+        dry_run=False,
+    )
+
+    act_conf.trash_root.mkdir(parents=True, exist_ok=True)
+    act_conf.output_directory.mkdir(parents=True, exist_ok=True)
+
     cfg = AppConfig(
         index=IndexConfig(
             paths=(IndexPathConfig(name="root",
@@ -64,6 +76,7 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
         hash_cache=stable_test_dir.joinpath("hash_cache.sqlite"),
         db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}",),
         action_file=stable_test_dir.joinpath("actions.jsonl"),
+        act=ActionConfig(execution=act_conf),
     )
 
     IndexService.reset_for_config(cfg)

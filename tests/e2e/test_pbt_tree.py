@@ -8,7 +8,7 @@ from pathlib import Path
 from pprint import pformat
 
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, List
 
 from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
 from hypothesis import given, settings, HealthCheck, Phase
@@ -16,11 +16,13 @@ import pytest
 import plumbum
 import pandas as pd
 
+from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
+from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData, FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
@@ -361,14 +363,15 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
         video_df[video_df["trivial"].map(map_trivial)])
 
 
-def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
+def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
+                                root_dir: Path):
     evaluator = QueryFilterEvaluator()
 
     act = ActionProvider()
 
     kept: set[str] = set()
     duplicate_files: int = 0
-    deleted_files: int = 0
+    deleted_files: List[str] = list()
 
     def actions(act: ActionProvider, nodes: list[FileTreeNode]):
         nonlocal duplicate_files
@@ -388,7 +391,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
             if h in kept:
                 # trash all but first entry of this hash
                 act.trash(node)
-                deleted_files += 1
+                deleted_files.append(trivial.root_relative)
 
             else:
                 kept.add(h)
@@ -400,7 +403,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
 
     assert isinstance(action_model, ActionListModel)
 
-    assert len(action_model.actions()) == deleted_files
+    assert len(action_model.actions()) == len(deleted_files)
 
     with_duplicates = df[(1 <= df["rec_duplicate_count"]) & (df["is_directory"] == False)]
     with_duplicates["duplicate_paths"] = with_duplicates["duplicate_paths"].map(
@@ -414,6 +417,41 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
     log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
     assert round(with_duplicates["no_first"].sum()) == len(action_model.actions())
+
+    assert cfg.act
+    executor = ActionExecutor(config=cfg.act.execution)
+    executor.init_db()
+    # in the main GUI/CLI this step is done by
+    # - store actions to file from the GUI
+    # - load actions and execute them from CLI
+    executor.register_actions(action_model.actions())
+
+    trash_root = cfg.act.execution.trash_root
+
+    def assert_in_dir(dir: Path, files: List[str]):
+        for file in files:
+            orig = dir.joinpath(file)
+            assert orig.exists(), orig
+
+    def assert_not_in_dir(dir: Path, files: List[str]):
+        for file in files:
+            orig = dir.joinpath(file)
+            assert not orig.exists(), orig
+
+    assert_in_dir(root_dir, deleted_files)
+    assert_not_in_dir(trash_root, deleted_files)
+
+    executed_count = executor.execute_pending()
+    assert executed_count == len(action_model.actions())
+
+    assert_not_in_dir(root_dir, deleted_files)
+    assert_in_dir(trash_root, deleted_files)
+
+    executed_count = executor.revert_done()
+    assert executed_count == len(action_model.actions())
+
+    assert_in_dir(root_dir, deleted_files)
+    assert_not_in_dir(trash_root, deleted_files)
 
 
 @settings(
@@ -534,4 +572,9 @@ def test_generated_indexer_directory(
     )
 
     run_video_file_filtering(df, core)
-    run_remove_duplicate_action(df, core)
+    run_remove_duplicate_action(
+        df,
+        core,
+        cfg=tree_config.cfg,
+        root_dir=tree_config.root_dir,
+    )
