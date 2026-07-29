@@ -9,12 +9,18 @@ import tempfile
 from enum import Enum
 from pathlib import Path
 
+import mistletoe
 from beartype.typing import Literal, Sequence, Union
+from dominate import document as html_document
+from dominate import tags
+from ebooklib import epub
 from PIL import Image, ImageDraw, PngImagePlugin
 from pydantic import BaseModel, Field
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
+
+from haxdex.services.indexers.full_document import full_document_types as doc_types
 
 _MIME_SUFFIXES: dict[str, str] = {
     "image/png": ".png",
@@ -24,6 +30,8 @@ _MIME_SUFFIXES: dict[str, str] = {
     "text/plain": ".txt",
     "text/org": ".org",
     "text/markdown": ".md",
+    "text/html": ".html",
+    "application/epub+zip": ".epub",
 }
 
 
@@ -112,7 +120,35 @@ class OrgSpec(FileSpecBase):
     total_words: int
 
 
-FileSpec = Union[PdfSpec, PngSpec, AudioSpec, VideoSpec, TextSpec, MarkdownSpec, OrgSpec]
+class HtmlSpec(FileSpecBase):
+    mime_type: Literal["text/html"] = "text/html"
+    section_count: int
+    include_code_blocks: bool
+    include_lists: bool
+    total_words: int
+    include_title: bool
+
+
+class EpubSpec(FileSpecBase):
+    mime_type: Literal["application/epub+zip"] = "application/epub+zip"
+    section_count: int
+    include_code_blocks: bool
+    include_lists: bool
+    total_words: int
+    title: str
+
+
+FileSpec = Union[
+    PdfSpec,
+    PngSpec,
+    AudioSpec,
+    VideoSpec,
+    TextSpec,
+    MarkdownSpec,
+    OrgSpec,
+    HtmlSpec,
+    EpubSpec,
+]
 
 
 class CorpusFileEntry(BaseModel):
@@ -310,6 +346,24 @@ def _seed_to_file_spec(
                 total_words=random.Random(seed + 12).randint(50, 5000),
             )
 
+        case "text/html":
+            return HtmlSpec(
+                section_count=random.Random(seed + 13).randint(1, 18),
+                include_code_blocks=seed % 2 == 0,
+                include_lists=seed % 3 == 2,
+                total_words=random.Random(seed + 14).randint(50, 5000),
+                include_title=seed % 2 == 1,
+            )
+
+        case "application/epub+zip":
+            return EpubSpec(
+                section_count=random.Random(seed + 15).randint(1, 18),
+                include_code_blocks=seed % 2 == 1,
+                include_lists=seed % 3 == 0,
+                total_words=random.Random(seed + 16).randint(50, 5000),
+                title=f"Corpus EPUB {seed}",
+            )
+
         case _:
             raise ValueError(
                 f"Unsupported MIME type '{mime_type}', supported values are {sorted(_MIME_SUFFIXES)}"
@@ -335,6 +389,351 @@ def seed_to_corpus_entry(
         relative_path=_seed_to_relative_path(seed, mime_type),
         file_spec=spec,
     )
+
+
+def _inline_content(text: str) -> doc_types.InlineContent:
+    return doc_types.InlineContent(text=text)
+
+
+def _paragraph_block(text: str) -> doc_types.Paragraph:
+    return doc_types.Paragraph.build(content=_inline_content(text))
+
+
+def _heading_block(text: str, level: int = 1) -> doc_types.Heading:
+    return doc_types.Heading.build(
+        props=doc_types.HeadingProps(level=level),
+        content=_inline_content(text),
+    )
+
+
+def _code_block(language: str, content: str) -> doc_types.Code:
+    return doc_types.Code.build(
+        props=doc_types.CodeBlockProps(language=language),
+        content=content,
+    )
+
+
+def _bullet_item(text: str) -> doc_types.BulletListItem:
+    return doc_types.BulletListItem.build(content=_inline_content(text))
+
+
+def _build_structured_document(
+    *,
+    seed: int,
+    section_count: int,
+    total_words: int,
+    include_lists: bool,
+    include_code_blocks: bool,
+) -> doc_types.Document:
+    rng = random.Random(seed)
+    words_per_section = max(1, total_words // section_count)
+    blocks: list[doc_types.DocumentBlock] = []
+
+    for section_index in range(section_count):
+        blocks.append(_heading_block(f"Section {section_index + 1}", level=1))
+        blocks.append(
+            _paragraph_block(
+                _deterministic_words(rng.randint(0, 10_000_000), words_per_section)))
+        if include_lists:
+            blocks.append(_bullet_item("item one"))
+            blocks.append(_bullet_item("item two"))
+            blocks.append(_bullet_item("item three"))
+        if include_code_blocks:
+            blocks.append(_code_block("python", "value = 42\nprint(value)"))
+
+    return doc_types.Document.build(nested=tuple(blocks))
+
+
+def _build_pdf_documents(seed: int, spec: PdfSpec) -> list[doc_types.Document]:
+    rng = random.Random(seed)
+    pages: list[doc_types.Document] = []
+
+    for page_index in range(spec.page_count):
+        blocks: list[doc_types.DocumentBlock] = []
+        if spec.include_headers:
+            blocks.append(
+                _heading_block(
+                    f"Corpus PDF page {page_index + 1}/{spec.page_count}",
+                    level=1,
+                ))
+
+        for block_index in range(spec.selectable_text_blocks):
+            blocks.append(
+                _paragraph_block(
+                    _deterministic_words(
+                        rng.randint(0, 10_000_000) + page_index * 97 + block_index, 26)))
+
+        if spec.include_images:
+            blocks.append(
+                doc_types.Div.build(props=doc_types.DivProps(
+                    identifier="embedded-image-placeholder",
+                    classes=["pdf-image"],
+                )))
+
+        pages.append(doc_types.Document.build(nested=tuple(blocks)))
+
+    return pages
+
+
+def _block_text(block: doc_types.DocumentBlock) -> str:
+    if isinstance(block, doc_types.Heading):
+        return block.content.text
+    if isinstance(block, doc_types.Paragraph):
+        return block.content.text
+    if isinstance(block, doc_types.BulletListItem):
+        return f"- {block.content.text}"
+    if isinstance(block, doc_types.NumberedListItem):
+        return f"1. {block.content.text}"
+    if isinstance(block, doc_types.Quote):
+        return f"> {block.content.text}"
+    if isinstance(block, doc_types.Code):
+        return block.content
+    return ""
+
+
+def _render_pdf_from_documents(
+    documents: Sequence[doc_types.Document],
+    spec: PdfSpec,
+    output_path: Path,
+) -> None:
+    canvas = Canvas(str(output_path), pagesize=A4)
+    page_width, page_height = A4
+
+    for page_index, document in enumerate(documents):
+        match spec.render_kind:
+            case PdfRenderKind.selectable_text:
+                y = page_height - 40
+                for block in document.nested:
+                    if isinstance(block, doc_types.Heading):
+                        canvas.setFont("Helvetica-Bold", 14)
+                        canvas.drawString(50, y, _block_text(block))
+                        y -= 28
+                    elif isinstance(block, doc_types.Paragraph):
+                        canvas.setFont("Helvetica", 11)
+                        canvas.drawString(50, y, _block_text(block))
+                        y -= 20
+                    elif isinstance(block, doc_types.BulletListItem):
+                        canvas.setFont("Helvetica", 11)
+                        canvas.drawString(60, y, _block_text(block))
+                        y -= 18
+                    elif isinstance(block, doc_types.Code):
+                        canvas.setFont("Courier", 10)
+                        for line in block.content.splitlines():
+                            canvas.drawString(50, y, line)
+                            y -= 14
+                    elif isinstance(
+                            block, doc_types.Div
+                    ) and block.props.identifier == "embedded-image-placeholder":
+                        image = Image.new("RGB", (280, 120), (220, 230, 245))
+                        draw = ImageDraw.Draw(image)
+                        draw.rectangle((8, 8, 272, 112), outline=(20, 20, 20), width=2)
+                        draw.text((16, 46), "embedded image", fill=(0, 0, 0))
+                        canvas.drawImage(ImageReader(image),
+                                         50,
+                                         max(80, y - 130),
+                                         width=280,
+                                         height=120)
+                        y -= 140
+
+                    if y < 80:
+                        break
+
+            case PdfRenderKind.raster_scan:
+                raster = Image.new("RGB", (1240, 1754), (255, 255, 255))
+                draw = ImageDraw.Draw(raster)
+                draw.rectangle((40, 40, 1200, 1710), outline=(0, 0, 0), width=4)
+
+                y = 90
+                for block in document.nested:
+                    text = _block_text(block)
+                    if not text:
+                        continue
+
+                    if isinstance(block, doc_types.Code):
+                        for line in block.content.splitlines():
+                            draw.text((80, y), line, fill=(0, 0, 0))
+                            y += 24
+                    else:
+                        draw.text((80, y), text, fill=(0, 0, 0))
+                        y += 34
+
+                    if y > 1640:
+                        break
+
+                draw.text((80, 1668), f"scanned page {page_index + 1}", fill=(0, 0, 0))
+                canvas.drawImage(ImageReader(raster),
+                                 0,
+                                 0,
+                                 width=page_width,
+                                 height=page_height)
+
+        canvas.showPage()
+
+    canvas.save()
+
+
+def _document_to_markdown_source(document: doc_types.Document) -> str:
+    lines: list[str] = []
+
+    for block in document.nested:
+        if isinstance(block, doc_types.Heading):
+            level = max(1, block.props.level)
+            lines.append("{} {}".format("#" * level, block.content.text))
+            lines.append("")
+        elif isinstance(block, doc_types.Paragraph):
+            lines.append(block.content.text)
+            lines.append("")
+        elif isinstance(block, doc_types.BulletListItem):
+            lines.append("- {}".format(block.content.text))
+        elif isinstance(block, doc_types.NumberedListItem):
+            lines.append("1. {}".format(block.content.text))
+        elif isinstance(block, doc_types.Code):
+            lines.append("```{}".format(block.props.language))
+            lines.extend(block.content.splitlines())
+            lines.append("```")
+            lines.append("")
+
+    source = "\n".join(lines).strip() + "\n"
+    parsed = mistletoe.Document(source)
+    return source if parsed is not None else source
+
+
+def _write_markdown_from_document(document: doc_types.Document,
+                                  output_path: Path) -> None:
+    output_path.write_text(_document_to_markdown_source(document), encoding="utf-8")
+
+
+def _write_org_from_document(document: doc_types.Document, output_path: Path) -> None:
+    lines: list[str] = []
+
+    for block in document.nested:
+        if isinstance(block, doc_types.Heading):
+            level = max(1, block.props.level)
+            lines.append("{} {}".format("*" * level, block.content.text))
+        elif isinstance(block, doc_types.Paragraph):
+            lines.append(block.content.text)
+            lines.append("")
+        elif isinstance(block, doc_types.BulletListItem):
+            lines.append("- [ ] {}".format(block.content.text))
+        elif isinstance(block, doc_types.NumberedListItem):
+            lines.append("1. {}".format(block.content.text))
+        elif isinstance(block, doc_types.Code):
+            lines.append("#+begin_src {}".format(block.props.language))
+            lines.extend(block.content.splitlines())
+            lines.append("#+end_src")
+            lines.append("")
+
+    output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
+
+
+def _append_html_block(parent: tags.html_tag, block: doc_types.DocumentBlock) -> None:
+    if isinstance(block, doc_types.Heading):
+        level = min(6, max(1, block.props.level))
+        tag_name = "h{}".format(level)
+        parent.add(getattr(tags, tag_name)(block.content.text))
+        return
+
+    if isinstance(block, doc_types.Paragraph):
+        parent.add(tags.p(block.content.text))
+        return
+
+    if isinstance(block, doc_types.BulletListItem):
+        parent.add(tags.ul(tags.li(block.content.text)))
+        return
+
+    if isinstance(block, doc_types.NumberedListItem):
+        parent.add(tags.ol(tags.li(block.content.text)))
+        return
+
+    if isinstance(block, doc_types.Quote):
+        parent.add(tags.blockquote(block.content.text))
+        return
+
+    if isinstance(block, doc_types.Code):
+        parent.add(tags.pre(tags.code(block.content)))
+        return
+
+    if isinstance(block, doc_types.Div):
+        wrapper = tags.div()
+        if block.props.identifier:
+            wrapper["id"] = block.props.identifier
+        if block.props.classes:
+            wrapper["class"] = " ".join(block.props.classes)
+        for key, value in block.props.attributes.items():
+            wrapper[key] = value
+        parent.add(wrapper)
+        return
+
+
+def _document_to_html_string(document: doc_types.Document, title: str) -> str:
+    dom = html_document(title=title)
+    with dom:
+        main = tags.main()
+        for block in document.nested:
+            _append_html_block(main, block)
+    return dom.render()
+
+
+def _write_html_from_document(
+    *,
+    document: doc_types.Document,
+    output_path: Path,
+    include_title: bool,
+    title: str,
+) -> None:
+    html_title = title if include_title else ""
+    output_path.write_text(
+        _document_to_html_string(document, html_title),
+        encoding="utf-8",
+    )
+
+
+def _split_document_for_epub(document: doc_types.Document) -> list[doc_types.Document]:
+    chapters: list[list[doc_types.DocumentBlock]] = []
+    current: list[doc_types.DocumentBlock] = []
+
+    for block in document.nested:
+        if isinstance(block,
+                      doc_types.Heading) and block.props.level == 1 and len(current) > 0:
+            chapters.append(current)
+            current = [block]
+        else:
+            current.append(block)
+
+    if len(current) > 0:
+        chapters.append(current)
+
+    return [doc_types.Document.build(nested=tuple(chunk)) for chunk in chapters]
+
+
+def _write_epub_from_document(
+    *,
+    document: doc_types.Document,
+    output_path: Path,
+    title: str,
+) -> None:
+    book = epub.EpubBook()
+    identifier = hashlib.sha256(str(output_path).encode("utf-8")).hexdigest()[:16]
+
+    book.set_identifier(identifier)
+    book.set_title(title)
+    book.set_language("en")
+
+    chapters: list[epub.EpubHtml] = []
+    for index, chapter_document in enumerate(_split_document_for_epub(document), start=1):
+        chapter_title = "Chapter {}".format(index)
+        chapter_file = "chapter-{}.xhtml".format(index)
+        chapter = epub.EpubHtml(title=chapter_title, file_name=chapter_file, lang="en")
+        chapter.content = _document_to_html_string(chapter_document, chapter_title)
+        book.add_item(chapter)
+        chapters.append(chapter)
+
+    book.toc = tuple(chapters)
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    book.spine = ["nav", *chapters]
+
+    epub.write_epub(str(output_path), book, {})
 
 
 def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
@@ -370,6 +769,7 @@ def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
                     f"Image kind '{spec.kind.value}' requires hf_repo_id and hf_file_name, got repo={spec.hf_repo_id}, file={spec.hf_file_name}"
                 )
             from huggingface_hub import hf_hub_download
+
             downloaded = hf_hub_download(
                 repo_id=spec.hf_repo_id,
                 filename=spec.hf_file_name,
@@ -385,52 +785,6 @@ def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
     for key, value in spec.exif_metadata.items():
         png_info.add_text(key, value)
     image.save(output_path, format="PNG", pnginfo=png_info)
-
-
-def _write_pdf(spec: PdfSpec, output_path: Path) -> None:
-    canvas = Canvas(str(output_path), pagesize=A4)
-    page_width, page_height = A4
-
-    for page_index in range(spec.page_count):
-        if spec.include_headers:
-            canvas.setFont("Helvetica-Bold", 14)
-            canvas.drawString(50, page_height - 40,
-                              f"Corpus PDF page {page_index + 1}/{spec.page_count}")
-
-        match spec.render_kind:
-            case PdfRenderKind.selectable_text:
-                canvas.setFont("Helvetica", 11)
-                y = page_height - 80
-                for block_index in range(spec.selectable_text_blocks):
-                    text = _deterministic_words(page_index * 1000 + block_index + 1, 26)
-                    canvas.drawString(50, y, text)
-                    y -= 22
-                    if y < 80:
-                        break
-                if spec.include_images:
-                    image = Image.new("RGB", (280, 120), (220, 230, 245))
-                    draw = ImageDraw.Draw(image)
-                    draw.rectangle((8, 8, 272, 112), outline=(20, 20, 20), width=2)
-                    draw.text((16, 46), "embedded image", fill=(0, 0, 0))
-                    canvas.drawImage(ImageReader(image), 50, 120, width=280, height=120)
-
-            case PdfRenderKind.raster_scan:
-                raster = Image.new("RGB", (1240, 1754), (255, 255, 255))
-                draw = ImageDraw.Draw(raster)
-                draw.rectangle((40, 40, 1200, 1710), outline=(0, 0, 0), width=4)
-                draw.text((80, 80), f"scanned page {page_index + 1}", fill=(0, 0, 0))
-                draw.text((80, 140),
-                          _deterministic_words(page_index + 9000, 40),
-                          fill=(0, 0, 0))
-                canvas.drawImage(ImageReader(raster),
-                                 0,
-                                 0,
-                                 width=page_width,
-                                 height=page_height)
-
-        canvas.showPage()
-
-    canvas.save()
 
 
 def _write_audio(spec: AudioSpec, output_path: Path) -> None:
@@ -548,54 +902,6 @@ def _write_text(spec: TextSpec, output_path: Path, seed: int) -> None:
                                encoding="utf-8")
 
 
-def _write_markdown(spec: MarkdownSpec, output_path: Path, seed: int) -> None:
-    rng = random.Random(seed)
-    section_words = max(1, spec.total_words // spec.section_count)
-    lines: list[str] = []
-
-    for section_index in range(spec.section_count):
-        lines.append(f"# Section {section_index + 1}")
-        lines.append("")
-        lines.append(_deterministic_words(rng.randint(0, 10_000_000), section_words))
-        lines.append("")
-        if spec.include_lists:
-            lines.append("- item one")
-            lines.append("- item two")
-            lines.append("- item three")
-            lines.append("")
-        if spec.include_code_blocks:
-            lines.append("```python")
-            lines.append("value = 42")
-            lines.append("print(value)")
-            lines.append("```")
-            lines.append("")
-
-    output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
-
-
-def _write_org(spec: OrgSpec, output_path: Path, seed: int) -> None:
-    rng = random.Random(seed)
-    section_words = max(1, spec.total_words // spec.section_count)
-    lines: list[str] = []
-
-    for section_index in range(spec.section_count):
-        lines.append(f"* Section {section_index + 1}")
-        lines.append(_deterministic_words(rng.randint(0, 10_000_000), section_words))
-        lines.append("")
-        if spec.include_lists:
-            lines.append("- [ ] item one")
-            lines.append("- [ ] item two")
-            lines.append("")
-        if spec.include_src_blocks:
-            lines.append("#+begin_src python")
-            lines.append("value = 42")
-            lines.append("print(value)")
-            lines.append("#+end_src")
-            lines.append("")
-
-    output_path.write_text("\n".join(lines).strip() + "\n", encoding="utf-8")
-
-
 def write_corpus_file(
     entry: CorpusFileEntry,
     corpus_root: Path,
@@ -607,19 +913,70 @@ def write_corpus_file(
     spec = entry.file_spec
     match spec:
         case PdfSpec():
-            _write_pdf(spec, output_path)
+            docs = _build_pdf_documents(entry.content_seed, spec)
+            _render_pdf_from_documents(docs, spec, output_path)
+
         case PngSpec():
             _write_png(spec, output_path, hf_cache_root)
+
         case AudioSpec():
             _write_audio(spec, output_path)
+
         case VideoSpec():
             _write_video(spec, output_path)
+
         case TextSpec():
             _write_text(spec, output_path, entry.content_seed)
+
         case MarkdownSpec():
-            _write_markdown(spec, output_path, entry.content_seed)
+            document = _build_structured_document(
+                seed=entry.content_seed,
+                section_count=spec.section_count,
+                total_words=spec.total_words,
+                include_lists=spec.include_lists,
+                include_code_blocks=spec.include_code_blocks,
+            )
+            _write_markdown_from_document(document, output_path)
+
         case OrgSpec():
-            _write_org(spec, output_path, entry.content_seed)
+            document = _build_structured_document(
+                seed=entry.content_seed,
+                section_count=spec.section_count,
+                total_words=spec.total_words,
+                include_lists=spec.include_lists,
+                include_code_blocks=spec.include_src_blocks,
+            )
+            _write_org_from_document(document, output_path)
+
+        case HtmlSpec():
+            document = _build_structured_document(
+                seed=entry.content_seed,
+                section_count=spec.section_count,
+                total_words=spec.total_words,
+                include_lists=spec.include_lists,
+                include_code_blocks=spec.include_code_blocks,
+            )
+            _write_html_from_document(
+                document=document,
+                output_path=output_path,
+                include_title=spec.include_title,
+                title=f"Corpus HTML {entry.seed}",
+            )
+
+        case EpubSpec():
+            document = _build_structured_document(
+                seed=entry.content_seed,
+                section_count=spec.section_count,
+                total_words=spec.total_words,
+                include_lists=spec.include_lists,
+                include_code_blocks=spec.include_code_blocks,
+            )
+            _write_epub_from_document(
+                document=document,
+                output_path=output_path,
+                title=spec.title,
+            )
+
         case _:
             raise ValueError(f"Unsupported corpus file spec type '{type(spec).__name__}'")
 

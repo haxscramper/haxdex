@@ -22,6 +22,7 @@ from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel
+from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
@@ -271,12 +272,12 @@ def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
              ])]
     stable_test_dir.joinpath("df_pre_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
-    log.info("base flat model:\n" + fmt_df(df))
+    stable_test_dir.joinpath("base_flat_model.log").write_text(fmt_df(df))
     df = split_columns_by_rules(df, rules).sort_values("root_relative")
     stable_test_dir.joinpath("df_post_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
 
-    log.info("base spliced model:\n" + fmt_df(df))
+    stable_test_dir.joinpath("base_spliced_model.log").write_text(fmt_df(df))
     rec_basenames = [e.name for e in rec_entries]
 
     assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
@@ -349,7 +350,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
     assert len(mime_types) == df["mime_type"].nunique()
 
     video_df = qt_tree_to_df(video_only_model)
-    log.info("video df:\n" + fmt_df(video_df))
+    # log.info("video df:\n" + fmt_df(video_df))
 
     @beartype
     def map_trivial(trivial: TrivialEntryData) -> bool:
@@ -365,15 +366,17 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
     act = ActionProvider()
 
     kept: set[str] = set()
+    duplicate_files: int = 0
 
     def actions(act: ActionProvider, nodes: list[FileTreeNode]):
+        nonlocal duplicate_files
         for node in nodes:
-            if node.columns[TrivialDataColumnSpec.column_name].is_directory:
-                continue
-
             duplicates = node.columns["file_duplicate"]
+            assert isinstance(duplicates, FileDuplicateData)
             if not (0 < duplicates.duplicate_count and duplicates.hash is not None):
                 continue
+
+            duplicate_files += 1
 
             h = duplicates.hash
             if h in kept:
@@ -388,8 +391,10 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore):
     )
 
     assert isinstance(action_model, ActionListModel)
-    with_duplicates = df[df["rec_duplicate_count"] == 1 & ~df["is_directory"]]
+    with_duplicates = df[(1 <= df["rec_duplicate_count"]) & (df["is_directory"] == False)]
+    # with_duplicates = with_duplicates[""]
     log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
+    assert len(with_duplicates) == duplicate_files
     assert sum(with_duplicates["rec_duplicate_count"]) == len(action_model.actions()) * 2
 
 
