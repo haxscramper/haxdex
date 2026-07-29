@@ -476,21 +476,48 @@ def pydantic_value_strategy(
     return st.from_type(annotation)
 
 
-@st.composite
 @beartype
-def directory_structure(
-    draw: Any,
-    indexer_types: Sequence[type[BaseIndexer]],
-    corpus_manifest: CorpusManifest,
-    corpus_root: Path,
-    min_files: int = 1,
-    max_files: int = 16,
-    min_nesting: int = 0,
-    max_nesting: int = 3,
-    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
-    min_duplicates: int = 0,
-    max_duplicates: int = 0,
-) -> GeneratedDirectory:
+def _normalize_mime_requirements(
+    mime_types: Sequence[str | tuple[str, int]],) -> list[tuple[str, int]]:
+    requirements: list[tuple[str, int]] = []
+    seen: set[str] = set()
+
+    for item in mime_types:
+        if isinstance(item, str):
+            mime_type = item
+            min_count = 1
+        else:
+            if len(item) != 2:
+                raise ValueError(
+                    f"MIME requirement tuple must have exactly 2 items, got {item}")
+            mime_type, min_count = item
+            if not isinstance(mime_type, str):
+                raise ValueError(f"MIME type must be a string, got {mime_type!r}")
+            if not isinstance(min_count, int) or isinstance(min_count, bool):
+                raise ValueError(
+                    f"MIME minimum count must be an integer, got {min_count!r}")
+            if min_count < 0:
+                raise ValueError(
+                    f"MIME minimum count must be non-negative, got {min_count} for {mime_type!r}"
+                )
+
+        if mime_type in seen:
+            raise ValueError(f"Duplicate MIME type requirement for {mime_type!r}")
+        seen.add(mime_type)
+        requirements.append((mime_type, min_count))
+
+    return requirements
+
+
+@beartype
+def _validate_directory_structure_inputs(
+    min_files: int,
+    max_files: int,
+    min_nesting: int,
+    max_nesting: int,
+    min_duplicates: int,
+    max_duplicates: int,
+) -> None:
     if max_files < min_files:
         raise ValueError(
             f"max_files must be at least min_files, got min_files={min_files} and max_files={max_files}"
@@ -520,6 +547,10 @@ def directory_structure(
             f"max_duplicates must be at most max_files - 1, got max_duplicates={max_duplicates} and max_files={max_files}"
         )
 
+
+@beartype
+def _validate_unique_indexer_asset_names(
+    indexer_types: Sequence[type[BaseIndexer]],) -> None:
     asset_names = [indexer_type.asset_name for indexer_type in indexer_types]
     duplicate_names = {name for name in asset_names if 1 < asset_names.count(name)}
     if 0 < len(duplicate_names):
@@ -527,112 +558,324 @@ def directory_structure(
             f"Indexer asset names must be unique, duplicate names are {sorted(duplicate_names)}"
         )
 
+
+@beartype
+def _build_entries_by_mime(
+    corpus_manifest: CorpusManifest,
+    mime_requirements: Sequence[tuple[str, int]],
+) -> dict[str, list[CorpusFileEntry]]:
+    entries_by_mime: dict[str, list[CorpusFileEntry]] = {
+        mime: [] for mime, _ in mime_requirements
+    }
+    for entry in corpus_manifest.entries:
+        mime_type = entry.file_spec.mime_type
+        if mime_type in entries_by_mime:
+            entries_by_mime[mime_type].append(entry)
+    return entries_by_mime
+
+
+@beartype
+def _validate_mime_requirements(
+    mime_requirements: Sequence[tuple[str, int]],
+    entries_by_mime: dict[str, list[CorpusFileEntry]],
+    max_files: int,
+) -> tuple[int, int]:
     unsupported_mime_types = [
-        mime_type for mime_type in mime_types if mime_type not in _MIME_SUFFIXES
+        mime_type for mime_type, _ in mime_requirements if mime_type not in _MIME_SUFFIXES
     ]
     if 0 < len(unsupported_mime_types):
         raise ValueError(
             f"Unsupported MIME types: {unsupported_mime_types}. Supported MIME types are {sorted(_MIME_SUFFIXES)}"
         )
 
-    entries_by_mime: dict[str, list[CorpusFileEntry]] = {mime: [] for mime in mime_types}
-    for entry in corpus_manifest.entries:
-        if entry.file_spec.mime_type in entries_by_mime:
-            entries_by_mime[entry.file_spec.mime_type].append(entry)
-
-    missing = [mime for mime, values in entries_by_mime.items() if len(values) == 0]
-    if 0 < len(missing):
+    missing_required = [
+        mime_type for mime_type, min_count in mime_requirements
+        if 0 < min_count and len(entries_by_mime[mime_type]) == 0
+    ]
+    if 0 < len(missing_required):
         raise ValueError(
-            f"Corpus does not contain files for MIME types {missing}, available MIME types are {sorted(entries_by_mime)}"
+            f"Corpus does not contain files for required MIME types {missing_required}")
+
+    required_total = sum(min_count for _, min_count in mime_requirements)
+    if max_files < required_total:
+        raise ValueError(
+            f"Cannot satisfy per-MIME minimum counts: required total is {required_total}, but max_files is {max_files}"
         )
 
-    indexer_strategies = {
+    positive_mime_count = sum(1 for _, min_count in mime_requirements if 0 < min_count)
+    return required_total, positive_mime_count
+
+
+@beartype
+def _eligible_entries(
+    mime_requirements: Sequence[tuple[str, int]],
+    entries_by_mime: dict[str, list[CorpusFileEntry]],
+) -> list[CorpusFileEntry]:
+    eligible = [
+        entry for mime_type, _ in mime_requirements
+        for entry in entries_by_mime[mime_type]
+    ]
+    if len(eligible) == 0:
+        raise ValueError("No corpus entries available for selected MIME types")
+    return eligible
+
+
+@beartype
+def _build_indexer_strategies(
+    indexer_types: Sequence[type[BaseIndexer]],) -> dict[str, SearchStrategy[Any]]:
+    return {
         indexer_type.asset_name: pydantic_model_strategy(indexer_type.result_model)
         for indexer_type in indexer_types
     }
 
-    eligible_entries = [
-        entry for mime_type in mime_types for entry in entries_by_mime[mime_type]
-    ]
-    if len(eligible_entries) == 0:
-        raise ValueError("No corpus entries available for selected MIME types")
 
-    min_file_count = max(min_files, min_duplicates + 1)
-    file_count = draw(st.integers(min_value=min_file_count, max_value=max_files))
-
-    duplicate_min_for_file = max(min_duplicates, file_count - len(eligible_entries))
-    duplicate_max_for_file = min(max_duplicates, file_count - 1)
-    assume(duplicate_min_for_file <= duplicate_max_for_file)
-
-    duplicate_count = draw(
-        st.integers(
-            min_value=duplicate_min_for_file,
-            max_value=duplicate_max_for_file,
-        ))
-    unique_count = file_count - duplicate_count
-
-    relative_paths: set[Path] = set()
-    generated_files: list[GeneratedIndexerFile] = []
-
-    def draw_parent_path(different_from: Path | None = None) -> Path:
-        depth = draw(st.integers(min_value=min_nesting, max_value=max_nesting))
-        parts = draw(
-            st.lists(
-                st.text(
-                    alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
-                    min_size=8,
-                    max_size=8,
-                ),
-                min_size=depth,
-                max_size=depth,
-            ))
-        parent = Path(*parts)
-        if different_from is not None:
-            assume(parent != different_from)
-        return parent
-
-    def draw_stem(different_from: str | None = None) -> str:
-        stem = draw(
+@beartype
+def _draw_parent_path(
+    draw: Any,
+    min_nesting: int,
+    max_nesting: int,
+    different_from: Path | None = None,
+) -> Path:
+    depth = draw(st.integers(min_value=min_nesting, max_value=max_nesting))
+    parts = draw(
+        st.lists(
             st.text(
                 alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
                 min_size=8,
                 max_size=8,
-            ))
-        if different_from is not None:
-            assume(stem != different_from)
-        return stem
-
-    unique_indices = draw(
-        st.lists(
-            st.integers(min_value=0, max_value=len(eligible_entries) - 1),
-            min_size=unique_count,
-            max_size=unique_count,
-            unique=True,
+            ),
+            min_size=depth,
+            max_size=depth,
         ))
+    parent = Path(*parts)
+    if different_from is not None:
+        assume(parent != different_from)
+    return parent
 
-    for entry_index in unique_indices:
-        selected_entry = eligible_entries[entry_index]
-        mime_type = selected_entry.file_spec.mime_type
-        parent = draw_parent_path()
-        stem = draw_stem()
-        relative_path = parent / f"{stem}{_MIME_SUFFIXES[mime_type]}"
-        assume(relative_path not in relative_paths)
-        relative_paths.add(relative_path)
 
-        results = {
-            asset_name: draw(strategy)
-            for asset_name, strategy in indexer_strategies.items()
-        }
+@beartype
+def _draw_stem(draw: Any, different_from: str | None = None) -> str:
+    stem = draw(
+        st.text(
+            alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
+            min_size=8,
+            max_size=8,
+        ))
+    if different_from is not None:
+        assume(stem != different_from)
+    return stem
 
-        generated_files.append(
-            GeneratedIndexerFile(
+
+@beartype
+def _minimal_required_duplicates(
+    file_count: int,
+    unique_count: int,
+    required_total: int,
+    positive_mime_count: int,
+    additional_cover_capacity: int,
+) -> int:
+    if unique_count < positive_mime_count:
+        return file_count + 1
+
+    base_cover = positive_mime_count
+    extra_slots = unique_count - positive_mime_count
+    covered = base_cover + min(extra_slots, additional_cover_capacity)
+    return required_total - covered
+
+
+@beartype
+def _draw_file_and_duplicate_counts(
+    draw: Any,
+    min_files: int,
+    max_files: int,
+    min_duplicates: int,
+    max_duplicates: int,
+    required_total: int,
+    positive_mime_count: int,
+    eligible_entries_count: int,
+    mime_requirements: Sequence[tuple[str, int]],
+    entries_by_mime: dict[str, list[CorpusFileEntry]],
+) -> tuple[int, int]:
+    min_file_count = max(min_files, required_total, min_duplicates + 1)
+    file_count = draw(st.integers(min_value=min_file_count, max_value=max_files))
+
+    additional_cover_capacity = 0
+    for mime_type, min_count in mime_requirements:
+        if min_count == 0:
+            continue
+        cover_cap = min(min_count, len(entries_by_mime[mime_type]))
+        additional_cover_capacity += max(0, cover_cap - 1)
+
+    unique_lower = max(1, positive_mime_count, file_count - max_duplicates)
+    unique_upper = min(eligible_entries_count, file_count - min_duplicates)
+
+    feasible_unique_counts = [
+        unique_count for unique_count in range(unique_lower, unique_upper + 1)
+        if _minimal_required_duplicates(
+            file_count=file_count,
+            unique_count=unique_count,
+            required_total=required_total,
+            positive_mime_count=positive_mime_count,
+            additional_cover_capacity=additional_cover_capacity,
+        ) <= (file_count - unique_count)
+    ]
+    assume(0 < len(feasible_unique_counts))
+
+    unique_count = draw(st.sampled_from(feasible_unique_counts))
+    duplicate_count = file_count - unique_count
+    return unique_count, duplicate_count
+
+
+@beartype
+def _allocate_unique_targets(
+    unique_count: int,
+    mime_requirements: Sequence[tuple[str, int]],
+    entries_by_mime: dict[str, list[CorpusFileEntry]],
+) -> dict[str, int]:
+    unique_targets: dict[str, int] = {mime_type: 0 for mime_type, _ in mime_requirements}
+
+    positive_mime_count = sum(1 for _, min_count in mime_requirements if 0 < min_count)
+    for mime_type, min_count in mime_requirements:
+        if 0 < min_count:
+            unique_targets[mime_type] = 1
+
+    remaining_unique = unique_count - positive_mime_count
+
+    for mime_type, min_count in mime_requirements:
+        cap = len(entries_by_mime[mime_type])
+        target = min(min_count, cap)
+        while 0 < remaining_unique and unique_targets[mime_type] < target:
+            unique_targets[mime_type] += 1
+            remaining_unique -= 1
+
+    if 0 < remaining_unique:
+        for mime_type, _ in mime_requirements:
+            cap = len(entries_by_mime[mime_type])
+            while 0 < remaining_unique and unique_targets[mime_type] < cap:
+                unique_targets[mime_type] += 1
+                remaining_unique -= 1
+            if remaining_unique == 0:
+                break
+
+    assume(remaining_unique == 0)
+    return unique_targets
+
+
+@st.composite
+@beartype
+def directory_structure(
+    draw: Any,
+    indexer_types: Sequence[type[BaseIndexer]],
+    corpus_manifest: CorpusManifest,
+    corpus_root: Path,
+    min_files: int = 1,
+    max_files: int = 16,
+    min_nesting: int = 0,
+    max_nesting: int = 3,
+    mime_types: Sequence[str | tuple[str, int]] = tuple(_MIME_SUFFIXES),
+    min_duplicates: int = 0,
+    max_duplicates: int = 0,
+) -> GeneratedDirectory:
+    _validate_directory_structure_inputs(
+        min_files=min_files,
+        max_files=max_files,
+        min_nesting=min_nesting,
+        max_nesting=max_nesting,
+        min_duplicates=min_duplicates,
+        max_duplicates=max_duplicates,
+    )
+    _validate_unique_indexer_asset_names(indexer_types)
+
+    mime_requirements = _normalize_mime_requirements(mime_types)
+    entries_by_mime = _build_entries_by_mime(corpus_manifest, mime_requirements)
+    required_total, positive_mime_count = _validate_mime_requirements(
+        mime_requirements=mime_requirements,
+        entries_by_mime=entries_by_mime,
+        max_files=max_files,
+    )
+    eligible_entries = _eligible_entries(mime_requirements, entries_by_mime)
+    indexer_strategies = _build_indexer_strategies(indexer_types)
+
+    unique_count, duplicate_count = _draw_file_and_duplicate_counts(
+        draw=draw,
+        min_files=min_files,
+        max_files=max_files,
+        min_duplicates=min_duplicates,
+        max_duplicates=max_duplicates,
+        required_total=required_total,
+        positive_mime_count=positive_mime_count,
+        eligible_entries_count=len(eligible_entries),
+        mime_requirements=mime_requirements,
+        entries_by_mime=entries_by_mime,
+    )
+
+    unique_targets = _allocate_unique_targets(
+        unique_count=unique_count,
+        mime_requirements=mime_requirements,
+        entries_by_mime=entries_by_mime,
+    )
+
+    relative_paths: set[Path] = set()
+    generated_files: list[GeneratedIndexerFile] = []
+    generated_by_mime: dict[str, list[GeneratedIndexerFile]] = {
+        mime_type: [] for mime_type, _ in mime_requirements
+    }
+
+    for mime_type, _ in mime_requirements:
+        take_count = unique_targets[mime_type]
+        if take_count == 0:
+            continue
+
+        mime_entries = entries_by_mime[mime_type]
+        selected_indices = draw(
+            st.lists(
+                st.integers(min_value=0, max_value=len(mime_entries) - 1),
+                min_size=take_count,
+                max_size=take_count,
+                unique=True,
+            ))
+
+        for entry_index in selected_indices:
+            selected_entry = mime_entries[entry_index]
+            parent = _draw_parent_path(draw, min_nesting, max_nesting)
+            stem = _draw_stem(draw)
+            relative_path = parent / f"{stem}{_MIME_SUFFIXES[mime_type]}"
+            assume(relative_path not in relative_paths)
+            relative_paths.add(relative_path)
+
+            results = {
+                asset_name: draw(strategy)
+                for asset_name, strategy in indexer_strategies.items()
+            }
+
+            generated = GeneratedIndexerFile(
                 relative_path=relative_path,
                 results=results,
                 corpus_source_path=corpus_root / selected_entry.relative_path,
-            ))
+            )
+            generated_files.append(generated)
+            generated_by_mime[mime_type].append(generated)
+
+    deficits: dict[str, int] = {
+        mime_type: max(0, min_count - len(generated_by_mime[mime_type]))
+        for mime_type, min_count in mime_requirements
+    }
 
     for _ in range(duplicate_count):
-        anchor = draw(st.sampled_from(generated_files))
+        deficit_mimes = [
+            mime_type for mime_type, deficit in deficits.items()
+            if 0 < deficit and 0 < len(generated_by_mime[mime_type])
+        ]
+        if 0 < len(deficit_mimes):
+            selected_mime = draw(st.sampled_from(deficit_mimes))
+        else:
+            available_mimes = [
+                mime_type for mime_type, files in generated_by_mime.items()
+                if 0 < len(files)
+            ]
+            selected_mime = draw(st.sampled_from(available_mimes))
+
+        anchor = draw(st.sampled_from(generated_by_mime[selected_mime]))
         anchor_parent = anchor.relative_path.parent
         anchor_stem = anchor.relative_path.stem
         anchor_suffix = anchor.relative_path.suffix
@@ -640,18 +883,27 @@ def directory_structure(
         modes = ["different_name_same_dir"]
         if 0 < max_nesting:
             modes.extend(["same_name_different_dir", "different_name_different_dir"])
-
         mode = draw(st.sampled_from(tuple(modes)))
 
         if mode == "different_name_same_dir":
             parent = anchor_parent
-            stem = draw_stem(different_from=anchor_stem)
+            stem = _draw_stem(draw, different_from=anchor_stem)
         elif mode == "same_name_different_dir":
-            parent = draw_parent_path(different_from=anchor_parent)
+            parent = _draw_parent_path(
+                draw,
+                min_nesting,
+                max_nesting,
+                different_from=anchor_parent,
+            )
             stem = anchor_stem
         else:
-            parent = draw_parent_path(different_from=anchor_parent)
-            stem = draw_stem(different_from=anchor_stem)
+            parent = _draw_parent_path(
+                draw,
+                min_nesting,
+                max_nesting,
+                different_from=anchor_parent,
+            )
+            stem = _draw_stem(draw, different_from=anchor_stem)
 
         relative_path = parent / f"{stem}{anchor_suffix}"
         assume(relative_path not in relative_paths)
@@ -662,13 +914,18 @@ def directory_structure(
             for asset_name, strategy in indexer_strategies.items()
         }
 
-        generated_files.append(
-            GeneratedIndexerFile(
-                relative_path=relative_path,
-                results=results,
-                corpus_source_path=anchor.corpus_source_path,
-            ))
+        duplicated = GeneratedIndexerFile(
+            relative_path=relative_path,
+            results=results,
+            corpus_source_path=anchor.corpus_source_path,
+        )
+        generated_files.append(duplicated)
+        generated_by_mime[selected_mime].append(duplicated)
 
+        if 0 < deficits[selected_mime]:
+            deficits[selected_mime] -= 1
+
+    assume(all(deficit == 0 for deficit in deficits.values()))
     return GeneratedDirectory(files=generated_files)
 
 
