@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 
 import mistletoe
-from beartype.typing import Literal, Sequence, Union
+from beartype.typing import Literal, Sequence, Union, TypeVar
 from dominate import document as html_document
 from dominate import tags
 from ebooklib import epub
@@ -21,6 +21,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
 
 from haxdex.services.indexers.full_document import full_document_types as doc_types
+
+T = TypeVar("T")
 
 _MIME_SUFFIXES: dict[str, str] = {
     "image/png": ".png",
@@ -210,6 +212,17 @@ _WORDS: tuple[str, ...] = (
     "field",
 )
 
+_fake_hash = "0" * 64
+
+
+def build(
+        cls: type[T],
+        *,
+        nested: Sequence[doc_types.DocumentBlock] = (),
+        **kwargs,
+) -> T:
+    return doc_types.build(cls, file_hash=_fake_hash, nested=nested, **kwargs)
+
 
 def _run_command(command: list[str]) -> None:
     subprocess.run(command, check=True)
@@ -396,25 +409,27 @@ def _inline_content(text: str) -> doc_types.InlineContent:
 
 
 def _paragraph_block(text: str) -> doc_types.Paragraph:
-    return doc_types.Paragraph.build(content=_inline_content(text))
+    return build(doc_types.Paragraph, content=_inline_content(text))
 
 
 def _heading_block(text: str, level: int = 1) -> doc_types.Heading:
-    return doc_types.Heading.build(
+    return build(
+        doc_types.Heading,
         props=doc_types.HeadingProps(level=level),
         content=_inline_content(text),
     )
 
 
 def _code_block(language: str, content: str) -> doc_types.Code:
-    return doc_types.Code.build(
+    return build(
+        doc_types.Code,
         props=doc_types.CodeBlockProps(language=language),
         content=content,
     )
 
 
 def _bullet_item(text: str) -> doc_types.BulletListItem:
-    return doc_types.BulletListItem.build(content=_inline_content(text))
+    return build(doc_types.BulletListItem, content=_inline_content(text))
 
 
 def _build_structured_document(
@@ -441,7 +456,7 @@ def _build_structured_document(
         if include_code_blocks:
             blocks.append(_code_block("python", "value = 42\nprint(value)"))
 
-    return doc_types.Document.build(nested=tuple(blocks))
+    return build(doc_types.Document, nested=tuple(blocks))
 
 
 def _build_pdf_documents(seed: int, spec: PdfSpec) -> list[doc_types.Document]:
@@ -465,12 +480,13 @@ def _build_pdf_documents(seed: int, spec: PdfSpec) -> list[doc_types.Document]:
 
         if spec.include_images:
             blocks.append(
-                doc_types.Div.build(props=doc_types.DivProps(
-                    identifier="embedded-image-placeholder",
-                    classes=["pdf-image"],
-                )))
+                build(doc_types.Div,
+                      props=doc_types.DivProps(
+                          identifier="embedded-image-placeholder",
+                          classes=["pdf-image"],
+                      )))
 
-        pages.append(doc_types.Document.build(nested=tuple(blocks)))
+        pages.append(build(doc_types.Document, nested=tuple(blocks)))
 
     return pages
 
@@ -703,7 +719,7 @@ def _split_document_for_epub(document: doc_types.Document) -> list[doc_types.Doc
     if len(current) > 0:
         chapters.append(current)
 
-    return [doc_types.Document.build(nested=tuple(chunk)) for chunk in chapters]
+    return [build(doc_types.Document, nested=tuple(chunk)) for chunk in chapters]
 
 
 def _write_epub_from_document(

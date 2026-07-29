@@ -216,6 +216,8 @@ for _cls in (
 ):
     _cls.model_rebuild()
 
+_fake_hash = "0" * 64
+
 
 def build(
         cls: type[T],
@@ -227,7 +229,7 @@ def build(
     nested = list(nested)
     block = cls.model_validate(  # type: ignore
         dict(
-            hash="",
+            hash=_fake_hash,
             file_hash=file_hash,
             nested=nested,
             **kwargs,
