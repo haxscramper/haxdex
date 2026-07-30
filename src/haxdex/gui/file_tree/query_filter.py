@@ -169,11 +169,8 @@ class QueryFilterEvaluator:
             else:
                 program = self._build_program(query_text)
 
-            scope = scope_nodes if scope_nodes else model.index(
-                0,
-                0,
-                QModelIndex(),
-            ).internalPointer().nested
+            assert isinstance(model, FileTreeModel)
+            scope = scope_nodes if scope_nodes else model.nodes
 
             if program.filter_fn:
                 pre_provider = ActionProvider()

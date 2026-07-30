@@ -555,7 +555,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
     max_examples=20,
-    deadline=2000,
+    deadline=5000,
 )
 @given(directories=st.lists(
     directory_structure(

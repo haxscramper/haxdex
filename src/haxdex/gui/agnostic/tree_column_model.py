@@ -21,7 +21,7 @@ class AbstractTreeColumnModel(AbstractColumnItemModel, Generic[T]):
             columns=columns,
             parent=parent,
         )
-        self.nodes: tuple[T, ...] = tuple(nodes)
+        self.nodes: list[T] = list(nodes)
         self.parents: dict[int, T | None] = {}
         self.rows: dict[int, int] = {}
         self.registerNodes(self.nodes, None)
