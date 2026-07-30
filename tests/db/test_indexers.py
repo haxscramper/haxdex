@@ -20,8 +20,9 @@ from haxdex.services.indexers.chunk_indexing.full_text import FullTextIndexerRes
 import logging
 import functools
 
-from haxdex.services.pydantic_utils import dump_with_type, first_by_field_value
+from haxdex.services.pydantic_utils import first_by_field_value
 from haxdex.services.resources.text_summary import SummaryChunk
+from haxdex.services.utils import dump_with_type
 
 log = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def sample_files(tmp_path: Path) -> list[Path]:
 def test_file_size_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
     root = runtime.db.add_root("main", sample_file.parent)
     ref = runtime.db.as_ref(root, sample_file)
-    runtime.run_indexer(ref, ["file_size"])
+    runtime.run_indexer(ref, runtime.get_indexers(["file_size"]))
     out = runtime.get_indexer_result(ref.hash, "file_size")
 
     assert out.indexer_id == "file_size"
@@ -70,7 +71,7 @@ def test_file_size_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
 def test_file_stats_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
     root = runtime.db.add_root("root", sample_file)
     ref = runtime.db.as_ref(root, sample_file)
-    runtime.run_indexer(ref, ["file_stats"])
+    runtime.run_indexer(ref, runtime.get_indexers(["file_stats"]))
     out = runtime.get_indexer_result(ref.hash, "file_stats")
 
     assert out.indexer_id == "file_stats"
@@ -83,7 +84,7 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
                                          sample_file: Path) -> None:
     root = runtime.db.add_root("root", sample_file.parent)
     ref = runtime.db.as_ref(root, sample_file)
-    runtime.run_indexer(ref, ["full_text"])
+    runtime.run_indexer(ref, runtime.get_indexers(["full_text"]))
     out = runtime.get_indexer_result(ref, "full_text")
 
     assert isinstance(out.result, FullTextIndexerResult)
@@ -204,7 +205,7 @@ def test_file_summary_indexer_with_flm(
 
     for path in sample_files:
         ref = runtime.db.as_ref(root, path)
-        runtime.run_indexer(ref, ["file_summary"])
+        runtime.run_indexer(ref, runtime.get_indexers(["file_summary"]))
         out = runtime.get_indexer_result(ref, "file_summary")
         assert isinstance(out.result, FileSummaryIndexerResult)
         log.debug(json.dumps(dump_with_type(out), indent=2))

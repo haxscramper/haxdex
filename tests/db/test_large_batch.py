@@ -18,12 +18,12 @@ def test_large_batch_indexing(db: IndexDatabase, tmp_path: Path,
 
         runtime.run_indexer(
             ref,
-            [
+            runtime.get_indexers([
                 "file_size",
                 "file_stats",
                 "full_text",
                 "document_block",
-            ],
+            ]),
         )
 
     record = runtime.get_indexer_result(

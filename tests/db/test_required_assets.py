@@ -46,7 +46,7 @@ def test_chain_two_indexers(
             call_log.append("root")
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=RootModel(value="root-value", hash="kuer"),
+                result=RootModel(value="root-value", hash="FCED" * 16),
             )
 
     class NestedIndexer(BaseIndexer):
@@ -68,7 +68,7 @@ def test_chain_two_indexers(
             assert root_output.result.value == "root-value"
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=NestedModel(value="nested-value", hash="---()"),
+                result=NestedModel(value="nested-value", hash="ABCD" * 16),
             )
 
     file_path = stable_test_dir / "doc.txt"
@@ -90,7 +90,7 @@ def test_chain_two_indexers(
 
     root = db.add_root("root", file_path.parent)
     ref = runtime.db.as_ref(root, file_path)
-    runtime.run_indexer(ref, ["root_indexer", "nested_indexer"])
+    runtime.run_indexer(ref, runtime.get_indexers(["root_indexer", "nested_indexer"]))
 
     outputs = runtime.get_indexer_result(ref, "nested_indexer")
     assert isinstance(outputs.result, NestedModel)
@@ -125,7 +125,7 @@ def test_branching_indexers(
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
             call_log.append("A")
             return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelA(value="A", hash="io45emasdf,j345e"))
+                                 result=ModelA(value="A", hash="345E" * 16))
 
     class IndexerB(BaseIndexer):
         asset_name = "indexer_b"
@@ -136,7 +136,7 @@ def test_branching_indexers(
             call_log.append("B")
             assert "indexer_a" in assets
             return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelB(value="B", hash="io45em34q56q,j345e"))
+                                 result=ModelB(value="B", hash="7890" * 16))
 
     class IndexerC(BaseIndexer):
         asset_name = "indexer_c"
@@ -147,7 +147,7 @@ def test_branching_indexers(
             call_log.append("C")
             assert "indexer_b" in assets
             return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelC(value="C", hash="io45sd gsdgem,j345e"))
+                                 result=ModelC(value="C", hash="7666" * 16))
 
     class IndexerD(BaseIndexer):
         asset_name = "indexer_d"
@@ -158,7 +158,7 @@ def test_branching_indexers(
             call_log.append("D")
             assert "indexer_b" in assets
             return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelD(value="D", hash="io45edgkgyjm,j345e"))
+                                 result=ModelD(value="D", hash="345F" * 16))
 
     path = stable_test_dir / "branch.txt"
     _touch(path)
@@ -179,12 +179,12 @@ def test_branching_indexers(
     root = db.add_root("root", stable_test_dir)
     runtime.run_indexer(
         runtime.db.as_ref(root, path),
-        [
+        runtime.get_indexers([
             "indexer_a",
             "indexer_b",
             "indexer_c",
             "indexer_d",
-        ],
+        ]),
     )
 
     assert call_log[0] == "A"
@@ -226,7 +226,7 @@ def test_indexer_receives_resource(
             response = resource.handle(ResourceRequest(value="ping"))
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=EchoModel(echoed=response.value, hash="999"),
+                result=EchoModel(echoed=response.value, hash="9999" * 16),
             )
 
     file_path = stable_test_dir / "resource.txt"
@@ -244,7 +244,7 @@ def test_indexer_receives_resource(
 
     root = db.add_root("root", stable_test_dir)
     ref = runtime.db.as_ref(root, file_path)
-    runtime.run_indexer(ref, ["echo_indexer"])
+    runtime.run_indexer(ref, runtime.get_indexers(["echo_indexer"]))
     out = runtime.get_indexer_result(ref, "echo_indexer")
 
     assert isinstance(out.result, EchoModel)

@@ -11,8 +11,10 @@ from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.chunk_indexing.file_embedding import EmbeddingChunk, FileEmbeddingIndexerResult
 from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
 from haxdex.services.indexers.full_document.full_document_types import Heading
-from haxdex.services.pydantic_utils import dump_with_type, first_by_field_value
+from haxdex.services.pydantic_utils import first_by_field_value
 import logging
+
+from haxdex.services.utils import dump_with_type
 
 log = logging.getLogger(__name__)
 corpus = Path(__file__).parent.joinpath("corpus")
@@ -26,7 +28,7 @@ def test_full_text_search(db: IndexDatabase, runtime: IndexRuntime,
     root = db.add_root("root", stable_test_dir)
     ref = runtime.db.as_ref(root, path)
     fts_name = FullTextIndexer.asset_name
-    runtime.run_indexer(ref, [fts_name])
+    runtime.run_indexer(ref, runtime.get_indexers([fts_name]))
     out = runtime.get_indexer_result(ref, fts_name)
 
     db.enable_index(runtime.get_indexer(fts_name))  # type: ignore
@@ -56,10 +58,10 @@ def test_vector_search(db: IndexDatabase, runtime: IndexRuntime,
 
     emb_name = "file_embedding"
 
-    runtime.run_indexer(file_1, [emb_name])
+    runtime.run_indexer(file_1, runtime.get_indexers([emb_name]))
     out1 = runtime.get_indexer_result(file_1, emb_name)
 
-    runtime.run_indexer(file_2, [emb_name])
+    runtime.run_indexer(file_2, runtime.get_indexers([emb_name]))
     out2 = runtime.get_indexer_result(file_2, emb_name)
 
     db.wait_indexing()
@@ -103,7 +105,7 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
             limit_total=10,
             limit_per_path=10,
         ),
-        indexers=tuple(v.asset_name for k, v in runtime._indexer_instances.items()),
+        indexers=runtime._indexer_instances,
     )
 
     params = db.get_full_text_search_path(idx)

@@ -158,6 +158,12 @@ class IndexRuntime:
 
         self._indexer_order = self._compute_order()
 
+    def get_indexers(self, names: Optional[list[str]] = None) -> list[BaseIndexer]:
+        return [
+            self._indexer_instances[i]
+            for i in (names if names is not None else self._indexer_order)
+        ]
+
     def _compute_order(self) -> list[str]:
         ts: TopologicalSorter[str] = TopologicalSorter()
         for name, idx in self._indexer_instances.items():

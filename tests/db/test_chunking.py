@@ -61,7 +61,7 @@ def test_flat_text_single_chunk():
 
 
 def test_blocks_merge_multiple_sources_into_one_chunk():
-    fh = "fh"
+    fh = "AF" * 32
     blocks = [_para(f"paragraph body {i}", fh) for i in range(6)]
     documents, edges = _build_docs(blocks, fh)
 
@@ -75,7 +75,7 @@ def test_blocks_merge_multiple_sources_into_one_chunk():
 
 
 def test_blocks_respect_heading_barrier():
-    fh = "fh"
+    fh = "AF" * 32
     blocks = [
         _heading("Section A", fh),
         _para("aaaa " * 10, fh),
@@ -90,7 +90,7 @@ def test_blocks_respect_heading_barrier():
 
 
 def test_oversized_block_is_split():
-    fh = "fh"
+    fh = "AF" * 32
     big = _para("word " * 400, fh)  # ~2000 chars, exceeds max
     documents, edges = _build_docs([big], fh)
 
@@ -104,7 +104,7 @@ def test_oversized_block_is_split():
 
 
 def test_chunks_to_multidoc_shape():
-    fh = "fh"
+    fh = "AF" * 32
     documents, edges = _build_docs([_para(f"p{i}", fh) for i in range(4)], fh)
     chunks = Chunker(ChunkConfig(unit=ChunkUnit.CHARS,
                                  max_size=50)).chunk_blocks(documents, edges, fh)

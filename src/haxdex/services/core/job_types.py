@@ -105,7 +105,7 @@ class BaseResource(ABC):
     resource_key: str
     required_resources: tuple[str, ...] = ()
     exclusive: bool = False
-    config_model: ClassVar[type[BaseModel]] = BaseResourceConfig
+    config_model: ClassVar[type[BaseResourceConfig]] = BaseResourceConfig
 
     def __init__(self, config: BaseResourceConfig):
         self.config = config

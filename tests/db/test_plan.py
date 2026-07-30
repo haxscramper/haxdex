@@ -99,7 +99,7 @@ def test_plan_structure_3_files_2_indexers(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(3)]
 
-    plan = rt.create_plan(files, ["a", "b"])
+    plan = rt.create_plan(files, rt.get_indexers())
     assert len(plan.batches) == 2
     assert all(len(b.file_refs) == 3 for b in plan.batches)
     assert plan.batches[0].indexer_name == "a"
@@ -127,7 +127,7 @@ def test_plan_topological_order(
     root = db.add_root("root", stable_test_dir)
     ref = db.as_ref(root, stable_test_dir / "f.txt")
 
-    plan = rt.create_plan([ref], ["a", "b"])
+    plan = rt.create_plan([ref], rt.get_indexers())
     assert plan.get_indexer_names() == ["a", "b"]
 
 
@@ -155,7 +155,7 @@ def test_plan_sub_batching(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
-    plan = rt.create_plan(files, ["a"])
+    plan = rt.create_plan(files, rt.get_indexers())
     assert len(plan.batches) == 1
     subs = plan.batches[0].sub_batches
     assert len(subs) == 5
@@ -196,7 +196,7 @@ def test_plan_can_run_filter(
         db.as_ref(root, stable_test_dir / "a.txt"),
         db.as_ref(root, stable_test_dir / "b.log"),
     ]
-    plan = rt.create_plan(files, ["txt_only"])
+    plan = rt.create_plan(files, rt.get_indexers())
     assert len(plan.batches[0].file_refs) == 1
 
 
@@ -453,7 +453,7 @@ def test_stateful_resource_no_churn_within_batch(db: IndexDatabase, stable_test_
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
-    rt.run_indexers(files, ["summary"])
+    rt.run_indexers(files, rt.get_indexers())
     assert model_res.load_count == 1
 
 
@@ -583,7 +583,7 @@ def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_d
     _touch(stable_test_dir / "f.txt")
     ref = db.as_ref(root, stable_test_dir / "f.txt")
 
-    rt.run_indexers([ref], ["summary_a", "summary_b"])
+    rt.run_indexers([ref], rt.get_indexers())
     assert model_res.load_count == 2
 
 
@@ -611,7 +611,7 @@ class ParallelIndexer(BaseIndexer):
             self._current -= 1
         return IndexerOutput(
             indexer_id=self.asset_name,
-            result=_ParallelResult(idx=0, hash="45896kjdf"),
+            result=_ParallelResult(idx=0, hash="4589ABCD" * 8),
         )
 
     @property
@@ -642,7 +642,7 @@ def test_parallel_execution_respects_max_parallel(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
-    rt.run_indexers(files, ["parallel_test"])
+    rt.run_indexers(files, [indexer])
     assert indexer.max_concurrent == 4
 
 
@@ -674,7 +674,7 @@ def test_parallel_execution_max_parallel_1(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(10)]
 
-    rt.run_indexers(files, ["serial_test"])
+    rt.run_indexers(files, rt.get_indexers(["serial_test"]))
     assert indexer.max_concurrent == 1
 
 
@@ -701,7 +701,7 @@ def test_resource_dependency_chain(
         resource_key = "res_a"
 
         def handle(self, ctx, request: ReqA, resources):
-            return RespA(value=f"A:{request.text}", hash="0394")
+            return RespA(value=f"A:{request.text}", hash="0394" * 16)
 
     class ResourceB(BaseResource):
         resource_key = "res_b"
@@ -709,7 +709,7 @@ def test_resource_dependency_chain(
 
         def handle(self, ctx, request: ReqB, resources):
             resp_a = resources["res_a"].handle(ctx, ReqA(text=request.text), resources)
-            return RespB(value=f"B({resp_a.value})", hash="9i999")
+            return RespB(value=f"B({resp_a.value})", hash="9E99" * 16)
 
     class DepResult(IndexDocument):
         value: str
@@ -723,7 +723,7 @@ def test_resource_dependency_chain(
             resp = resources["res_b"].handle(ctx, ReqB(text="hello"), resources)
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=DepResult(value=resp.value, hash="000"),
+                result=DepResult(value=resp.value, hash="0020" * 16),
             )
 
     _touch(stable_test_dir / "f.txt")
@@ -744,8 +744,11 @@ def test_resource_dependency_chain(
     )
     root = db.add_root("root", stable_test_dir)
     ref = db.as_ref(root, stable_test_dir / "f.txt")
-    rt.run_indexer(ref, ["dep_idx"])
-    out = rt.get_indexer_result(ref, "dep_idx")
+    rt.run_indexer(ref, rt.get_indexers(["dep_idx"]))
+    out = rt.get_indexer_result(ref, DepIndexer.asset_name)
+    assert isinstance(out.result, DepIndexer.result_model)
+    assert isinstance(out.result, DepResult)
+    assert out.result
     assert out.result.value == "B(A:hello)"
 
 
@@ -770,7 +773,7 @@ def test_plan_is_inspectable_and_rearrangeable(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(5)]
 
-    plan = rt.create_plan(files, ["a", "b"])
+    plan = rt.create_plan(files, rt.get_indexers(["a", "b"]))
     assert plan.total_runs() == 10
     assert plan.get_indexer_names() == ["a", "b"]
 

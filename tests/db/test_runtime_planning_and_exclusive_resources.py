@@ -80,7 +80,7 @@ def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase, stable_test_
         resource_types=[],
     )
 
-    plan = rt.create_plan(refs, ["mp"])
+    plan = rt.create_plan(refs, rt.get_indexers(["mp"]))
     assert len(plan.batches) == 1
     assert len(plan.batches[0].sub_batches) == 5
     assert all(len(chunk) <= 4 for chunk in plan.batches[0].sub_batches)
@@ -256,7 +256,8 @@ def test_stateful_resource_model_load_not_churned(
                 if self.current_model != request.model:
                     self.current_model = request.model
                     self.load_count += 1
-            return LlamaResponse(text=f"{request.model}:{request.prompt}", hash="123")
+            return LlamaResponse(text=f"{request.model}:{request.prompt}",
+                                 hash="1234" * 16)
 
     class Gemma(BaseResource):
         resource_key = "gemma"
@@ -299,7 +300,7 @@ def test_stateful_resource_model_load_not_churned(
     )
 
     refs = _make_refs(db, stable_test_dir, 12)
-    rt.run_indexers(refs, ["summary"])
+    rt.run_indexers(refs, rt.get_indexers(["summary"]))
     assert llama.load_count == 1
 
 
@@ -328,7 +329,7 @@ def test_max_parallel_execution_bound(db: IndexDatabase, stable_test_dir: Path,
             with self.lock:
                 self.active -= 1
             return IndexerOutput(indexer_id=self.asset_name,
-                                 result=PResult(value="ok", hash="...."))
+                                 result=PResult(value="ok", hash="ABCD" * 16))
 
     idx = ParallelIndexer(
         config=ParallelIndexer.config_model(),
@@ -342,5 +343,5 @@ def test_max_parallel_execution_bound(db: IndexDatabase, stable_test_dir: Path,
     )
 
     refs = _make_refs(db, stable_test_dir, 12)
-    rt.run_indexers(refs, ["parallel"])
+    rt.run_indexers(refs, rt.get_indexers(["parallel"]))
     assert idx.peak == 4
