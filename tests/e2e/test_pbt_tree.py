@@ -15,6 +15,8 @@ from hypothesis import given, settings, HealthCheck, Phase
 import pytest
 import plumbum
 import pandas as pd
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.agnostic import model_dump
@@ -22,15 +24,16 @@ from haxdex.gui.agnostic.model_dump import render_text, simple_dump
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
-from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel
+from haxdex.gui.file_tree.actions.action_db import OperationRow
+from haxdex.gui.file_tree.actions.action_execute import ActionExecutor, _DONE_STR
+from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel, TrashAction
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData, FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
-from haxdex.services.pydantic_utils import to_json_safe
+from haxdex.services.pydantic_utils import to_json_safe, model_from_json_data
 from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
     assert_generated_directory_entries_exact, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
     create_default_persistent_corpus
@@ -387,7 +390,6 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
             duplicate_files += 1
 
             h = duplicates.hash
-            log.debug(f"{trivial.root_relative} in kept: {h in kept}")
             if h in kept:
                 # trash all but first entry of this hash
                 act.trash(node)
@@ -426,7 +428,8 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     # - load actions and execute them from CLI
     executor.register_actions(action_model.actions())
 
-    trash_root = cfg.act.execution.trash_root
+    # trash file destination is computed to include the original root name
+    trash_root = cfg.act.execution.trash_root / "root"
 
     def assert_in_dir(dir: Path, files: List[str]):
         for file in files:
@@ -443,6 +446,19 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 
     executed_count = executor.execute_pending()
     assert executed_count == len(action_model.actions())
+
+    done_action_count = 0
+    with Session(executor.engine) as session:
+        row: OperationRow
+        for row in session.scalars(
+                select(OperationRow).where(OperationRow.status == _DONE_STR)):
+            done_action_count += 1
+            trash_act = model_from_json_data(row.action_data, TrashAction)
+            assert TrivialDataColumnSpec.column_name in trash_act.file.columns
+
+    log.debug(f"deleted_files = {deleted_files}")
+    assert done_action_count == len(deleted_files)
+    assert done_action_count == executed_count
 
     assert_not_in_dir(root_dir, deleted_files)
     assert_in_dir(trash_root, deleted_files)

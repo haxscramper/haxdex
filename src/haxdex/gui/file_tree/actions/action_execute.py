@@ -243,6 +243,7 @@ class ActionExecutor:
                     select(OperationRow).where(OperationRow.status == _DONE_STR).order_by(
                         OperationRow.id.desc())))
             for row in rows:
+                log.info("run undo action")
                 action = self._load_action(row)
                 self.handlers[row.kind].undo_action(row, action)
                 row.status = _PENDING_STR

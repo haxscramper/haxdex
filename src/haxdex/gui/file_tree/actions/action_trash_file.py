@@ -3,6 +3,7 @@ import shutil
 from pathlib import Path
 
 from beartype import beartype
+from sympy.physics.units import action
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler
@@ -13,19 +14,65 @@ import logging
 log = logging.getLogger(__name__)
 
 
+@beartype
 class TrashActionHandler(ActionHandler):
 
-    @beartype
     def __init__(self, trash_root: Path, dry_run: bool) -> None:
         self.trash_root = trash_root
         self.dry_run = dry_run
 
-    @beartype
+    def _get_base_dest(self, action: TrashAction) -> Path:
+        return self.trash_root / action.file.root / action.file.root_relative
+
+    def get_dest_forward(self, action: TrashAction) -> Path:
+        base = self._get_base_dest(action)
+        base.parent.mkdir(parents=True, exist_ok=True)
+
+        if not base.exists():
+            return base
+
+        idx = 1
+        while True:
+            candidate = base.with_name(f"{base.name}.{idx}")
+            if not candidate.exists():
+                return candidate
+            idx += 1
+
+    def get_dest_undo(self, action: TrashAction) -> Path:
+        base = self._get_base_dest(action)
+        parent = base.parent
+
+        if not parent.exists():
+            raise FileNotFoundError(f"No trash entry found for {action.file.path}")
+
+        prefix = f"{base.name}."
+        best_idx = -1
+        best_path: Path | None = None
+
+        if base.exists():
+            best_idx = 0
+            best_path = base
+
+        for p in parent.iterdir():
+            if not p.name.startswith(prefix):
+                continue
+            suffix = p.name[len(prefix):]
+            if not suffix.isdigit():
+                continue
+            idx = int(suffix)
+            if idx > best_idx:
+                best_idx = idx
+                best_path = p
+
+        if best_path is None:
+            raise FileNotFoundError(f"No trash entry found for {action.file.path}")
+
+        return best_path
+
     def do_action(self, row: OperationRow, action: BaseAction) -> None:
         assert isinstance(action, TrashAction)
         src = Path(action.file.path).absolute()
-        dest = (self.trash_root / f"{row.id}_{src.name}").absolute()
-        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest = self.get_dest_forward(action).absolute()
 
         log.info(f"do trash: executing move({src} -> {dest})")
 
@@ -34,11 +81,10 @@ class TrashActionHandler(ActionHandler):
 
         shutil.move(str(src), str(dest))
 
-    @beartype
     def undo_action(self, row: OperationRow, action: BaseAction) -> None:
         assert isinstance(action, TrashAction)
         src = Path(action.file.path).absolute()
-        dest = Path(self.trash_root / f"{row.id}_{src.name}").absolute()
+        dest = self.get_dest_undo(action).absolute()
 
         log.info(f"undo trash: executing move({dest} -> {src})")
 
@@ -48,14 +94,12 @@ class TrashActionHandler(ActionHandler):
         src.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(dest), str(src))
 
-    @beartype
     def get_hash(self, action: BaseAction) -> str:
         assert isinstance(action, TrashAction)
         src = action.file.path
         payload = f"trash|{src}|{self.trash_root}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    @beartype
     def verify_consistency_single(self, action: BaseAction) -> None:
         assert isinstance(action, TrashAction)
         src = action.file.path
