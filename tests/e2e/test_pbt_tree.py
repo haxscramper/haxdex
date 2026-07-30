@@ -1,46 +1,71 @@
 import dataclasses
 import functools
 import json
+import logging
 import shutil
 from collections import defaultdict
-from contextlib import redirect_stderr
 from pathlib import Path
 from pprint import pformat
+from typing import List, cast
 
+import hypothesis.strategies as st
+import pandas as pd
+import plumbum
+import pytest
 from beartype import beartype
 from beartype.typing import Any, List
-
-from PyQt6.QtCore import QModelIndex, QAbstractItemModel, Qt
-from hypothesis import given, settings, HealthCheck, Phase
-import pytest
-import plumbum
-import pandas as pd
+from hypothesis import HealthCheck, Phase, given, settings
+from hypothesis.control import current_build_context
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.agnostic import model_dump
-from haxdex.gui.agnostic.model_dump import render_text, simple_dump
+from haxdex.gui.agnostic.model_dump import render_text, simple_dump, simple_dump_rows_json
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutor, _DONE_STR
-from haxdex.gui.file_tree.actions.action_list_model import ActionProvider, ActionListModel, TrashAction
-from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateData, FileDuplicateColumnSpec
-from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
+from haxdex.gui.file_tree.actions.action_execute import _DONE_STR, ActionExecutor
+from haxdex.gui.file_tree.actions.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+    TrashAction,
+)
+from haxdex.gui.file_tree.columns.file_duplicate_column import (
+    FileDuplicateColumnSpec,
+    FileDuplicateData,
+)
+from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec, FileMimeData
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
-from haxdex.gui.file_tree.columns.trivial_data_column import TrivialEntryData, TrivialDataColumnSpec
+from haxdex.gui.file_tree.columns.trivial_data_column import (
+    TrivialDataColumnSpec,
+    TrivialEntryData,
+)
+from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
-from haxdex.services.pydantic_utils import to_json_safe, model_from_json_data
-from tests.generation import directory_structure, GeneratedDirectory, write_generated_directory, \
-    assert_generated_directory_entries_exact, META_SUFFIX, GeneratedIndexerEntry, _sorted_rel, \
-    create_default_persistent_corpus
-from tests.utils import init_index_service, init_file_tree_config, init_file_tree_columns, sub_row_by_name, \
-    clean_test_dir, capture_logs, split_columns_by_rules
-import logging
-from hypothesis.control import current_build_context
+from haxdex.services.pydantic_utils import model_from_json_data, to_json_safe
+from tests.generation import (
+    META_SUFFIX,
+    GeneratedDirectory,
+    GeneratedIndexerEntry,
+    _sorted_rel,
+    assert_generated_directory_entries_exact,
+    create_default_persistent_corpus,
+    directory_structure,
+    write_generated_directory,
+)
+from tests.utils import (
+    capture_logs,
+    clean_test_dir,
+    init_file_tree_columns,
+    init_file_tree_config,
+    init_index_service,
+    split_columns_by_rules,
+    sub_row_by_name,
+)
 
 log = logging.getLogger(__name__)
 
@@ -60,16 +85,18 @@ def left_align_formatters(df):
         for column in df.columns
     }
 
-    return [(lambda width: (lambda value: f"{str(value):<{width}}"))(widths[column])
+    return [(lambda width: lambda value: f"{str(value):<{width}}")(widths[column])
             for column in df.columns]
 
 
 def qt_tree_to_df(model: QAbstractItemModel) -> pd.DataFrame:
     table = TreeToTableProxyModel()
     table.setSourceModel(model)
-    return qt_model_to_dataframe(model=table,
-                                 role=CustomModelRole.FullDataRole.value,
-                                 role_names={CustomModelRole.FullDataRole.value: "data"})
+    return qt_model_to_dataframe(
+        model=table,
+        role=CustomModelRole.FullDataRole.value,
+        role_names={CustomModelRole.FullDataRole.value: "data"},
+    )
 
 
 def fmt_df(df: pd.DataFrame) -> str:
@@ -201,51 +228,63 @@ def test_generated_directory_collect_methods_match_content(
         expected_files_direct = set(_fs_files_direct(materialized.root, query))
         actual_files_direct = _relset(directory.collect_files_direct(query))
         assert len(actual_files_direct) == len(expected_files_direct), pformat_dir(
-            dict(query=query,
-                 actual=sorted(actual_files_direct),
-                 expected=sorted(expected_files_direct)))
+            dict(
+                query=query,
+                actual=sorted(actual_files_direct),
+                expected=sorted(expected_files_direct),
+            ))
 
         assert actual_files_direct == expected_files_direct
 
         expected_files_recursive = set(_fs_files_recursive(materialized.root, query))
         actual_files_recursive = _relset(directory.collect_files_recursive(query))
-        assert len(actual_files_recursive) == len(expected_files_recursive), pformat_dir(
-            dict(query=query,
-                 actual=sorted(actual_files_recursive),
-                 expected=sorted(expected_files_recursive)))
+        assert len(actual_files_recursive) == len(expected_files_recursive), (pformat_dir(
+            dict(
+                query=query,
+                actual=sorted(actual_files_recursive),
+                expected=sorted(expected_files_recursive),
+            )))
         assert actual_files_recursive == expected_files_recursive
 
         expected_dirs_direct = set(_fs_directories_direct(materialized.root, query))
         actual_dirs_direct = _relset(directory.collect_directories_direct(query))
         assert len(actual_dirs_direct) == len(expected_dirs_direct), pformat_dir(
-            dict(query=query,
-                 actual=sorted(actual_dirs_direct),
-                 expected=sorted(expected_dirs_direct)))
+            dict(
+                query=query,
+                actual=sorted(actual_dirs_direct),
+                expected=sorted(expected_dirs_direct),
+            ))
         assert actual_dirs_direct == expected_dirs_direct
 
         expected_dirs_recursive = set(_fs_directories_recursive(materialized.root, query))
         actual_dirs_recursive = _relset(directory.collect_directories_recursive(query))
         assert len(actual_dirs_recursive) == len(expected_dirs_recursive), pformat_dir(
-            dict(query=query,
-                 actual=sorted(actual_dirs_recursive),
-                 expected=sorted(expected_dirs_recursive)))
+            dict(
+                query=query,
+                actual=sorted(actual_dirs_recursive),
+                expected=sorted(expected_dirs_recursive),
+            ))
         assert actual_dirs_recursive == expected_dirs_recursive
 
         expected_entries_direct = set(_fs_entries_direct(materialized.root, query))
         actual_entries_direct = _relset(directory.collect_entries_direct(query))
         assert len(actual_entries_direct) == len(expected_entries_direct), pformat_dir(
-            dict(query=query,
-                 actual=sorted(actual_entries_direct),
-                 expected=sorted(expected_entries_direct)))
+            dict(
+                query=query,
+                actual=sorted(actual_entries_direct),
+                expected=sorted(expected_entries_direct),
+            ))
         assert actual_entries_direct == expected_entries_direct
 
         expected_entries_recursive = set(_fs_entries_recursive(materialized.root, query))
         actual_entries_recursive = _relset(directory.collect_entries_recursive(query))
-        assert len(actual_entries_recursive) == len(
-            expected_entries_recursive), pformat_dir(
-                dict(query=query,
-                     actual=sorted(actual_entries_recursive),
-                     expected=sorted(expected_entries_recursive)))
+        assert len(actual_entries_recursive) == len(expected_entries_recursive), (
+            pformat_dir(
+                dict(
+                    query=query,
+                    actual=sorted(actual_entries_recursive),
+                    expected=sorted(expected_entries_recursive),
+                )))
         assert actual_entries_recursive == expected_entries_recursive
 
     for rel in fs_files:
@@ -255,27 +294,41 @@ def test_generated_directory_collect_methods_match_content(
         directory.get_file_by_relative_name(Path("__missing__") / "nope.txt")
 
 
-def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
-                            rec_entries: list[Path], core: FileTreeQueryCore,
-                            gen_dir: Path, directory: GeneratedDirectory) -> pd.DataFrame:
-
+def run_main_model_splicing(
+    df: pd.DataFrame,
+    stable_test_dir: Path,
+    expected_entries: list[Path],
+    core: FileTreeQueryCore,
+    gen_dir: Path,
+    expected_file_count: int,
+    directories: list[GeneratedDirectory],
+) -> pd.DataFrame:
     assert "name" in df.columns, str(df.columns)
 
-    rules = [("trivial", ["assets", "is_directory", "root", "root_relative"]),
-             ("share", ["size_self", "size_parent"]), ("mime", ["mime_type"]),
-             ("name", [("name", "entry_name")]),
-             ("framerate", [("probe.fps", "video_framerate")]),
-             ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
-             ("video_resolution", [
-                 ("probe.width", "video_width"),
-                 ("probe.height", "video_height"),
-             ]),
-             ("file_duplicates", [
-                 ("hash", "file_hash"),
-                 ("matches", "duplicate_paths"),
-                 ("duplicate_count", "rec_duplicate_count"),
-                 ("total_count", "rec_total_count"),
-             ])]
+    rules = [
+        ("trivial", ["assets", "is_directory", "root", "root_relative"]),
+        ("share", ["size_self", "size_parent"]),
+        ("mime", ["mime_type"]),
+        ("name", [("name", "entry_name")]),
+        ("framerate", [("probe.fps", "video_framerate")]),
+        ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
+        (
+            "video_resolution",
+            [
+                ("probe.width", "video_width"),
+                ("probe.height", "video_height"),
+            ],
+        ),
+        (
+            "file_duplicates",
+            [
+                ("hash", "file_hash"),
+                ("matches", "duplicate_paths"),
+                ("duplicate_count", "rec_duplicate_count"),
+                ("total_count", "rec_total_count"),
+            ],
+        ),
+    ]
     stable_test_dir.joinpath("df_pre_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
     stable_test_dir.joinpath("base_flat_model.log").write_text(fmt_df(df))
@@ -284,12 +337,14 @@ def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
         json.dumps(to_json_safe(df), indent=2))
 
     stable_test_dir.joinpath("base_spliced_model.log").write_text(fmt_df(df))
-    rec_basenames = [e.name for e in rec_entries]
+    expected_root_relative = {
+        str(Path(*p.parts[1:])) if len(p.parts) > 1 else "" for p in expected_entries
+    }
 
-    assert set(rec_basenames) == (set(df["entry_name"]) - {"data"}), pformat(
+    assert expected_root_relative == set(df["root_relative"]), pformat(
         dict(
-            rec_basenames=set(rec_basenames),
-            model_names=set(df["entry_name"]),
+            expected_root_relative=expected_root_relative,
+            model_root_relative=set(df["root_relative"]),
             original_model=simple_dump(core.model, max_col=1),
             real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
         ))
@@ -297,7 +352,7 @@ def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
     assert df["size_self"].notna().all(), "`size_self` contains None values"
     assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
     assert (df["size_self"]
-            <= df["size_parent"]).all(), "entry size cannot be larger than the parent"
+            <= df["size_parent"]).all(), ("entry size cannot be larger than the parent")
 
     video_mask = df["mime_type"].str.startswith("video/", na=False)
 
@@ -306,13 +361,11 @@ def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
     assert df.loc[video_mask, "video_width"].notna().all()
     assert df.loc[video_mask, "video_height"].notna().all()
 
-    assert len(df[~df["is_directory"]]) == len(directory.collect_files_recursive())
+    assert len(df[~df["is_directory"]]) == expected_file_count
 
-    row = df.loc[df["root_relative"].eq("")]
-    assert len(row) == 1
-    row = row.iloc[0]
-
-    assert len(df[~df["is_directory"]]) == row["rec_total_count"]
+    assert len(df.loc[df["root_relative"].eq("")]) == len(directories)
+    assert len(df[~df["is_directory"]]) == df.loc[df["root_relative"].eq(""),
+                                                  "rec_total_count"].sum()
 
     return df
 
@@ -331,7 +384,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
         for node in nodes:
             assert TrivialDataColumnSpec.column_name in node.columns
             trivial = node.columns[TrivialDataColumnSpec.column_name]
-            assert isinstance(trivial, TrivialDataColumnSpec.column_type)
+            assert isinstance(trivial, TrivialEntryData)
             if trivial.is_directory:
                 result.append(node)
 
@@ -339,7 +392,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
                 assert FileMimeColumnSpec.column_name in node.columns, str(
                     node.columns.keys())
                 mime = node.columns[FileMimeColumnSpec.column_name]
-                assert isinstance(mime, FileMimeColumnSpec.column_type) or mime is None
+                assert isinstance(mime, FileMimeData) or mime is None
                 if mime is not None:
                     mime_types[mime.mime_type] += 1
                     if mime.mime_type.startswith("video/"):
@@ -353,7 +406,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
     )
 
     # FIXME: Root `data` nodes are not visited during iteration
-    assert nodes_visited + 1 == len(df)
+    assert nodes_visited == len(df)
     assert len(mime_types) == df["mime_type"].nunique()
 
     video_df = qt_tree_to_df(video_only_model)
@@ -369,14 +422,14 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
 
 
 def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
-                                root_dir: Path):
+                                data_dir: Path):
     evaluator = QueryFilterEvaluator()
 
     act = ActionProvider()
 
     kept: set[str] = set()
     duplicate_files: int = 0
-    deleted_files: List[str] = list()
+    deleted_files: List[tuple[str, str]] = list()
 
     def actions(act: ActionProvider, nodes: list[FileTreeNode]):
         nonlocal duplicate_files
@@ -395,7 +448,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
             if h in kept:
                 # trash all but first entry of this hash
                 act.trash(node)
-                deleted_files.append(trivial.root_relative)
+                deleted_files.append((trivial.root, trivial.root_relative))
 
             else:
                 kept.add(h)
@@ -409,14 +462,19 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 
     assert len(action_model.actions()) == len(deleted_files)
 
-    with_duplicates = df[(1 <= df["rec_duplicate_count"]) & (df["is_directory"] == False)]
+    with_duplicates = df[(1 <= df["rec_duplicate_count"]) &
+                         (df["is_directory"] == False)].copy()
     with_duplicates["duplicate_paths"] = with_duplicates["duplicate_paths"].map(
         lambda paths: list(map(lambda it: it.name, paths)))
     with_duplicates = with_duplicates[[
-        "is_directory", "rec_duplicate_count", "root_relative", "duplicate_paths"
+        "root",
+        "is_directory",
+        "rec_duplicate_count",
+        "root_relative",
+        "duplicate_paths",
     ]]
-    with_duplicates["no_first"] = (with_duplicates["rec_duplicate_count"] /
-                                   (with_duplicates["rec_duplicate_count"] + 1))
+    with_duplicates["no_first"] = with_duplicates["rec_duplicate_count"] / (
+        with_duplicates["rec_duplicate_count"] + 1)
 
     log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
@@ -431,20 +489,42 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     executor.register_actions(action_model.actions())
 
     # trash file destination is computed to include the original root name
-    trash_root = cfg.act.execution.trash_root / "root"
+    trash_root = cfg.act.execution.trash_root
 
-    def assert_in_dir(dir: Path, files: List[str]):
-        for file in files:
-            orig = dir.joinpath(file)
+    def source_path(root_name: str, root_relative: str) -> Path:
+        candidate = data_dir.joinpath(root_relative)
+        if candidate.exists():
+            return candidate
+        return data_dir.joinpath(root_name).joinpath(root_relative)
+
+    def trash_path(root_name: str, root_relative: str) -> Path:
+        rel_path = Path(root_relative)
+        if rel_path.parts and rel_path.parts[0] == root_name:
+            rel_path = Path(*rel_path.parts[1:])
+        return trash_root.joinpath(root_name).joinpath(rel_path)
+
+    def assert_in_dir(files: List[tuple[str, str]]):
+        for root_name, rel in files:
+            orig = source_path(root_name, rel)
             assert orig.exists(), orig
 
-    def assert_not_in_dir(dir: Path, files: List[str]):
-        for file in files:
-            orig = dir.joinpath(file)
+    def assert_not_in_dir(files: List[tuple[str, str]]):
+        for root_name, rel in files:
+            orig = source_path(root_name, rel)
             assert not orig.exists(), orig
 
-    assert_in_dir(root_dir, deleted_files)
-    assert_not_in_dir(trash_root, deleted_files)
+    def assert_in_trash(files: List[tuple[str, str]]):
+        for root_name, rel in files:
+            dst = trash_path(root_name, rel)
+            assert dst.exists(), dst
+
+    def assert_not_in_trash(files: List[tuple[str, str]]):
+        for root_name, rel in files:
+            dst = trash_path(root_name, rel)
+            assert not dst.exists(), dst
+
+    assert_in_dir(deleted_files)
+    assert_not_in_trash(deleted_files)
 
     executed_count = executor.execute_pending()
     assert executed_count == len(action_model.actions())
@@ -461,66 +541,71 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert done_action_count == len(deleted_files)
     assert done_action_count == executed_count
 
-    assert_not_in_dir(root_dir, deleted_files)
-    assert_in_dir(trash_root, deleted_files)
+    assert_not_in_dir(deleted_files)
+    assert_in_trash(deleted_files)
 
     executed_count = executor.revert_done()
     assert executed_count == len(action_model.actions())
 
-    assert_in_dir(root_dir, deleted_files)
-    assert_not_in_dir(trash_root, deleted_files)
+    assert_in_dir(deleted_files)
+    assert_not_in_trash(deleted_files)
 
 
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
-    max_examples=1,
+    max_examples=20,
     deadline=2000,
 )
-@given(directory=directory_structure(
-    indexer_types=[],
-    min_files=24,
-    max_files=48,
-    min_nesting=1,
-    max_nesting=3,
-    corpus_manifest=corpus_manifest,
-    corpus_root=corpus_root,
-    min_duplicates=2,
-    max_duplicates=5,
-    mime_types=(
-        "image/png",
-        "application/pdf",
-        "video/mp4",
-        "audio/mpeg",
-        "text/plain",
-        "text/org",
-        "text/markdown",
+@given(directories=st.lists(
+    directory_structure(
+        indexer_types=[],
+        min_files=24,
+        max_files=48,
+        min_nesting=1,
+        max_nesting=3,
+        corpus_manifest=corpus_manifest,
+        corpus_root=corpus_root,
+        min_duplicates=2,
+        max_duplicates=5,
     ),
+    min_size=2,
+    max_size=5,
 ))
 @clean_test_dir
 @capture_logs(test_name="main.log")
 def test_generated_indexer_directory(
     stable_test_dir: Path,
-    directory: GeneratedDirectory,
+    directories: list[GeneratedDirectory],
 ) -> None:
     log.info(f"hypothesis example {current_build_context().data.index}")
-    gen_dir = stable_test_dir / "data"
-    materialized = write_generated_directory(gen_dir, directory)
-    assert_generated_directory_entries_exact(materialized.root, directory)
+    data_dir = stable_test_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    assert len(materialized.files) == len(directory.files)
-    assert len(list(gen_dir.rglob("*"))) != 0
+    root_names = [f"root_{idx}" for idx in range(len(directories))]
+    materialized_roots: list[tuple[str, GeneratedDirectory, Any]] = []
 
-    for file_path in materialized.files:
-        metadata_path = file_path.with_name(f"{file_path.name}.haxdex-meta.json")
-        assert file_path.exists()
-        assert metadata_path.exists()
+    for root_name, directory in zip(root_names, directories):
+        root_dir = data_dir / root_name
+        materialized = write_generated_directory(root_dir, directory)
+        assert_generated_directory_entries_exact(materialized.root, directory)
 
-    index = init_index_service(stable_test_dir)
+        assert len(materialized.files) == len(directory.files)
+        assert len(list(root_dir.rglob("*"))) != 0
+
+        for file_path in materialized.files:
+            metadata_path = file_path.with_name(f"{file_path.name}.haxdex-meta.json")
+            assert file_path.exists()
+            assert metadata_path.exists()
+
+        materialized_roots.append((root_name, directory, materialized))
+
+    index = init_index_service(stable_test_dir, root_names=root_names)
 
     index.service.run_index()
 
-    assert materialized.root == index.root_dir
+    assert materialized_roots
+    assert data_dir == index.data_dir
     tree_config = init_file_tree_config(index)
 
     assert tree_config.cfg.file_tree_view
@@ -548,44 +633,64 @@ def test_generated_indexer_directory(
 
     # log.info(simple_dump(core.model))
     # log.info("\n" + render_text(model_dump.dump(core.model)))
+    stable_test_dir.joinpath("simple_dump.txt").write_text(
+        simple_dump_rows_json(core.model))
 
-    tree_root = core.model.index(0, 0, QModelIndex())
     m = core.model
 
-    direct_entries = [p.relative_path for p in directory.collect_entries_direct()]
-    file_entries = list(f for f in gen_dir.glob("*") if not str(f).endswith(META_SUFFIX))
-    assert len(direct_entries) == len(file_entries), pformat(
-        dict(direct_entries=direct_entries, file_entries=file_entries))
+    assert isinstance(m, FileTreeModel)
+    assert len(m.nodes) == len(materialized_roots)
+    assert m.rowCount() == len(materialized_roots)
 
-    assert m.rowCount(tree_root) == len(directory.collect_entries_direct())
-    for entry_idx, entry in enumerate(directory.collect_files_direct()):
-        nested = sub_row_by_name(tree_root, str(entry.relative_path))
-        assert nested is not None
-        assert m.rowCount(nested) == len(
-            directory.collect_entries_direct(entry.relative_path))
+    expected_entries: list[Path] = []
+    expected_file_count = 0
+
+    for root_name, directory, materialized in materialized_roots:
+        direct_entries = [p.relative_path for p in directory.collect_entries_direct()]
+        file_entries = list(
+            f for f in materialized.root.glob("*") if not str(f).endswith(META_SUFFIX))
+        assert len(direct_entries) == len(file_entries), pformat(
+            dict(direct_entries=direct_entries, file_entries=file_entries))
+
+        root_node = sub_row_by_name(QModelIndex(), m, root_name)
+        assert root_node is not None
+        assert m.rowCount(root_node) == len(directory.collect_entries_direct())
+
+        for entry in directory.collect_files_direct():
+            nested = sub_row_by_name(root_node, m, str(entry.relative_path))
+            assert nested is not None
+            assert m.rowCount(nested) == len(
+                directory.collect_entries_direct(entry.relative_path))
+
+        expected_entries.append(Path(root_name))
+        for entry in directory.collect_entries_recursive():
+            expected_entries.append(Path(root_name) / entry.relative_path)
+
+        expected_file_count += len(directory.collect_files_recursive())
 
     table = TreeToTableProxyModel()
     table.setSourceModel(core.model)
     stable_test_dir.joinpath("table_model.txt").write_text(
         render_text(model_dump.dump(table)))
-    rec_entries = [e.relative_path for e in directory.collect_entries_recursive()]
-    # tree table also adds the root `data` directory as a row, the generated directory
-    # does not.
-    assert table.rowCount(QModelIndex()) == len(rec_entries) + 1, pformat(rec_entries)
+    rec_entries = expected_entries
+    assert table.rowCount(QModelIndex()) == len(rec_entries)
 
-    df = qt_model_to_dataframe(table,
-                               role=CustomModelRole.FullDataRole.value,
-                               role_names={
-                                   CustomModelRole.FullDataRole.value: "data",
-                               })
+    df = qt_model_to_dataframe(
+        table,
+        role=CustomModelRole.FullDataRole.value,
+        role_names={
+            CustomModelRole.FullDataRole.value: "data",
+        },
+    )
 
     df = run_main_model_splicing(
         df,
         stable_test_dir=stable_test_dir,
-        rec_entries=rec_entries,
+        expected_entries=rec_entries,
         core=core,
-        gen_dir=gen_dir,
-        directory=directory,
+        gen_dir=data_dir,
+        expected_file_count=expected_file_count,
+        directories=directories,
     )
 
     run_video_file_filtering(
@@ -597,5 +702,5 @@ def test_generated_indexer_directory(
         df,
         core,
         cfg=tree_config.cfg,
-        root_dir=tree_config.root_dir,
+        data_dir=tree_config.data_dir,
     )

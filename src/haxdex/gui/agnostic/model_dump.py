@@ -6,7 +6,8 @@ import io
 import logging
 
 from beartype import beartype
-from beartype.typing import Callable, List, Tuple
+from beartype.typing import Callable, List, Tuple, Any, Dict
+import json
 from pydantic import BaseModel, Field
 
 from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
@@ -1299,4 +1300,87 @@ def simple_dump(model: QAbstractItemModel,
                 traverse(nested_index, nested_path, depth + 1)
 
     traverse(QModelIndex(), [], 0)
+    return "\n".join(lines)
+
+
+@beartype
+def simple_dump_rows_json(
+    model: QAbstractItemModel,
+    indentation_step: str = "  ",
+    max_col: int = 256,
+) -> str:
+
+    @beartype
+    def format_display_value(value: object) -> str:
+        match value:
+            case None:
+                return "None"
+            case str():
+                return value
+            case _:
+                return str(value)
+
+    @beartype
+    def to_json_value(value: object) -> Any:
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        return str(value)
+
+    @beartype
+    def column_key(parent_index: QModelIndex, col: int) -> str:
+        header = model.headerData(col, Qt.Orientation.Horizontal,
+                                  Qt.ItemDataRole.DisplayRole)
+        key = format_display_value(header).strip() if header is not None else ""
+        if not key:
+            key = f"col_{col}"
+        return key
+
+    entries: List[Tuple[str, Dict[str, Any]]] = []
+
+    @beartype
+    def traverse(parent_index: QModelIndex, path: List[Tuple[int, int]],
+                 depth: int) -> None:
+        row_count = model.rowCount(parent_index)
+        column_count = min(model.columnCount(parent_index), max_col)
+
+        for row in range(row_count):
+            row_index = model.index(row, 0, parent_index)
+            row_path = [*path, (row, 0)]
+            path_text = "".join(
+                f"[{path_row}.{path_col}]" for path_row, path_col in row_path)
+
+            row_display = model.data(row_index, Qt.ItemDataRole.DisplayRole)
+
+            payload: Dict[str, Any] = {}
+            used_keys: set[str] = set()
+
+            for col in range(1, column_count):
+                cell_index = model.index(row, col, parent_index)
+                key = column_key(parent_index, col)
+                if key in used_keys:
+                    key = f"{key}_{col}"
+                used_keys.add(key)
+                payload[key] = to_json_value(
+                    model.data(cell_index, Qt.ItemDataRole.DisplayRole))
+
+            prefix = (f"{indentation_step * depth}{path_text} "
+                      f"{format_display_value(row_display)}")
+            entries.append((prefix, payload))
+
+            traverse(row_index, row_path, depth + 1)
+
+    traverse(QModelIndex(), [], 0)
+
+    max_prefix_len = max((len(prefix) for prefix, payload in entries if payload),
+                         default=0)
+
+    lines: List[str] = []
+    for prefix, payload in entries:
+        if payload:
+            pad = " " * (max_prefix_len - len(prefix) + 1)
+            line = prefix + pad + json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        else:
+            line = prefix
+        lines.append(line)
+
     return "\n".join(lines)

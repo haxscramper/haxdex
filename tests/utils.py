@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import glom
-from PyQt6.QtCore import QModelIndex
+from PyQt6.QtCore import QModelIndex, QAbstractItemModel
 from beartype import beartype
 from beartype.typing import cast, Iterator, Any
 
@@ -37,14 +37,21 @@ from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 @dataclass
 class IndexServiceConfig():
     service: IndexService
-    root_dir: Path
+    data_dir: Path
+    root_dirs: list[Path]
+    root_names: list[str]
     cfg: AppConfig
     stable_test_dir: Path
 
 
-def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
-    root_dir = stable_test_dir.joinpath("data")
-    root_dir.mkdir(parents=True, exist_ok=True)
+def init_index_service(stable_test_dir: Path,
+                       root_names: list[str]) -> IndexServiceConfig:
+    data_dir = stable_test_dir.joinpath("data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    root_dirs = [data_dir.joinpath(root_name) for root_name in root_names]
+    for root_dir in root_dirs:
+        root_dir.mkdir(parents=True, exist_ok=True)
 
     act_conf = ActionExecutionConfig(
         trash_root=stable_test_dir.joinpath("trash"),
@@ -56,13 +63,16 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
     act_conf.trash_root.mkdir(parents=True, exist_ok=True)
     act_conf.output_directory.mkdir(parents=True, exist_ok=True)
 
+    index_paths = tuple(
+        IndexPathConfig(
+            name=root_name,
+            root_path=root_dir,
+            paths=[DirConfig(path=root_dir)],
+        ) for root_name, root_dir in zip(root_names, root_dirs))
+
     cfg = AppConfig(
         index=IndexConfig(
-            paths=(IndexPathConfig(name="root",
-                                   root_path=root_dir,
-                                   paths=[
-                                       DirConfig(path=root_dir),
-                                   ]),),
+            paths=index_paths,
             reset=True,
         ),
         indexers={
@@ -84,7 +94,9 @@ def init_index_service(stable_test_dir: Path) -> IndexServiceConfig:
 
     return IndexServiceConfig(
         service=service,
-        root_dir=root_dir,
+        data_dir=data_dir,
+        root_dirs=root_dirs,
+        root_names=root_names,
         cfg=cfg,
         stable_test_dir=stable_test_dir,
     )
@@ -98,7 +110,7 @@ def init_file_tree_columns(index: IndexServiceConfig,
         TrivialDataColumnSpec("trivial"),
         FileMimeColumnSpec("mime"),
         EntrySizeColumnSpec("size"),
-        SizeShareColumnSpec("share", [index.root_dir]),
+        SizeShareColumnSpec("share", [index.data_dir]),
         VideoFramerateColumnSpec("framerate"),
         VideoBitrateColumnSpec("bitrate"),
         VideoResolutionColumnSpec("video_resolution"),
@@ -110,23 +122,28 @@ def init_file_tree_columns(index: IndexServiceConfig,
 @dataclass
 class FileTreeServiceConfig():
     service: IndexService
-    root_dir: Path
+    data_dir: Path
+    root_dirs: list[Path]
+    root_names: list[str]
     cfg: AppConfig
     stable_test_dir: Path
 
 
 def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     assert index.cfg.index
+    all_root_dirs = [
+        dir_cfg for path_cfg in index.cfg.index.paths for dir_cfg in path_cfg.paths
+    ]
     cfg = index.cfg.model_copy(update=dict(
         index=None,
         file_tree_view=FileTreeViewConfig(
-            root_dirs=index.cfg.index.paths[0].paths,
+            root_dirs=all_root_dirs,
             reference_tree_cache_path=index.stable_test_dir.joinpath(
                 "reference_tree_cache.sqlite"),
             visual_tree_cache_path=index.stable_test_dir.joinpath(
                 "input_tree_cache.sqlite"),
             user_edit_path=index.stable_test_dir.joinpath("user_actions.sqlite"),
-            reference_dir=index.cfg.index.paths[0].paths[0],
+            reference_dir=DirConfig(path=index.data_dir),
         ),
     ))
 
@@ -137,15 +154,18 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
 
     return FileTreeServiceConfig(
         service=service,
-        root_dir=index.root_dir,
+        data_dir=index.data_dir,
+        root_dirs=index.root_dirs,
+        root_names=index.root_names,
         cfg=cfg,
         stable_test_dir=index.stable_test_dir,
     )
 
 
-def sub_row_by_name(index: QModelIndex, suffix: str, name_column: int = 0) -> QModelIndex:
-    model = index.model()
-    assert model
+def sub_row_by_name(index: QModelIndex,
+                    model: QAbstractItemModel,
+                    suffix: str,
+                    name_column: int = 0) -> QModelIndex:
     for i in range(0, model.rowCount(index)):
         row_idx = model.index(i, name_column, index)
         node = row_idx.internalPointer()
