@@ -24,6 +24,7 @@ class VideoConvertTarget(str, enum.Enum):
     SD_30 = "480p30"
     HD_30 = "720p30"
     FULL_HD_30 = "1080p30"
+    QVGA_160x120_10 = "160x120p10"  # primarily for tests
 
 
 class VideoConvertData(BaseModel, extra="forbid"):

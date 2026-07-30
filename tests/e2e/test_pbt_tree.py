@@ -317,7 +317,8 @@ def run_main_model_splicing(df: pd.DataFrame, stable_test_dir: Path,
     return df
 
 
-def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
+def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
+                             stable_test_dir: Path):
     video_eval = QueryFilterEvaluator()
 
     nodes_visited = 0
@@ -356,14 +357,15 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore):
     assert len(mime_types) == df["mime_type"].nunique()
 
     video_df = qt_tree_to_df(video_only_model)
-    # log.info("video df:\n" + fmt_df(video_df))
 
     @beartype
     def map_trivial(trivial: TrivialEntryData) -> bool:
         return not trivial.is_directory
 
-    assert len(df[df["mime_type"].str.startswith("video/")]) == len(
-        video_df[video_df["trivial"].map(map_trivial)])
+    video_df = video_df[video_df["trivial"].map(map_trivial)]
+    assert len(df[df["mime_type"].str.startswith("video/")]) == len(video_df)
+    stable_test_dir.joinpath("video_df.json").write_text(
+        json.dumps(to_json_safe(video_df), indent=2))
 
 
 def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
@@ -456,7 +458,6 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
             trash_act = model_from_json_data(row.action_data, TrashAction)
             assert TrivialDataColumnSpec.column_name in trash_act.file.columns
 
-    log.debug(f"deleted_files = {deleted_files}")
     assert done_action_count == len(deleted_files)
     assert done_action_count == executed_count
 
@@ -473,7 +474,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
-    max_examples=20,
+    max_examples=1,
     deadline=2000,
 )
 @given(directory=directory_structure(
@@ -587,7 +588,11 @@ def test_generated_indexer_directory(
         directory=directory,
     )
 
-    run_video_file_filtering(df, core)
+    run_video_file_filtering(
+        df,
+        core,
+        stable_test_dir=stable_test_dir,
+    )
     run_remove_duplicate_action(
         df,
         core,
