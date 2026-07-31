@@ -3,16 +3,22 @@ import shutil
 from pathlib import Path
 
 from beartype import beartype
+from beartype.typing import ClassVar
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import MoveAction, BaseAction
+from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
 import logging
 
 log = logging.getLogger(__name__)
 
 
+class MoveAction(BaseAction):
+    kind: ClassVar[str] = "move"
+    dest: str
+
+
 class MoveActionHandler(ActionHandler):
+    action_type = MoveAction
 
     @beartype
     def __init__(self, dry_run: bool) -> None:

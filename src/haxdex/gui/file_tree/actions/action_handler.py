@@ -1,10 +1,19 @@
 from abc import ABC, abstractmethod
 
+from pydantic import BaseModel
+from beartype.typing import ClassVar
+
 from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_list_model import BaseAction
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+
+
+class BaseAction(BaseModel, extra="forbid"):
+    file: FileTreeNode
+    kind: ClassVar[str]
 
 
 class ActionHandler(ABC):
+    action_type: ClassVar[type[BaseAction]]
 
     @abstractmethod
     def do_action(self, row: OperationRow, action: BaseAction) -> None:

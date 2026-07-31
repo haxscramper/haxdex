@@ -1,21 +1,25 @@
 import hashlib
 import shutil
 from pathlib import Path
+from typing import ClassVar
 
 from beartype import beartype
-from sympy.physics.units import action
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import BaseAction, TrashAction
+from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
 
 import logging
 
 log = logging.getLogger(__name__)
 
 
+class TrashAction(BaseAction):
+    kind: ClassVar[str] = "trash"
+
+
 @beartype
 class TrashActionHandler(ActionHandler):
+    action_type = TrashAction
 
     def __init__(self, trash_root: Path, dry_run: bool) -> None:
         self.trash_root = trash_root

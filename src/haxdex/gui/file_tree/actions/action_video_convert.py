@@ -7,11 +7,11 @@ from fractions import Fraction
 from pathlib import Path
 
 from beartype import beartype
+from beartype.typing import ClassVar
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import BaseAction, VideoConvertAction
-from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertTarget
+from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
+from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertTarget, VideoConvertData
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +26,13 @@ class _ProbeResultType:
     codec_name: str
 
 
+class VideoConvertAction(BaseAction):
+    kind: ClassVar[str] = "video_convert"
+    target: VideoConvertData
+
+
 class VideoConvertActionHandler(ActionHandler):
+    action_type = VideoConvertAction
 
     @beartype
     def __init__(self,

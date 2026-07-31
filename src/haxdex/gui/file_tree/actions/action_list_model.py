@@ -3,48 +3,46 @@ from pathlib import Path
 
 from PyQt6.QtCore import QAbstractListModel, QObject, QModelIndex, Qt
 from beartype import beartype
-from beartype.typing import Literal, Annotated, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex.gui.file_tree.actions.action_handler import BaseAction, ActionHandler
+from haxdex.gui.file_tree.actions.action_move_file import MoveAction
+from haxdex.gui.file_tree.actions.action_trash_file import TrashAction
+from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertData
 from haxdex.services.pydantic_utils import model_from_json_data
 
 
-class BaseAction(BaseModel, extra="forbid"):
-    file: FileTreeNode
+def to_action_handler_map(handlers: list[ActionHandler]) -> dict[str, ActionHandler]:
+    types: dict[str, ActionHandler] = dict()
+    for handler in handlers:
+        types[handler.action_type.kind] = handler
+
+    return types
 
 
-class TrashAction(BaseAction):
-    kind: Literal["trash"] = "trash"
+def to_action_types_map(handlers: list[ActionHandler]) -> dict[str, type[BaseAction]]:
+    types: dict[str, type[BaseAction]] = dict()
+    for handler in handlers:
+        types[handler.action_type.kind] = handler.action_type
+
+    return types
 
 
-class MoveAction(BaseAction):
-    kind: Literal["move"] = "move"
-    dest: str
+def load_actions(jsonl_path: Path, handlers: list[ActionHandler]) -> list[BaseAction]:
+    actions: list[BaseAction] = []
+    types: dict[str, type[BaseAction]] = to_action_types_map(handlers)
 
-
-class VideoConvertAction(BaseAction):
-    kind: Literal["video_convert"] = "video_convert"
-    target: VideoConvertData
-
-
-Action = Annotated[
-    Union[MoveAction, TrashAction, VideoConvertAction],
-    Field(discriminator="kind"),
-]
-
-
-def load_actions(jsonl_path: Path) -> list[Action]:
-    actions: list[Action] = []
     with jsonl_path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             data = json.loads(line)
-            actions.append(model_from_json_data(data, Action))
+            actions.append(model_from_json_data(data, types[data["kind"]]))
+
     return actions
 
 

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import BaseAction
+from haxdex.gui.file_tree.actions.action_list_model import BaseAction, to_action_handler_map
 from haxdex.gui.file_tree.actions.action_move_file import MoveActionHandler
 from haxdex.gui.file_tree.actions.action_trash_file import TrashActionHandler
 from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertActionHandler
@@ -90,21 +90,17 @@ class ActionExecutor:
                                     future=True)
 
         self.config.output_directory.mkdir(parents=True, exist_ok=True)
-
-        self.handlers: dict[str, ActionHandler] = {
-            "move":
-                MoveActionHandler(dry_run=self.config.dry_run,),
-            "trash":
-                TrashActionHandler(
-                    trash_root=self.config.trash_root,
-                    dry_run=self.config.dry_run,
-                ),
-            "video_convert":
-                VideoConvertActionHandler(
-                    dry_run=self.config.dry_run,
-                    output_directory=self.config.output_directory,
-                )
-        }
+        self.handlers: dict[str, ActionHandler] = to_action_handler_map([
+            MoveActionHandler(dry_run=self.config.dry_run,),
+            TrashActionHandler(
+                trash_root=self.config.trash_root,
+                dry_run=self.config.dry_run,
+            ),
+            VideoConvertActionHandler(
+                dry_run=self.config.dry_run,
+                output_directory=self.config.output_directory,
+            )
+        ])
 
     def init_db(self) -> None:
         from haxdex.gui.file_tree.actions.action_db import Base
