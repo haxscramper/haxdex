@@ -105,7 +105,7 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
             limit_total=10,
             limit_per_path=10,
         ),
-        indexers=runtime._indexer_instances,
+        indexers=list(runtime._indexer_instances.values()),
     )
 
     params = db.get_full_text_search_path(idx)

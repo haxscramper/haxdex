@@ -59,7 +59,7 @@ def test_plan_structure_and_topological_batches(
         resource_types=[],
     )
 
-    plan = rt.create_plan(refs, ["b"])
+    plan = rt.prepare_and_create_plan(refs, rt.get_indexers(["b"]))
     assert [b.indexer_name for b in plan.batches] == ["a", "b"]
     assert len(plan.batches[0].file_refs) == 3
     assert len(plan.batches[1].file_refs) == 3
@@ -80,7 +80,7 @@ def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase, stable_test_
         resource_types=[],
     )
 
-    plan = rt.create_plan(refs, rt.get_indexers(["mp"]))
+    plan = rt.prepare_and_create_plan(refs, rt.get_indexers(["mp"]))
     assert len(plan.batches) == 1
     assert len(plan.batches[0].sub_batches) == 5
     assert all(len(chunk) <= 4 for chunk in plan.batches[0].sub_batches)
@@ -285,7 +285,7 @@ def test_stateful_resource_model_load_not_churned(
             out = gemma.handle(ctx, GemmaRequest(prompt="x"), resources)
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=SummaryResult(summary=out.text, hash="99999"),
+                result=SummaryResult(summary=out.text, hash="9999" * 16),
             )
 
     llama = Llama(config=Llama.config_model())

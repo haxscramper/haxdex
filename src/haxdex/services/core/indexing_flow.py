@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from beartype.typing import Sequence
+from beartype import beartype
 
 from haxdex.cli.cli_config import IndexPathConfig, IndexConfig
 from haxdex.services.core.db import IndexDatabase
@@ -14,6 +15,7 @@ from haxdex.services.file_iteration import RootFilter, prepare_root_filters, Dir
 log = logging.getLogger(__name__)
 
 
+@beartype
 def _is_file_selected_by_filters(file: Path, filters: list[RootFilter]) -> bool:
     file_str = str(file)
 
@@ -36,6 +38,7 @@ def _is_file_selected_by_filters(file: Path, filters: list[RootFilter]) -> bool:
     return False
 
 
+@beartype
 def _assert_dir_paths_under_root(path_cfg: IndexPathConfig) -> None:
     root = path_cfg.root_path.resolve()
     for dir_cfg in path_cfg.paths:
@@ -45,6 +48,7 @@ def _assert_dir_paths_under_root(path_cfg: IndexPathConfig) -> None:
         )
 
 
+@beartype
 def collect_files_for_path(
     dir_configs: list[DirConfig],
     filters: list[RootFilter],
@@ -95,6 +99,7 @@ def build_refs_for_root(
     return [db.as_ref(root, file) for file in files]
 
 
+@beartype
 def run_indexing_per_root_plan(
     db: IndexDatabase,
     runner: IndexRuntime,

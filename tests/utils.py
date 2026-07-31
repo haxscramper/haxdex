@@ -44,14 +44,21 @@ class IndexServiceConfig():
     stable_test_dir: Path
 
 
-def init_index_service(stable_test_dir: Path,
-                       root_names: list[str]) -> IndexServiceConfig:
+@beartype
+def init_index_service(
+    stable_test_dir: Path,
+    root_names: list[str] | None = None,
+) -> IndexServiceConfig:
     data_dir = stable_test_dir.joinpath("data")
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    root_dirs = [data_dir.joinpath(root_name) for root_name in root_names]
-    for root_dir in root_dirs:
-        root_dir.mkdir(parents=True, exist_ok=True)
+    if root_names is None:
+        root_names = []
+        root_dirs = [data_dir]
+    else:
+        root_dirs = [data_dir.joinpath(root_name) for root_name in root_names]
+        for root_dir in root_dirs:
+            root_dir.mkdir(parents=True, exist_ok=True)
 
     act_conf = ActionExecutionConfig(
         trash_root=stable_test_dir.joinpath("trash"),
@@ -63,12 +70,19 @@ def init_index_service(stable_test_dir: Path,
     act_conf.trash_root.mkdir(parents=True, exist_ok=True)
     act_conf.output_directory.mkdir(parents=True, exist_ok=True)
 
-    index_paths = tuple(
-        IndexPathConfig(
-            name=root_name,
-            root_path=root_dir,
-            paths=[DirConfig(path=root_dir)],
-        ) for root_name, root_dir in zip(root_names, root_dirs))
+    if root_names:
+        index_paths = tuple(
+            IndexPathConfig(
+                name=root_name,
+                root_path=root_dir,
+                paths=[DirConfig(path=root_dir)],
+            ) for root_name, root_dir in zip(root_names, root_dirs))
+    else:
+        index_paths = (IndexPathConfig(
+            name="data",
+            root_path=data_dir,
+            paths=[DirConfig(path=data_dir)],
+        ),)
 
     cfg = AppConfig(
         index=IndexConfig(
@@ -84,7 +98,7 @@ def init_index_service(stable_test_dir: Path,
         resources={},
         index_cache=stable_test_dir.joinpath("index_cache.sqlite"),
         hash_cache=stable_test_dir.joinpath("hash_cache.sqlite"),
-        db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}",),
+        db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
         action_file=stable_test_dir.joinpath("actions.jsonl"),
         act=ActionConfig(execution=act_conf),
     )
@@ -103,9 +117,10 @@ def init_index_service(stable_test_dir: Path,
 
 
 @beartype
-def init_file_tree_columns(index: IndexServiceConfig,
-                           reference_tree: FileTreeNode) -> list[FileTreeColumnSpec]:
-    return cast(list[FileTreeColumnSpec], [
+def init_file_tree_columns(
+        index: IndexServiceConfig,
+        reference_tree: FileTreeNode | None = None) -> list[FileTreeColumnSpec]:
+    specs = cast(list[FileTreeColumnSpec], [
         FileNameColumnSpec(),
         TrivialDataColumnSpec("trivial"),
         FileMimeColumnSpec("mime"),
@@ -114,8 +129,13 @@ def init_file_tree_columns(index: IndexServiceConfig,
         VideoFramerateColumnSpec("framerate"),
         VideoBitrateColumnSpec("bitrate"),
         VideoResolutionColumnSpec("video_resolution"),
-        FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree),
     ])
+
+    if reference_tree is not None:
+        specs.append(
+            FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree))
+
+    return specs
 
 
 @beartype
@@ -268,6 +288,7 @@ def _cell_to_dict(v):
     return {}
 
 
+@beartype
 def split_columns_by_rules(
     df: pd.DataFrame,
     rules: list[tuple[str, list[str | tuple[Any, str]]]],

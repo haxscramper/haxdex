@@ -99,7 +99,7 @@ def test_plan_structure_3_files_2_indexers(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(3)]
 
-    plan = rt.create_plan(files, rt.get_indexers())
+    plan = rt.prepare_and_create_plan(files, rt.get_indexers())
     assert len(plan.batches) == 2
     assert all(len(b.file_refs) == 3 for b in plan.batches)
     assert plan.batches[0].indexer_name == "a"
@@ -127,7 +127,7 @@ def test_plan_topological_order(
     root = db.add_root("root", stable_test_dir)
     ref = db.as_ref(root, stable_test_dir / "f.txt")
 
-    plan = rt.create_plan([ref], rt.get_indexers())
+    plan = rt.prepare_and_create_plan([ref], rt.get_indexers())
     assert plan.get_indexer_names() == ["a", "b"]
 
 
@@ -155,7 +155,7 @@ def test_plan_sub_batching(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(20)]
 
-    plan = rt.create_plan(files, rt.get_indexers())
+    plan = rt.prepare_and_create_plan(files, rt.get_indexers())
     assert len(plan.batches) == 1
     subs = plan.batches[0].sub_batches
     assert len(subs) == 5
@@ -196,7 +196,7 @@ def test_plan_can_run_filter(
         db.as_ref(root, stable_test_dir / "a.txt"),
         db.as_ref(root, stable_test_dir / "b.log"),
     ]
-    plan = rt.create_plan(files, rt.get_indexers())
+    plan = rt.prepare_and_create_plan(files, rt.get_indexers())
     assert len(plan.batches[0].file_refs) == 1
 
 
@@ -773,7 +773,7 @@ def test_plan_is_inspectable_and_rearrangeable(
     root = db.add_root("root", stable_test_dir)
     files = [db.as_ref(root, stable_test_dir / f"f{i}.txt") for i in range(5)]
 
-    plan = rt.create_plan(files, rt.get_indexers(["a", "b"]))
+    plan = rt.prepare_and_create_plan(files, rt.get_indexers(["a", "b"]))
     assert plan.total_runs() == 10
     assert plan.get_indexer_names() == ["a", "b"]
 

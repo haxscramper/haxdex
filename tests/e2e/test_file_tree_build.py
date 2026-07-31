@@ -12,7 +12,7 @@ from tests.utils import init_index_service, init_file_tree_config, sub_row_by_na
 def test_e2e_tree_build(stable_test_dir: Path):
     index = init_index_service(stable_test_dir)
 
-    dir = index.root_dir
+    dir = index.root_dirs[0]
     dir.joinpath("a.txt").write_text("random_content")
     dir.joinpath("b.txt").write_text("whatever")
 
@@ -38,13 +38,13 @@ def test_e2e_tree_build(stable_test_dir: Path):
     root_index: QModelIndex = core.model.index(0, 0, QModelIndex())
     root_node: FileTreeNode = root_index.internalPointer()
     assert root_node
-    assert root_node.root == "root"
+    assert root_node.root == "data"
     assert root_node.root_relative == ""
     assert str(root_node.path).endswith("data")
 
-    a_txt_index = sub_row_by_name(root_index, "a.txt")
-    b_txt_index = sub_row_by_name(root_index, "b.txt")
-    sub_index = sub_row_by_name(root_index, "sub")
+    a_txt_index = sub_row_by_name(root_index, core.model, "a.txt")
+    b_txt_index = sub_row_by_name(root_index, core.model, "b.txt")
+    sub_index = sub_row_by_name(root_index, core.model, "sub")
 
     assert a_txt_index.isValid()
     assert b_txt_index.isValid()

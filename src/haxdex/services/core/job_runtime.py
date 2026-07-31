@@ -343,6 +343,10 @@ class IndexRuntime:
 
         return actions
 
+    def prepare_and_create_plan(self, files: list[FileRef],
+                                indexers: Sequence[BaseIndexer]) -> ExecutionPlan:
+        return self.create_plan(self.prepare_files(files, indexers), indexers)
+
     def create_plan(self, prepared: list[PreparedFile],
                     indexers: Sequence[BaseIndexer]) -> ExecutionPlan:
         names = [i.asset_name for i in indexers]

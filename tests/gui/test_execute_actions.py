@@ -75,7 +75,7 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
         assert rows[0].action_data is not None
         assert rows[1].action_data is not None
 
-        trash_file = action_executor.config.trash_root / f"{rows[1].id}_{source_trash.name}"
+        trash_file = action_executor.config.trash_root / "root" / f"b.txt"
         assert trash_file.exists()
 
 
