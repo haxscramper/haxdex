@@ -3,9 +3,11 @@ from __future__ import annotations
 import base64
 import importlib
 import json
+from pprint import pformat
+import types
 
 from beartype import beartype
-from beartype.typing import Literal
+from beartype.typing import Literal, Union, get_args, get_origin
 import glom
 import math
 from pydantic import AfterValidator
@@ -20,6 +22,8 @@ from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticSerializationError
 import logging
 import pandas as pd
+
+from haxdex.services.utils import ExceptionContextNote
 
 log = logging.getLogger(__name__)
 
@@ -235,12 +239,46 @@ def to_json_safe(value: Any) -> Any:
                 f"no serializer registered for type {type(value)!r}")
 
 
-@beartype
-def _restore_json_safe(data: Any) -> Any:
+def _needs_runtime_pydantic_resolution(annotation: Any) -> bool:
+    if annotation is BaseModel:
+        return True
+
+    origin = get_origin(annotation)
+
+    if origin is Annotated:
+        inner, *_ = get_args(annotation)
+        return _needs_runtime_pydantic_resolution(inner)
+
+    if origin in (Union, types.UnionType):
+        return any(
+            _needs_runtime_pydantic_resolution(arg) for arg in get_args(annotation))
+
+    if origin in (list, set, frozenset):
+        args = get_args(annotation)
+        return bool(args) and _needs_runtime_pydantic_resolution(args[0])
+
+    if origin is tuple:
+        args = get_args(annotation)
+        if len(args) == 2 and args[1] is Ellipsis:
+            return _needs_runtime_pydantic_resolution(args[0])
+        return any(_needs_runtime_pydantic_resolution(arg) for arg in args)
+
+    if origin is dict:
+        args = get_args(annotation)
+        if len(args) == 2:
+            _, value_type = args
+            return _needs_runtime_pydantic_resolution(value_type)
+        return False
+
+    return False
+
+
+def _restore_json_safe(data: Any, *, resolve_pydantic_models: bool) -> Any:
     if isinstance(data, dict):
         tag = data.get(_TYPE_TAG)
         if tag is not None:
-            payload = _restore_json_safe(data["data"])
+            payload = _restore_json_safe(data["data"],
+                                         resolve_pydantic_models=resolve_pydantic_models)
             if tag == "bytes":
                 return base64.b64decode(payload)
 
@@ -253,24 +291,38 @@ def _restore_json_safe(data: Any) -> Any:
 
         pydantic_type = data.get(_PYDANTIC_TYPE_TAG)
         if isinstance(pydantic_type, str):
-            model_type = _import_pydantic_model(pydantic_type)
             model_payload = {
-                k: _restore_json_safe(v)
+                k: _restore_json_safe(v, resolve_pydantic_models=resolve_pydantic_models)
                 for k, v in data.items()
                 if k != _PYDANTIC_TYPE_TAG
             }
-            return model_type.model_validate(model_payload)
 
-        return {k: _restore_json_safe(v) for k, v in data.items()}
+            if resolve_pydantic_models:
+                model_type = _import_pydantic_model(pydantic_type)
+                return model_type.model_validate(model_payload)
+
+            return model_payload
+
+        return {
+            k: _restore_json_safe(v, resolve_pydantic_models=resolve_pydantic_models)
+            for k, v in data.items()
+        }
 
     if isinstance(data, list):
-        return [_restore_json_safe(v) for v in data]
+        return [
+            _restore_json_safe(v, resolve_pydantic_models=resolve_pydantic_models)
+            for v in data
+        ]
 
     return data
 
 
 def from_json_safe(data: Any, target_type: type[T]) -> T:
-    return TypeAdapter(target_type).validate_python(_restore_json_safe(data))
+    resolve_pydantic_models = _needs_runtime_pydantic_resolution(target_type)
+    restored = _restore_json_safe(data, resolve_pydantic_models=resolve_pydantic_models)
+    with ExceptionContextNote(lambda: str(type(restored)) + "\n" + format_json_with_fjson(
+            restored, max_width=200)):
+        return TypeAdapter(target_type).validate_python(restored)
 
 
 @beartype

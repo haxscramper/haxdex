@@ -41,7 +41,7 @@ class FullTextIndexConfig(BaseModel, extra="forbid"):
 
 
 class IndexDocument(BaseModel, extra="forbid"):
-    kind: Literal["processed"] = "processed"
+    kind: Literal["processed"] = "processed"  # type: ignore
     hash: str = Field(
         min_length=64,
         max_length=64,
@@ -60,7 +60,7 @@ class IndexMultiDocument(IndexDocument, extra="forbid"):
 
 
 class MultiDocumentModel(BaseModel, extra="forbid"):
-    kind: Literal["processed"] = "processed"
+    kind: Literal["processed"] = "processed"  # type: ignore
     edge_type: ClassVar[Any]
     document_type: ClassVar[Any]
 
@@ -69,13 +69,13 @@ class MultiDocumentModel(BaseModel, extra="forbid"):
 
 
 class MissingAssets(BaseModel, extra="forbid"):
-    kind: Literal["missing_assets"] = "missing_assets"
+    kind: Literal["missing_assets"] = "missing_assets"  # type: ignore
     missing_assets: list[str] = Field(default_factory=list)
     description: str = ""
 
 
 class CannotProcess(BaseModel, extra="forbid"):
-    kind: Literal["cannot_process"] = "cannot_process"
+    kind: Literal["cannot_process"] = "cannot_process"  # type: ignore
     reason: str
 
 
