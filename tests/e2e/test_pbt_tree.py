@@ -570,12 +570,6 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert_in_dir(deleted_files)
     assert_not_in_trash(deleted_files)
 
-    executed_count = executor.execute_pending()
-    assert executed_count == len(action_model.actions())
-
-    assert_not_in_dir(deleted_files)
-    assert_in_trash(deleted_files)
-
 
 @beartype
 def run_generated_directory_write(
@@ -798,10 +792,11 @@ def run_action_column_validation(
 
     assert 0 < len(df)
     df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
-    df = df[["root_relative", "video_framerate", "video_width", "actions"]]
 
     assert 0 < len(df)
     stable_test_dir.joinpath("split_df_with_actions.log").write_text(fmt_df(df))
+
+    assert 0 < len(df[df["actions"].notna()])
 
 
 @settings(

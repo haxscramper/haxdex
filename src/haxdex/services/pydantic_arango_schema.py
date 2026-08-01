@@ -49,6 +49,41 @@ def _registered_type_for_annotation(annotation: Any) -> _RegisteredType | None:
     return None
 
 
+def _model_import_path(annotation: type[BaseModel]) -> str | None:
+    qualname = annotation.__qualname__
+    if "<locals>" in qualname:
+        return None
+
+    else:
+        return f"{annotation.__module__}:{qualname}"
+
+
+def _pydantic_model_payload_schema(annotation: type[BaseModel],
+                                   ctx: _SchemaContext) -> dict[str, Any]:
+    if annotation is BaseModel:
+        path_schema: dict[str, Any] = {"type": "string"}
+        data_schema: dict[str, Any] = {"type": "object"}
+    else:
+        path = _model_import_path(annotation)
+        path_schema = ({
+            "type": "string",
+            "enum": [path]
+        } if path is not None else {
+            "type": "string"
+        })
+        data_schema = _model_ref(annotation, ctx)
+
+    return {
+        "type": "object",
+        "properties": {
+            "path": path_schema,
+            "data": data_schema,
+        },
+        "required": ["path", "data"],
+        "additionalProperties": False,
+    }
+
+
 def _model_ref(annotation: type[BaseModel], ctx: _SchemaContext) -> dict[str, Any]:
     name = annotation.__name__
     ref = {"$ref": f"#/definitions/{name}"}
@@ -163,7 +198,10 @@ def _annotation_to_arango_schema(annotation: Any, ctx: _SchemaContext) -> dict[s
         }
 
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return _model_ref(annotation, ctx)
+        return _tagged_schema(
+            "pydantic_model",
+            _pydantic_model_payload_schema(annotation, ctx),
+        )
 
     return {}
 

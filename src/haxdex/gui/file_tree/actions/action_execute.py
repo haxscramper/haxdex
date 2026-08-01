@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,7 @@ from haxdex.gui.file_tree.actions.action_move_file import MoveActionHandler
 from haxdex.gui.file_tree.actions.action_trash_file import TrashActionHandler
 from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertActionHandler
 from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
+from haxdex.services.utils import dump_with_type
 
 log = logging.getLogger(__name__)
 
@@ -190,7 +192,12 @@ class ActionExecutor:
             session.commit()
 
     def _load_action(self, row: OperationRow) -> BaseAction:
-        return model_from_json_data(row.action_data, self.handlers[row.kind].action_type)
+        result = model_from_json_data(row.action_data,
+                                      self.handlers[row.kind].action_type)
+        log.info(f"type {type(result)}")
+        log.info(json.dumps(dump_with_type(result), indent=2))
+        str(result)
+        return result
 
     def load_all_actions(self) -> list[BaseAction]:
         result = list()

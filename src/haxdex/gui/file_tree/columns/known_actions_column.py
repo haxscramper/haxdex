@@ -5,10 +5,14 @@ from beartype import beartype
 from beartype.typing import Any
 from pydantic import BaseModel
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from beartype.typing import cast, Optional
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class KnownActionData(BaseModel, extra="forbid"):
@@ -30,11 +34,15 @@ class KnownActionColumnSpec(FileTreeColumnSpec):
         if path in self.file_to_actions:
             return KnownActionData(actions=self.file_to_actions[path])
 
+        else:
+            return None
+
     def __init__(self, name: str, executor: ActionExecutor) -> None:
         super().__init__(name)
         self.file_to_actions: dict[Path, list[BaseAction]] = dict()
         self.executor = executor
         for act in self.executor.load_all_actions():
+            assert isinstance(act, BaseAction)
             original = act.file.path.resolve().absolute()
             if original not in self.file_to_actions:
                 self.file_to_actions[original] = list()
@@ -48,10 +56,12 @@ class KnownActionColumnSpec(FileTreeColumnSpec):
     ) -> Any:
         node = cast(KnownActionData, self.getColumnData(index))
 
-        match role, node:
-            case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole, KnownActionData(
-            ):
+        match role:
+            case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
                 return "???"
+
+            case CustomModelRole.FullDataRole.value:
+                return node
 
             case _:
                 return None

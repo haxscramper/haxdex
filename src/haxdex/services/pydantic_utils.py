@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import importlib
 import json
 from io import StringIO
 
@@ -142,6 +143,41 @@ register_type(
 )
 
 
+def _import_pydantic_model(path: str) -> type[BaseModel]:
+    module_name, _, qualname = path.partition(":")
+    if not module_name or not qualname:
+        raise ValueError(f"invalid model path {path!r}")
+
+    module = importlib.import_module(module_name)
+    obj: Any = module
+    for part in qualname.split("."):
+        obj = getattr(obj, part)
+
+    if not isinstance(obj, type) or not issubclass(obj, BaseModel):
+        raise ValueError(f"path {path!r} does not resolve to a pydantic model type")
+
+    return obj
+
+
+def _get_importable_model_path(model: BaseModel) -> str | None:
+    cls = type(model)
+    qualname = cls.__qualname__
+
+    if "<locals>" in qualname:
+        return None
+
+    path = f"{cls.__module__}:{qualname}"
+    try:
+        resolved = _import_pydantic_model(path)
+    except Exception:
+        return None
+
+    if resolved is cls:
+        return path
+
+    return None
+
+
 def _wrap(name: str, payload: Any) -> dict[str, Any]:
     return {_TYPE_TAG: name, "data": payload}
 
@@ -160,10 +196,20 @@ def to_json_safe(value: Any) -> Any:
             return value
 
         case BaseModel():
-            # walk fields ourselves, one level, then recurse
             result: dict[str, Any] = {}
             for field_name in type(value).model_fields:
                 result[field_name] = to_json_safe(getattr(value, field_name))
+
+            model_path = _get_importable_model_path(value)
+            if model_path is not None:
+                return _wrap(
+                    "pydantic_model",
+                    {
+                        "path": model_path,
+                        "data": result,
+                    },
+                )
+
             return result
 
         case dict():
@@ -191,19 +237,36 @@ def to_json_safe(value: Any) -> Any:
 def _restore_json_safe(data: Any) -> Any:
     if isinstance(data, dict):
         tag = data.get(_TYPE_TAG)
-        if tag is not None:
-            payload = _restore_json_safe(data["data"])
-            if tag == "bytes":
+
+        match tag:
+            case None:
+                return {k: _restore_json_safe(v) for k, v in data.items()}
+
+            case "bytes":
+                payload = _restore_json_safe(data["data"])
                 return base64.b64decode(payload)
 
-            entry = _LOADERS.get(tag)
-            if entry is None:
-                raise ValueError(f"no loader registered for tag {tag!r}")
+            case "pydantic_model":
+                payload = _restore_json_safe(data["data"])
+                if not isinstance(payload, dict):
+                    raise ValueError("invalid pydantic_model payload")
 
-            typed_payload = entry.adapter.validate_python(payload)
-            return entry.load(typed_payload)
+                model_path = payload.get("path")
+                model_data = payload.get("data")
+                if not isinstance(model_path, str) or not isinstance(model_data, dict):
+                    raise ValueError("invalid pydantic_model payload fields")
 
-        return {k: _restore_json_safe(v) for k, v in data.items()}
+                model_type = _import_pydantic_model(model_path)
+                return model_type.model_validate(model_data)
+
+            case _:
+                payload = _restore_json_safe(data["data"])
+                entry = _LOADERS.get(tag)
+                if entry is None:
+                    raise ValueError(f"no loader registered for tag {tag!r}")
+
+                typed_payload = entry.adapter.validate_python(payload)
+                return entry.load(typed_payload)
 
     if isinstance(data, list):
         return [_restore_json_safe(v) for v in data]
