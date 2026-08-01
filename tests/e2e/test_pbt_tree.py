@@ -51,7 +51,7 @@ from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.file_iteration import prepare_root_filters
-from haxdex.services.pydantic_utils import model_from_json_data, to_json_safe
+from haxdex.services.pydantic_utils import format_json_with_fjson, model_from_json_data, to_json_safe
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,
@@ -794,7 +794,13 @@ def run_action_column_validation(
     df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
 
     assert 0 < len(df)
-    stable_test_dir.joinpath("split_df_with_actions.log").write_text(fmt_df(df))
+    stable_test_dir.joinpath("split_df_with_actions.json").write_text(
+        format_json_with_fjson(
+            to_json_safe(df),
+            max_width=1200,
+            max_inline_complexity=40,
+            max_table_complexity=120,
+        ))
 
     assert 0 < len(df[df["actions"].notna()])
 

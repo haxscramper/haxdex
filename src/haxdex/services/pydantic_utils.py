@@ -3,8 +3,9 @@ from __future__ import annotations
 import base64
 import importlib
 import json
-from io import StringIO
 
+from beartype import beartype
+from beartype.typing import Literal
 import glom
 import math
 from pydantic import AfterValidator
@@ -12,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Callable, Optional, TypeVar
+import plumbum
 
 import PIL.TiffImagePlugin
 from pydantic import BaseModel, TypeAdapter
@@ -143,6 +145,7 @@ register_type(
 )
 
 
+@beartype
 def _import_pydantic_model(path: str) -> type[BaseModel]:
     module_name, _, qualname = path.partition(":")
     if not module_name or not qualname:
@@ -159,6 +162,7 @@ def _import_pydantic_model(path: str) -> type[BaseModel]:
     return obj
 
 
+@beartype
 def _get_importable_model_path(model: BaseModel) -> str | None:
     cls = type(model)
     qualname = cls.__qualname__
@@ -178,10 +182,12 @@ def _get_importable_model_path(model: BaseModel) -> str | None:
     return None
 
 
+@beartype
 def _wrap(name: str, payload: Any) -> dict[str, Any]:
     return {_TYPE_TAG: name, "data": payload}
 
 
+@beartype
 def to_json_safe(value: Any) -> Any:
     match value:
         case None | bool() | int() | str():
@@ -234,6 +240,7 @@ def to_json_safe(value: Any) -> Any:
                 f"no serializer registered for type {type(value)!r}")
 
 
+@beartype
 def _restore_json_safe(data: Any) -> Any:
     if isinstance(data, dict):
         tag = data.get(_TYPE_TAG)
@@ -274,18 +281,22 @@ def _restore_json_safe(data: Any) -> Any:
     return data
 
 
+@beartype
 def from_json_safe(data: Any, target_type: type[T]) -> T:
     return TypeAdapter(target_type).validate_python(_restore_json_safe(data))
 
 
+@beartype
 def model_to_json_data(model: BaseModel) -> Any:
     return to_json_safe(model)
 
 
+@beartype
 def model_from_json_data(data: Any, model_type: type[T]) -> T:
     return from_json_safe(data, model_type)
 
 
+@beartype
 def try_parse_json(value: Any):
     match value:
         case bytes():
@@ -362,3 +373,66 @@ ExistingFile = Annotated[Path, AfterValidator(_existing_file)]
 ExistingDir = Annotated[Path, AfterValidator(_existing_dir)]
 OutputFile = Annotated[Path, AfterValidator(_output_file)]
 OutputDir = Annotated[Path, AfterValidator(_output_dir)]
+
+
+@beartype
+def format_json_with_fjson(
+    value: Any,
+    compact: bool = False,
+    max_width: int | None = None,
+    indent: int | None = None,
+    tabs: bool = False,
+    eol: Literal["lf", "crlf"] | None = None,  # type: ignore
+    comments: Literal["error", "remove", "preserve"] | None = None,  # type: ignore
+    trailing_commas: bool = False,
+    preserve_blanks: bool = False,
+    number_align: Literal["left", "right", "decimal", "normalize"] |  # type: ignore
+    None = None,
+    max_inline_complexity: int | None = None,
+    max_table_complexity: int | None = None,
+    simple_bracket_padding: bool = False,
+    no_nested_bracket_padding: bool = False,
+) -> str:
+    args: list[str] = ["fjson"]
+
+    if compact:
+        args.append("--compact")
+    if max_width is not None:
+        args.extend(["--max-width", str(max_width)])
+    if indent is not None:
+        args.extend(["--indent", str(indent)])
+    if tabs:
+        args.append("--tabs")
+    if eol is not None:
+        args.extend(["--eol", eol])
+    if comments is not None:
+        args.extend(["--comments", comments])
+    if trailing_commas:
+        args.append("--trailing-commas")
+    if preserve_blanks:
+        args.append("--preserve-blanks")
+    if number_align is not None:
+        args.extend(["--number-align", number_align])
+    if max_inline_complexity is not None:
+        args.extend(["--max-inline-complexity", str(max_inline_complexity)])
+    if max_table_complexity is not None:
+        args.extend(["--max-table-complexity", str(max_table_complexity)])
+    if simple_bracket_padding:
+        args.append("--simple-bracket-padding")
+    if no_nested_bracket_padding:
+        args.append("--no-nested-bracket-padding")
+
+    command = plumbum.local[args[0]]
+    for arg in args[1:]:
+        command = command[arg]
+
+    payload = json.dumps(value, default=str)
+
+    try:
+        _, stdout, _ = (command << payload).run(retcode=0)
+    except plumbum.ProcessExecutionError as error:
+        raise RuntimeError(
+            f"fjson failed with exit code {error.retcode}: {error.stderr.strip()}"
+        ) from error
+
+    return stdout
