@@ -185,9 +185,10 @@ class ActionExecutor:
     def _load_action(self, row: OperationRow) -> BaseAction:
         result = model_from_json_data(row.action_data,
                                       self.handlers[row.kind].action_type)
-        log.info(f"type {type(result)}")
-        log.info(json.dumps(dump_with_type(result), indent=2))
-        str(result)
+        assert (isinstance(result, BaseAction) and type(result) is not BaseAction and
+                type(result) is not BaseModel), "type {}\n{}".format(
+                    type(result), json.dumps(dump_with_type(result), indent=2))
+
         return result
 
     def load_all_actions(self) -> list[BaseAction]:

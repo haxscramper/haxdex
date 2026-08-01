@@ -325,7 +325,6 @@ def from_json_safe(data: Any, target_type: type[T]) -> T:
         return TypeAdapter(target_type).validate_python(restored)
 
 
-@beartype
 def model_to_json_data(model: BaseModel) -> Any:
     return to_json_safe(model)
 
