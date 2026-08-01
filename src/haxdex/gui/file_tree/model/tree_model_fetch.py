@@ -34,47 +34,52 @@ class _FilePathRow:
     relative: str
 
 
+def _fetch_file_paths_impl(db: IndexDatabase,
+                           root_filters: Sequence[RootFilter]) -> list[_FilePathRow]:
+    rows: list[_FilePathRow] = []
+
+    for item in db.aql.execute(AQL_FILE_PATHS):  # type: ignore
+        path = Path(item["path"])
+
+        if not path.exists():
+            continue
+
+        path_str = path.as_posix()
+        matched = match_root(path_str, root_filters)
+        if matched is None:
+            # The initial query pulls all the files from the DB, then the code
+            # filters the paths to check if they belong to any of the target
+            # roots here.
+            continue
+
+        root_filter, relative = matched
+        if not relative:
+            log.debug(f"could not find relative name for {path_str}")
+            continue
+
+        if root_filter.ignore_spec is not None and root_filter.ignore_spec.match_file(
+                relative):
+            log.info(f"skipping {path_str} via filter")
+            continue
+
+        rows.append(
+            _FilePathRow(
+                path=path_str,
+                hash=item["hash"],
+                root=item["root"],
+                relative=relative,
+            ))
+
+    return rows
+
+
 def fetch_file_paths(
     ctx: RunContext,
     db: IndexDatabase,
     root_filters: Sequence[RootFilter],
 ) -> list[_FilePathRow]:
     with ctx.trace_scope("fetch file paths"):
-        rows: list[_FilePathRow] = []
-
-        for item in db.aql.execute(AQL_FILE_PATHS):  # type: ignore
-            path = Path(item["path"])
-
-            if not path.exists():
-                continue
-
-            path_str = path.as_posix()
-            matched = match_root(path_str, root_filters)
-            if matched is None:
-                # The initial query pulls all the files from the DB, then the code
-                # filters the paths to check if they belong to any of the target
-                # roots here.
-                continue
-
-            root_filter, relative = matched
-            if not relative:
-                log.debug(f"could not find relative name for {path_str}")
-                continue
-
-            if root_filter.ignore_spec is not None and root_filter.ignore_spec.match_file(
-                    relative):
-                log.info(f"skipping {path_str} via filter")
-                continue
-
-            rows.append(
-                _FilePathRow(
-                    path=path_str,
-                    hash=item["hash"],
-                    root=item["root"],
-                    relative=relative,
-                ))
-
-        return rows
+        return _fetch_file_paths_impl(db, root_filters)
 
 
 def fetch_indexer_assets(

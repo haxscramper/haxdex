@@ -104,7 +104,6 @@ def init_index_service(
         act=ActionConfig(execution=act_conf),
     )
 
-    IndexService.reset_for_config(cfg)
     service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
 
     return IndexServiceConfig(

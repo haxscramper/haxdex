@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+import itertools
 import json
 import logging
 import shutil
@@ -20,6 +21,7 @@ from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump, simple_dump_rows_json
@@ -38,27 +40,32 @@ from haxdex.gui.file_tree.columns.file_duplicate_column import (
     FileDuplicateData,
 )
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec, FileMimeData
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
 from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.trivial_data_column import (
     TrivialDataColumnSpec,
     TrivialEntryData,
 )
+from haxdex.gui.file_tree.model.tree_model_fetch import AQL_FILE_PATHS, fetch_file_paths, _fetch_file_paths_impl
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
+from haxdex.services.file_iteration import prepare_root_filters
 from haxdex.services.pydantic_utils import model_from_json_data, to_json_safe
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,
     GeneratedIndexerEntry,
+    MaterializedDirectory,
     _sorted_rel,
     assert_generated_directory_entries_exact,
     create_default_persistent_corpus,
     directory_structure,
     write_generated_directory,
+    GeneratedIndexerFile,
 )
 from tests.utils import (
+    FileTreeServiceConfig,
     capture_logs,
     clean_test_dir,
     init_file_tree_columns,
@@ -489,7 +496,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     with_duplicates["no_first"] = with_duplicates["rec_duplicate_count"] / (
         with_duplicates["rec_duplicate_count"] + 1)
 
-    log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
+    # log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
     assert round(with_duplicates["no_first"].sum()) == len(action_model.actions())
 
@@ -573,9 +580,10 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 @beartype
 def run_generated_directory_write(
         directories: list[GeneratedDirectory], stable_test_dir: Path,
-        root_names: list[str]) -> list[tuple[str, GeneratedDirectory, Any]]:
+        root_names: list[str]
+) -> list[tuple[str, GeneratedDirectory, MaterializedDirectory]]:
     data_dir = stable_test_dir / "data"
-    materialized_roots: list[tuple[str, GeneratedDirectory, Any]] = []
+    materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]] = []
 
     for root_name, directory in zip(root_names, directories):
         root_dir = data_dir / root_name
@@ -596,19 +604,56 @@ def run_generated_directory_write(
 
 
 @beartype
+def run_index_validation(
+    index: IndexServiceConfig,
+    directories: list[MaterializedDirectory],
+):
+    db = index.service.db
+    file_documents = [it for it in db.aql.execute(AQL_FILE_PATHS)]
+    file_paths: list[Path] = list(itertools.chain(*[d.files for d in directories]))
+    assert len(file_documents) == len(file_paths)
+
+
+@beartype
+def run_file_tree_query_validation(
+    tree: FileTreeServiceConfig,
+    directories: list[MaterializedDirectory],
+):
+    db = tree.service.db
+    assert tree.cfg.file_tree_view
+
+    file_path_rows = _fetch_file_paths_impl(
+        db, prepare_root_filters(tree.cfg.file_tree_view.root_dirs))
+
+    file_paths: list[Path] = list(itertools.chain(*[d.files for d in directories]))
+
+    file_paths = [f for f in file_paths if f.exists()]
+
+    assert len(file_paths) == len(file_path_rows), pformat(
+        dict(
+            file_paths=file_paths,
+            file_path_rows=[f.path for f in file_path_rows],
+        ))
+
+
+@beartype
 def run_initial_index_collection(
     stable_test_dir: Path,
     root_names: list[str],
-    materialized_roots: list[tuple[str, GeneratedDirectory, Any]],
+    materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]],
     directories: list[GeneratedDirectory],
 ):
     data_dir = stable_test_dir / "data"
     index = init_index_service(stable_test_dir, root_names=root_names)
+    IndexService.reset_for_config(index.cfg)
     index.service.run_index()
+
+    run_index_validation(index, [d for _, _, d in materialized_roots])
 
     assert materialized_roots
     assert data_dir == index.data_dir
     tree_config = init_file_tree_config(index)
+    run_file_tree_query_validation(tree_config, [d for _, _, d in materialized_roots])
 
     assert tree_config.cfg.file_tree_view
     assert not tree_config.cfg.file_tree_view.visual_tree_cache_path.exists()
@@ -708,10 +753,18 @@ def run_initial_index_collection(
     )
 
 
-def run_action_column_validation(stable_test_dir: Path, root_names: list[str]):
+def run_action_column_validation(
+    stable_test_dir: Path,
+    root_names: list[str],
+    materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]],
+):
     log.info(f"run action column validation root names {root_names}")
     index = init_index_service(stable_test_dir, root_names)
+
+    run_index_validation(index, [d for _, _, d in materialized_roots])
+
     tree_config = init_file_tree_config(index)
+    run_file_tree_query_validation(tree_config, [d for _, _, d in materialized_roots])
 
     assert index.cfg.act
     assert index.cfg.act.execution.sqlite_path.exists(
@@ -798,4 +851,8 @@ def test_generated_indexer_directory(
         directories=directories,
     )
 
-    run_action_column_validation(root_names=root_names, stable_test_dir=stable_test_dir)
+    run_action_column_validation(
+        root_names=root_names,
+        stable_test_dir=stable_test_dir,
+        materialized_roots=materialized_roots,
+    )

@@ -216,6 +216,8 @@ def build_file_tree(
 
     file_paths = fetch_file_paths(ctx, db, root_filters)
 
+    assert 0 < len(file_paths), "\n{}".format(pformat(root_filters))
+
     engine, _, file_table, path_table = initialize_cache(
         cache_path,
         columns,
