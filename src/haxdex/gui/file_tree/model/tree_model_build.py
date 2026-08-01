@@ -4,6 +4,7 @@ import json
 import logging
 from collections.abc import Sequence
 from pathlib import Path
+from pprint import pformat
 from typing import Optional
 
 from beartype import beartype
@@ -191,6 +192,8 @@ def load_file_tree_from_cache(
             columns,
         )
 
+        log.debug(f"loaded flat file nodes {len(flat_nodes)} entries")
+
     with ctx.trace_scope("arrange file tree"):
         return _build_directory_tree(flat_nodes, columns)
 
@@ -205,6 +208,7 @@ def build_file_tree(
     cache_path: Path,
     user_edit_path: Path,
 ) -> list[FileTreeNode]:
+    assert 0 < len(root_directories)
     root_filters = prepare_root_filters(root_directories)
     if not root_filters:
         log.warning("no root filters")
@@ -241,8 +245,10 @@ def build_file_tree(
         Path("/tmp/nodes.json").write_text(
             json.dumps([model_to_json_data(n) for n in nodes], indent=2))
 
+        assert 0 < len(nodes), pformat(root_directories)
         user_edit_rows = load_user_edits(user_edit_path, columns)
         apply_user_edits(nodes, columns, user_edit_rows)
+        assert 0 < len(nodes)
         return nodes
     finally:
         engine.dispose()

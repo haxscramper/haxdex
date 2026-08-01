@@ -81,6 +81,7 @@ pd.set_option("display.max_colwidth", None)
 pd.set_option("display.colheader_justify", "left")
 
 
+@beartype
 def left_align_formatters(df):
     widths = {
         column: max(len(str(column)), df[column].map(str).str.len().max())
@@ -91,6 +92,7 @@ def left_align_formatters(df):
             for column in df.columns]
 
 
+@beartype
 def qt_tree_to_df(model: QAbstractItemModel) -> pd.DataFrame:
     table = TreeToTableProxyModel()
     table.setSourceModel(model)
@@ -101,10 +103,12 @@ def qt_tree_to_df(model: QAbstractItemModel) -> pd.DataFrame:
     )
 
 
+@beartype
 def fmt_df(df: pd.DataFrame) -> str:
     return df.to_string(justify="left", formatters=left_align_formatters(df))
 
 
+@beartype
 def _fs_content_files(root: Path) -> list[Path]:
     return _sorted_rel(
         path.relative_to(root)
@@ -112,6 +116,7 @@ def _fs_content_files(root: Path) -> list[Path]:
         if path.is_file() and not path.name.endswith(META_SUFFIX))
 
 
+@beartype
 def _all_query_paths_from_files(files: list[Path]) -> list[Path]:
     result: set[Path] = {Path(".")}
     for rel in files:
@@ -119,6 +124,7 @@ def _all_query_paths_from_files(files: list[Path]) -> list[Path]:
     return _sorted_rel(result)
 
 
+@beartype
 def _fs_files_direct(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
     return _sorted_rel(
@@ -127,6 +133,7 @@ def _fs_files_direct(root: Path, query: Path) -> list[Path]:
         if path.is_file() and not path.name.endswith(META_SUFFIX))
 
 
+@beartype
 def _fs_files_recursive(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
     return _sorted_rel(
@@ -135,17 +142,20 @@ def _fs_files_recursive(root: Path, query: Path) -> list[Path]:
         if path.is_file() and not path.name.endswith(META_SUFFIX))
 
 
+@beartype
 def _fs_directories_direct(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
     return _sorted_rel(path.relative_to(root) for path in base.glob("*") if path.is_dir())
 
 
+@beartype
 def _fs_directories_recursive(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
     return _sorted_rel(
         path.relative_to(root) for path in base.rglob("*") if path.is_dir())
 
 
+@beartype
 def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
     return _sorted_rel([
         *_fs_files_direct(root, query),
@@ -153,6 +163,7 @@ def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
     ])
 
 
+@beartype
 def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
     return _sorted_rel([
         *_fs_files_recursive(root, query),
@@ -160,6 +171,7 @@ def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
     ])
 
 
+@beartype
 def _relset(items: list[GeneratedIndexerEntry]) -> set[Path]:
     return {item.relative_path for item in items}
 
@@ -316,6 +328,7 @@ _DF_SPLIT_RULES = {
 }
 
 
+@beartype
 def run_main_model_splicing(
     df: pd.DataFrame,
     stable_test_dir: Path,
@@ -368,6 +381,7 @@ def run_main_model_splicing(
     return df
 
 
+@beartype
 def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
                              stable_test_dir: Path):
     video_eval = QueryFilterEvaluator()
@@ -419,6 +433,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
         json.dumps(to_json_safe(video_df), indent=2))
 
 
+@beartype
 def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
                                 data_dir: Path):
     evaluator = QueryFilterEvaluator()
@@ -555,76 +570,11 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert_in_trash(deleted_files)
 
 
-def run_action_column_validation(stable_test_dir: Path, root_names: list[str]):
-    index = init_index_service(stable_test_dir, root_names)
-    tree_config = init_file_tree_config(index)
-
-    assert index.cfg.act
-    assert index.cfg.act.execution.sqlite_path.exists(
-    ), index.cfg.act.execution.sqlite_path
-    columns = init_file_tree_columns(index=index)
-
-    assert any(isinstance(c, KnownActionColumnSpec) for c in columns), [
-        type(c) for c in columns
-    ]
-
-    core = FileTreeQueryCore(
-        ctx=tree_config.service.ctx,
-        db=tree_config.service.db,
-        cfg=tree_config.cfg,
-        indexer_instances=tree_config.service.indexer_instances,
-        columns=columns,
-    )
-
-    table = TreeToTableProxyModel()
-    table.setSourceModel(core.model)
-
-    df = qt_model_to_dataframe(
-        table,
-        role=CustomModelRole.FullDataRole.value,
-        role_names={
-            CustomModelRole.FullDataRole.value: "data",
-        },
-    )
-
-    df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
-    df = df[["root_relative", "video_framerate", "video_width", "actions"]]
-
-    stable_test_dir.joinpath("split_df_with_actions.log").write_text(fmt_df(df))
-
-
-@settings(
-    suppress_health_check=[HealthCheck.function_scoped_fixture],
-    phases=[Phase.generate],
-    max_examples=1,  # 20
-    deadline=5000,
-)
-@given(directories=st.lists(
-    directory_structure(
-        indexer_types=[],
-        min_files=12,
-        max_files=32,
-        min_nesting=1,
-        max_nesting=3,
-        corpus_manifest=corpus_manifest,
-        corpus_root=corpus_root,
-        min_duplicates=2,
-        max_duplicates=5,
-    ),
-    min_size=2,
-    max_size=5,
-))
-@clean_test_dir
-@capture_logs(test_name="main.log")
-def test_generated_indexer_directory(
-    stable_test_dir: Path,
-    directories: list[GeneratedDirectory],
-) -> None:
-    log.info(f"hypothesis example {current_build_context().data.index}")
+@beartype
+def run_generated_directory_write(
+        directories: list[GeneratedDirectory], stable_test_dir: Path,
+        root_names: list[str]) -> list[tuple[str, GeneratedDirectory, Any]]:
     data_dir = stable_test_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    root_names = [f"root_{idx}" for idx in range(len(directories))]
     materialized_roots: list[tuple[str, GeneratedDirectory, Any]] = []
 
     for root_name, directory in zip(root_names, directories):
@@ -642,8 +592,18 @@ def test_generated_indexer_directory(
 
         materialized_roots.append((root_name, directory, materialized))
 
-    index = init_index_service(stable_test_dir, root_names=root_names)
+    return materialized_roots
 
+
+@beartype
+def run_initial_index_collection(
+    stable_test_dir: Path,
+    root_names: list[str],
+    materialized_roots: list[tuple[str, GeneratedDirectory, Any]],
+    directories: list[GeneratedDirectory],
+):
+    data_dir = stable_test_dir / "data"
+    index = init_index_service(stable_test_dir, root_names=root_names)
     index.service.run_index()
 
     assert materialized_roots
@@ -745,6 +705,97 @@ def test_generated_indexer_directory(
         core,
         cfg=tree_config.cfg,
         data_dir=tree_config.data_dir,
+    )
+
+
+def run_action_column_validation(stable_test_dir: Path, root_names: list[str]):
+    log.info(f"run action column validation root names {root_names}")
+    index = init_index_service(stable_test_dir, root_names)
+    tree_config = init_file_tree_config(index)
+
+    assert index.cfg.act
+    assert index.cfg.act.execution.sqlite_path.exists(
+    ), index.cfg.act.execution.sqlite_path
+    columns = init_file_tree_columns(index=index)
+
+    assert any(isinstance(c, KnownActionColumnSpec) for c in columns), [
+        type(c) for c in columns
+    ]
+
+    core = FileTreeQueryCore(
+        ctx=tree_config.service.ctx,
+        db=tree_config.service.db,
+        cfg=tree_config.cfg,
+        indexer_instances=tree_config.service.indexer_instances,
+        columns=columns,
+    )
+
+    assert core.model.rowCount() == len(root_names)
+    table = TreeToTableProxyModel()
+    table.setSourceModel(core.model)
+
+    assert 0 < table.rowCount()
+
+    df = qt_model_to_dataframe(
+        table,
+        role=CustomModelRole.FullDataRole.value,
+        role_names={
+            CustomModelRole.FullDataRole.value: "data",
+        },
+    )
+
+    assert 0 < len(df)
+    df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
+    df = df[["root_relative", "video_framerate", "video_width", "actions"]]
+
+    assert 0 < len(df)
+    stable_test_dir.joinpath("split_df_with_actions.log").write_text(fmt_df(df))
+
+
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    phases=[Phase.generate],
+    max_examples=1,  # 20
+    deadline=5000,
+)
+@given(directories=st.lists(
+    directory_structure(
+        indexer_types=[],
+        min_files=12,
+        max_files=32,
+        min_nesting=1,
+        max_nesting=3,
+        corpus_manifest=corpus_manifest,
+        corpus_root=corpus_root,
+        min_duplicates=2,
+        max_duplicates=5,
+    ),
+    min_size=2,
+    max_size=5,
+))
+@clean_test_dir
+@capture_logs(test_name="main.log")
+def test_generated_indexer_directory(
+    stable_test_dir: Path,
+    directories: list[GeneratedDirectory],
+) -> None:
+    log.info(f"hypothesis example {current_build_context().data.index}")
+    data_dir = stable_test_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    root_names = [f"root_{idx}" for idx in range(len(directories))]
+
+    materialized_roots = run_generated_directory_write(
+        directories=directories,
+        stable_test_dir=stable_test_dir,
+        root_names=root_names,
+    )
+
+    run_initial_index_collection(
+        root_names=root_names,
+        stable_test_dir=stable_test_dir,
+        materialized_roots=materialized_roots,
+        directories=directories,
     )
 
     run_action_column_validation(root_names=root_names, stable_test_dir=stable_test_dir)

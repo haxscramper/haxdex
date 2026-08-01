@@ -78,7 +78,7 @@ class TrashActionHandler(ActionHandler):
         src = Path(action.file.path).absolute()
         dest = self.get_dest_forward(action).absolute()
 
-        log.info(f"do trash: executing move({src} -> {dest})")
+        # log.info(f"do trash: executing move({src} -> {dest})")
 
         if self.dry_run:
             return
@@ -90,7 +90,7 @@ class TrashActionHandler(ActionHandler):
         src = Path(action.file.path).absolute()
         dest = self.get_dest_undo(action).absolute()
 
-        log.info(f"undo trash: executing move({dest} -> {src})")
+        # log.info(f"undo trash: executing move({dest} -> {src})")
 
         if self.dry_run:
             return

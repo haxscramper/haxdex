@@ -122,6 +122,8 @@ class FileTreeQueryCore:
         self.columns = columns
         self.cfg = cfg
 
+        assert cfg.file_tree_view
+
         nodes = build_file_tree(
             ctx=ctx,
             db=db,
@@ -131,6 +133,8 @@ class FileTreeQueryCore:
             cache_path=cfg.file_tree_view.visual_tree_cache_path,
             user_edit_path=cfg.file_tree_view.user_edit_path,
         )
+
+        log.debug(f"build file tree with {len(nodes)}")
 
         self.model = FileTreeModel(
             columns=self.columns,
