@@ -49,6 +49,7 @@ class IndexServiceConfig():
 def init_index_service(
     stable_test_dir: Path,
     root_names: list[str] | None = None,
+    reset: bool = True,
 ) -> IndexServiceConfig:
     data_dir = stable_test_dir.joinpath("data")
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +104,9 @@ def init_index_service(
         action_file=stable_test_dir.joinpath("actions.jsonl"),
         act=ActionConfig(execution=act_conf),
     )
+
+    if reset:
+        IndexService.reset_for_config(cfg)
 
     service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
 

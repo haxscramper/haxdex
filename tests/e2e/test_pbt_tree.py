@@ -645,7 +645,6 @@ def run_initial_index_collection(
 ):
     data_dir = stable_test_dir / "data"
     index = init_index_service(stable_test_dir, root_names=root_names)
-    IndexService.reset_for_config(index.cfg)
     index.service.run_index()
 
     run_index_validation(index, [d for _, _, d in materialized_roots])
@@ -759,7 +758,7 @@ def run_action_column_validation(
     materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]],
 ):
     log.info(f"run action column validation root names {root_names}")
-    index = init_index_service(stable_test_dir, root_names)
+    index = init_index_service(stable_test_dir, root_names, reset=False)
 
     run_index_validation(index, [d for _, _, d in materialized_roots])
 
