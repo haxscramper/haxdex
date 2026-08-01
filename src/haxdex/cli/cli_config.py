@@ -121,7 +121,7 @@ class IndexPathConfig(BaseModel, extra="forbid"):
 class IndexConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    paths: tuple[IndexPathConfig, ...] = ()
+    paths: list[IndexPathConfig] = Field(default_factory=list)
     reset: bool = False
     limit_total: int | None = None
     limit_per_path: int | None = None

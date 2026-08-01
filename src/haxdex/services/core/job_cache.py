@@ -7,8 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import IndexerOutput, parse_indexer_result
-from haxdex.services.pydantic_utils import model_to_json_data
+from haxdex.services.core.types import IndexerOutput
+from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
 
 log = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def parse_indexer_output(indexer: BaseIndexer, data: dict) -> IndexerOutput:
         f"'{indexer.asset_name}'")
     return IndexerOutput(
         indexer_id=indexer.asset_name,
-        result=parse_indexer_result(indexer.result_model, data["result"]),
+        result=model_from_json_data(indexer.result_model, data["result"]),
     )
 
 

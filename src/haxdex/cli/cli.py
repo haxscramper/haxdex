@@ -253,30 +253,13 @@ class IndexService():
         sys.exit(qt_app.exec())
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("command", help="Which action to execute")
-    parser.add_argument("config", type=Path, help="Path to JSON config file")
-    args = parser.parse_args()
-
-    stfu_logs()
-
-    cfg_path = Path(args.config).expanduser().resolve().absolute()
-    payload = commentjson.loads(cfg_path.read_text())
-    cfg = AppConfig.model_validate(payload)
-    log.debug(json.dumps(model_to_json_data(cfg), indent=2))
-
-    if args.command == "schema":
-        cfg_path.with_stem(cfg_path.stem + "_schema").with_suffix(".json").write_text(
-            json.dumps(AppConfig.model_json_schema(), indent=2))
-        return
-
-    if args.command == "index" and cfg.index and cfg.index.reset:
+def main_impl(command: str, cfg: AppConfig):
+    if command == "index" and cfg.index and cfg.index.reset:
         IndexService.reset_for_config(cfg)
 
     service = IndexService(
         cfg,
-        only_short_curcuit_checks=args.command != "index",
+        only_short_curcuit_checks=command != "index",
     )
 
     _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
@@ -291,7 +274,7 @@ def main() -> None:
         return executor
 
     try:
-        match args.command:
+        match command:
             case "index":
                 service.run_index()
 
@@ -327,7 +310,7 @@ def main() -> None:
                 executor.revert_done()
 
             case _:
-                raise ValueError(f"Unexpected command {args.command}")
+                raise ValueError(f"Unexpected command {command}")
 
     except Exception as ex:
         log.critical(f"{ex}", exc_info=ex)
@@ -342,6 +325,28 @@ def main() -> None:
         if service.cfg.perf_trace_file is not None:
             log.info(f"Trace file {service.cfg.perf_trace_file}")
             service.ctx.writer.save(str(service.cfg.perf_trace_file))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("command", help="Which action to execute")
+    parser.add_argument("config", type=Path, help="Path to JSON config file")
+    args = parser.parse_args()
+
+    stfu_logs()
+
+    cfg_path = Path(args.config).expanduser().resolve().absolute()
+    payload = commentjson.loads(cfg_path.read_text())
+    cfg = AppConfig.model_validate(payload)
+    log.debug(json.dumps(model_to_json_data(cfg), indent=2))
+
+    if args.command == "schema":
+        cfg_path.with_stem(cfg_path.stem + "_schema").with_suffix(".json").write_text(
+            json.dumps(AppConfig.model_json_schema(), indent=2))
+        return
+
+    else:
+        main_impl(args.command, cfg)
 
 
 if __name__ == "__main__":

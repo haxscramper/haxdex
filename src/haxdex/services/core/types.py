@@ -93,19 +93,6 @@ def is_processed_result(result: BaseModel) -> bool:
     return getattr(result, "kind", None) == "processed"
 
 
-def parse_indexer_result(result_model: type[BaseModel], data: Any) -> BaseModel:
-    """Parse a serialized `IndexerOutput.result` payload.
-
-    The concrete type of a 'processed' payload is only known to the indexer
-    itself, so it is validated against `result_model`; error categories are
-    parsed via the discriminated alias.
-    """
-    if isinstance(data, dict) and data.get("kind") == "processed":
-        return result_model.model_validate(data)
-
-    return _result_adapter.validate_python(data)
-
-
 @beartype
 class FileHash(BaseModel, extra="forbid"):
     model_config = ConfigDict(frozen=True)

@@ -21,8 +21,8 @@ from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import AppConfig
+from haxdex.cli.cli import IndexService, main_impl
+from haxdex.cli.cli_config import AppConfig, IndexConfig, IndexPathConfig, DatabaseConfig
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump, simple_dump_rows_json
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
@@ -50,7 +50,12 @@ from haxdex.gui.file_tree.model.tree_model_fetch import AQL_FILE_PATHS, fetch_fi
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
-from haxdex.services.file_iteration import prepare_root_filters
+from haxdex.services.file_iteration import prepare_root_filters, DirConfig
+from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
+from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
+from haxdex.services.indexers.file_stats import FileStatsIndexer
+from haxdex.services.indexers.full_document.full_document import DocumentBlockIndexer
+from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 from haxdex.services.pydantic_utils import format_json_with_fjson, model_from_json_data, to_json_safe
 from tests.generation import (
     META_SUFFIX,
@@ -856,3 +861,72 @@ def test_generated_indexer_directory(
         stable_test_dir=stable_test_dir,
         materialized_roots=materialized_roots,
     )
+
+
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture],
+    phases=[Phase.generate],
+    max_examples=20,
+    deadline=5000,
+)
+@given(directories=st.lists(
+    directory_structure(
+        indexer_types=[],
+        min_files=12,
+        max_files=32,
+        min_nesting=1,
+        max_nesting=3,
+        corpus_manifest=corpus_manifest,
+        corpus_root=corpus_root,
+        min_duplicates=2,
+        max_duplicates=5,
+    ),
+    min_size=2,
+    max_size=5,
+))
+@clean_test_dir
+@capture_logs(test_name="main.log")
+def test_cli_index_rerun(
+    stable_test_dir: Path,
+    directories: list[GeneratedDirectory],
+) -> None:
+    log.info(f"hypothesis example {current_build_context().data.index}")
+    data_dir = stable_test_dir / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    root_names = [f"root_{idx}" for idx in range(len(directories))]
+
+    materialized_roots = run_generated_directory_write(
+        directories=directories,
+        stable_test_dir=stable_test_dir,
+        root_names=root_names,
+    )
+
+    cfg = AppConfig(
+        index=IndexConfig(
+            paths=[
+                IndexPathConfig(
+                    name=m.root.name,
+                    root_path=m.root,
+                    paths=[DirConfig(path=m.root)],
+                ) for _, _, m in materialized_roots
+            ],
+            reset=False,
+        ),
+        indexers={
+            FFProbeIndexer.asset_name: FFProbeIndexer.config_model(),
+            ExifMetadataIndexer.asset_name: ExifMetadataIndexer.config_model(),
+            FileStatsIndexer.asset_name: FileStatsIndexer.config_model(),
+            FileMimeIndexer.asset_name: FileMimeIndexer.config_model(),
+            DocumentBlockIndexer.asset_name: DocumentBlockIndexer.config_model(),
+        },
+        resources={},
+        index_cache=stable_test_dir.joinpath("index_cache.sqlite"),
+        hash_cache=stable_test_dir.joinpath("hash_cache.sqlite"),
+        db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
+        action_file=stable_test_dir.joinpath("actions.jsonl"),
+    )
+
+    IndexService.reset_for_config(cfg)
+    main_impl("index", cfg)
+    main_impl("index", cfg)
