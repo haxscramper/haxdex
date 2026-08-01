@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.indexers.exif_metadata import (
     ExifMetadataIndexer,
@@ -33,7 +34,12 @@ from haxdex.services.core.types import FileHash
 class ExifPreviewrWidgetBuilder(WidgetBuilder):
     asset_name = ExifMetadataIndexer.asset_name
 
-    def build(self, db: IndexDatabase, hash: FileHash) -> QWidget:
+    def build(
+        self,
+        db: IndexDatabase,
+        hash: FileHash,
+        action: ActionResult | None = None,
+    ) -> QWidget:
         result = cast(
             Optional[ExifMetadataIndexerResult],
             db.get_indexer_result(hash, self.indexer),

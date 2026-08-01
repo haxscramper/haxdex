@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.core.types import FileHash
@@ -19,5 +20,8 @@ class WidgetBuilder(ABC):
         return self.indexer.asset_name
 
     @abstractmethod
-    def build(self, db: IndexDatabase, hash: FileHash) -> QWidget:
+    def build(self,
+              db: IndexDatabase,
+              hash: FileHash,
+              action: ActionResult | None = None) -> QWidget:
         raise NotImplementedError()

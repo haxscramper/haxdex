@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, Q
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.indexers.comfy_input_indexer import ComfyInputIndexer, ComfyInputIndexerResult
 from haxdex.services.core.types import FileHash
@@ -12,7 +13,12 @@ from haxdex.services.core.types import FileHash
 class ComfyInputWidgetBuilder(WidgetBuilder):
     asset_name = ComfyInputIndexer.asset_name
 
-    def build(self, db: IndexDatabase, hash: FileHash) -> QWidget:
+    def build(
+        self,
+        db: IndexDatabase,
+        hash: FileHash,
+        action: ActionResult | None = None,
+    ) -> QWidget:
         doc = db._db.collection("comfy_input").get(hash.hash)
         if doc is None:
             widget = JsonPreviewWidget()

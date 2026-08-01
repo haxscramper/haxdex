@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
 )
 
+from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.file_content_view.file_content_builder import FileContentViewBuilder
 from haxdex.gui.collection_views.file_content_view.image_content_view_builder import ImageFileContentViewBuilder
 from haxdex.gui.collection_views.file_content_view.pdf_content_view_builder import PdfFileContentViewBuilder

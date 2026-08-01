@@ -3,6 +3,7 @@ from beartype.typing import Optional, cast
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.indexers.wd_indexer import WdTagIndexer, WdTagIndexerResult
@@ -12,7 +13,12 @@ from haxdex.services.core.types import FileHash
 
 class WdTaggerWidgetBuilder(WidgetBuilder):
 
-    def build(self, db: IndexDatabase, hash: FileHash) -> QWidget:
+    def build(
+        self,
+        db: IndexDatabase,
+        hash: FileHash,
+        action: ActionResult | None = None,
+    ) -> QWidget:
 
         if db.has_indexer_result(hash, self.indexer):
             result = cast(WdTagIndexerResult, db.get_indexer_result(hash, self.indexer))

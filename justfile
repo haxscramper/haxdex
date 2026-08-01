@@ -1,12 +1,15 @@
+CONFIG_FILE := "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+# CONFIG_FILE := "~/tmp/full_index_organization/full_index_config.jsonc"
+
 [env("DISPLAY", ":2")]
 test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
         --disable-warnings \
-        "tests/e2e/test_pbt_tree.py"  \
+        
         > test_results.tmp.log 2>&1
 
-#         
+#         "tests/e2e/test_pbt_tree.py"  \
 #  "tests/gui/test_model_dump.py"
 #        "tests/gui/test_execute_actions.py" 
 
@@ -23,11 +26,11 @@ test_gui:
 # "tests/test_search.py::test_full_text_search"
 
 index:
-    uv run src/haxdex/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
 profile_index:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-index.json -- \
-      python src/haxdex/cli/cli.py index "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+      python src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
 # --indexer file_summary \
 # --resource text_summary \
@@ -47,31 +50,30 @@ profile_index:
 # --indexer pdf_pages \
 
 schema:
-    uv run src/haxdex/cli/cli.py schema "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
-
+    uv run src/haxdex/cli/cli.py schema "{{ CONFIG_FILE }}"
 
 flat_query_view: schema
-    uv run src/haxdex/cli/cli.py flat_query_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py flat_query_view "{{ CONFIG_FILE }}" 
 
 file_tree: schema
-    uv run src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
+    uv run src/haxdex/cli/cli.py file_tree_view "{{ CONFIG_FILE }}" 
 
 profile_file_tree:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-tree-view.json -- \
-      python src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+      python src/haxdex/cli/cli.py file_tree_view "{{ CONFIG_FILE }}"
 
 visual_trash: schema
-    uv run src/haxdex/cli/cli.py visual "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py visual "{{ CONFIG_FILE }}"
 
 do_act: schema
-    uv run src/haxdex/cli/cli.py do_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py do_act "{{ CONFIG_FILE }}"
 
 undo_act: schema
-    uv run src/haxdex/cli/cli.py undo_act "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run src/haxdex/cli/cli.py undo_act "{{ CONFIG_FILE }}"
 
 
 gammaray_file_tree: schema
-    uv run gammaray $(uv run which python) src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+    uv run gammaray $(uv run which python) src/haxdex/cli/cli.py file_tree_view "{{ CONFIG_FILE }}"
 
 
 run_arango:

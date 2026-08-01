@@ -88,7 +88,7 @@ def load_cached_output(
     try:
         return parse_indexer_output(indexer, cache_row["result"])
 
-    except (json.JSONDecodeError, ValueError, TypeError, KeyError) as err:
+    except json.JSONDecodeError as err:
         log.error(
             f"Could not parse cached database value for "
             f"{indexer.asset_name}: {err}",)
