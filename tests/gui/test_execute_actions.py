@@ -11,7 +11,9 @@ from haxdex.gui.file_tree.actions.action_execute import (
     ActionExecutionConfig,
     ActionExecutor,
 )
-from haxdex.gui.file_tree.actions.action_list_model import Action, MoveAction, TrashAction
+from haxdex.gui.file_tree.actions.action_handler import BaseAction
+from haxdex.gui.file_tree.actions.action_move_file import MoveAction
+from haxdex.gui.file_tree.actions.action_trash_file import TrashAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 
 
@@ -38,7 +40,7 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
     source_trash.write_text("trash", encoding="utf-8")
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
-    actions: list[Action] = [
+    actions: list[BaseAction] = [
         MoveAction(file=FileTreeNode(
             path=source_move,
             is_directory=False,
@@ -70,8 +72,6 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
         assert rows[0].finished_at is not None
         assert rows[1].started_at is not None
         assert rows[1].finished_at is not None
-        assert rows[0].action_type
-        assert rows[1].action_type
         assert rows[0].action_data is not None
         assert rows[1].action_data is not None
 
@@ -88,7 +88,7 @@ def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path
     source_trash.write_text("trash", encoding="utf-8")
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
-    actions: list[Action] = [
+    actions: list[BaseAction] = [
         MoveAction(file=FileTreeNode(
             path=source_move,
             is_directory=False,
@@ -129,7 +129,7 @@ def test_revert_done(action_executor: ActionExecutor, stable_test_dir: Path) -> 
     source_trash.write_text("trash", encoding="utf-8")
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
-    actions: list[Action] = [
+    actions: list[BaseAction] = [
         MoveAction(file=FileTreeNode(
             path=source_move,
             is_directory=False,

@@ -27,6 +27,7 @@ T = TypeVar("T")
 
 # tag used to mark custom-serialized payloads so deserialization can dispatch
 _TYPE_TAG = "__type__"
+_PYDANTIC_TYPE_TAG = "__pydantic_type__"
 
 # registry: type name -> (dump fn, load fn)
 
@@ -208,13 +209,7 @@ def to_json_safe(value: Any) -> Any:
 
             model_path = _get_importable_model_path(value)
             if model_path is not None:
-                return _wrap(
-                    "pydantic_model",
-                    {
-                        "path": model_path,
-                        "data": result,
-                    },
-                )
+                result[_PYDANTIC_TYPE_TAG] = model_path
 
             return result
 
@@ -244,36 +239,29 @@ def to_json_safe(value: Any) -> Any:
 def _restore_json_safe(data: Any) -> Any:
     if isinstance(data, dict):
         tag = data.get(_TYPE_TAG)
-
-        match tag:
-            case None:
-                return {k: _restore_json_safe(v) for k, v in data.items()}
-
-            case "bytes":
-                payload = _restore_json_safe(data["data"])
+        if tag is not None:
+            payload = _restore_json_safe(data["data"])
+            if tag == "bytes":
                 return base64.b64decode(payload)
 
-            case "pydantic_model":
-                payload = _restore_json_safe(data["data"])
-                if not isinstance(payload, dict):
-                    raise ValueError("invalid pydantic_model payload")
+            entry = _LOADERS.get(tag)
+            if entry is None:
+                raise ValueError(f"no loader registered for tag {tag!r}")
 
-                model_path = payload.get("path")
-                model_data = payload.get("data")
-                if not isinstance(model_path, str) or not isinstance(model_data, dict):
-                    raise ValueError("invalid pydantic_model payload fields")
+            typed_payload = entry.adapter.validate_python(payload)
+            return entry.load(typed_payload)
 
-                model_type = _import_pydantic_model(model_path)
-                return model_type.model_validate(model_data)
+        pydantic_type = data.get(_PYDANTIC_TYPE_TAG)
+        if isinstance(pydantic_type, str):
+            model_type = _import_pydantic_model(pydantic_type)
+            model_payload = {
+                k: _restore_json_safe(v)
+                for k, v in data.items()
+                if k != _PYDANTIC_TYPE_TAG
+            }
+            return model_type.model_validate(model_payload)
 
-            case _:
-                payload = _restore_json_safe(data["data"])
-                entry = _LOADERS.get(tag)
-                if entry is None:
-                    raise ValueError(f"no loader registered for tag {tag!r}")
-
-                typed_payload = entry.adapter.validate_python(payload)
-                return entry.load(typed_payload)
+        return {k: _restore_json_safe(v) for k, v in data.items()}
 
     if isinstance(data, list):
         return [_restore_json_safe(v) for v in data]
@@ -281,7 +269,6 @@ def _restore_json_safe(data: Any) -> Any:
     return data
 
 
-@beartype
 def from_json_safe(data: Any, target_type: type[T]) -> T:
     return TypeAdapter(target_type).validate_python(_restore_json_safe(data))
 
@@ -291,7 +278,6 @@ def model_to_json_data(model: BaseModel) -> Any:
     return to_json_safe(model)
 
 
-@beartype
 def model_from_json_data(data: Any, model_type: type[T]) -> T:
     return from_json_safe(data, model_type)
 

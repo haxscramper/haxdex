@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from beartype.typing import Annotated, Literal, Any, Union, get_args, get_origin
 from pydantic import BaseModel
 
-from haxdex.services.pydantic_utils import _DUMPERS, _TYPE_TAG, _RegisteredType
+from haxdex.services.pydantic_utils import _DUMPERS, _TYPE_TAG, _RegisteredType, _PYDANTIC_TYPE_TAG
 import types as py_types
 import logging
 
@@ -91,10 +91,7 @@ def _model_ref(annotation: type[BaseModel], ctx: _SchemaContext) -> dict[str, An
     if name in ctx.definitions:
         return ref
 
-    # Reserve the slot before recursing so self-referential / mutually
-    # recursive models terminate on the ref instead of recursing forever.
     ctx.definitions[name] = {}
-
     annotation.model_rebuild()
 
     properties: dict[str, Any] = {}
@@ -105,6 +102,7 @@ def _model_ref(annotation: type[BaseModel], ctx: _SchemaContext) -> dict[str, An
         if model_field.is_required():
             required.append(field_name)
 
+    properties[_PYDANTIC_TYPE_TAG] = {"type": "string"}
     schema: dict[str, Any] = {
         "type": "object",
         "properties": properties,
@@ -197,11 +195,20 @@ def _annotation_to_arango_schema(annotation: Any, ctx: _SchemaContext) -> dict[s
             "additionalProperties": _annotation_to_arango_schema(value_type, ctx),
         }
 
+    if annotation is BaseModel:
+        return {
+            "type": "object",
+            "properties": {
+                _PYDANTIC_TYPE_TAG: {
+                    "type": "string"
+                },
+            },
+            "required": [_PYDANTIC_TYPE_TAG],
+            "additionalProperties": True,
+        }
+
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-        return _tagged_schema(
-            "pydantic_model",
-            _pydantic_model_payload_schema(annotation, ctx),
-        )
+        return _model_ref(annotation, ctx)
 
     return {}
 

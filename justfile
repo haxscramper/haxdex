@@ -6,7 +6,6 @@ test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
         --disable-warnings \
-        
         > test_results.tmp.log 2>&1
 
 #         "tests/e2e/test_pbt_tree.py"  \

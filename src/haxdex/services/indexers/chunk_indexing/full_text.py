@@ -78,6 +78,8 @@ class FullTextIndexer(BaseIndexer):
             chunker = Chunker(self._config)
             chunks = chunker.chunk_blocks(full_document.documents, full_document.edges,
                                           file_hash)
+            if 0 < ctx.get_path(request.file_ref).stat().st_size:
+                assert 0 < len(chunks)
         else:
             chunks = []
 
