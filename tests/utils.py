@@ -15,11 +15,12 @@ import pandas as pd
 
 from haxdex.cli.cli import IndexService
 from haxdex.cli.cli_config import ActionConfig, AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig
+from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig, ActionExecutor
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
@@ -134,6 +135,10 @@ def init_file_tree_columns(
     if reference_tree is not None:
         specs.append(
             FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree))
+
+    if index.cfg.act and index.cfg.act.execution.sqlite_path.exists():
+        executor = ActionExecutor(index.cfg.act.execution)
+        specs.append(KnownActionColumnSpec("actions", executor))
 
     return specs
 
@@ -291,12 +296,16 @@ def _cell_to_dict(v):
 @beartype
 def split_columns_by_rules(
     df: pd.DataFrame,
-    rules: list[tuple[str, list[str | tuple[Any, str]]]],
+    rules: dict[str, list[str | tuple[Any, str]]],
 ) -> pd.DataFrame:
     out = df.copy()
 
-    for col, fields in rules:
+    for col in df.columns:
+        if col not in rules:
+            continue
+
         mapped = out[col].map(_cell_to_dict)
+        fields = rules[col]
 
         for field in fields:
             if isinstance(field, str):
@@ -307,6 +316,12 @@ def split_columns_by_rules(
 
             out[res_name] = mapped.map(lambda d: glom.glom(d, field_key, default=None))
 
-    out = out.drop(columns=[col for col, _ in rules])
+    columns_to_drop: list[str] = []
+
+    for col in rules.keys():
+        if col in out.columns:
+            columns_to_drop.append(col)
+
+    out = out.drop(columns=columns_to_drop)
 
     return out

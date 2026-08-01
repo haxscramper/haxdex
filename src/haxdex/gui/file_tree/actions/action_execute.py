@@ -33,21 +33,6 @@ _PENDING_STR = "pending"
 _DONE_STR = "done"
 
 
-@beartype
-def _model_type_from_name(type_name: str) -> type[BaseAction]:
-    module_name, qualname = type_name.split(":", maxsplit=1)
-    module = importlib.import_module(module_name)
-
-    obj: Any = module
-    for attr in qualname.split("."):
-        obj = getattr(obj, attr)
-
-    if not isinstance(obj, type) or not issubclass(obj, BaseAction):
-        raise TypeError(f"Resolved type is not a BaseAction subclass: {type_name}")
-
-    return obj
-
-
 class ActionExecutionConfig(BaseModel):
     trash_root: Path
     sqlite_path: Path
@@ -174,7 +159,7 @@ class ActionExecutor:
 
         with Session(self.engine) as session:
             existing_rows = session.execute(
-                select(OperationRow.execution_hash, OperationRow.action_type).where(
+                select(OperationRow.execution_hash, OperationRow.kind).where(
                     OperationRow.execution_hash.in_(list(
                         incoming_by_hash.keys())))).all()
             existing_by_hash = {
@@ -195,7 +180,6 @@ class ActionExecutor:
                 session.add(
                     OperationRow(
                         kind=kind,
-                        action_type=action_type,
                         action_data=model_to_json_data(action),
                         status=_PENDING_STR,
                         execution_hash=execution_hash,
@@ -206,8 +190,15 @@ class ActionExecutor:
             session.commit()
 
     def _load_action(self, row: OperationRow) -> BaseAction:
-        model_type = _model_type_from_name(row.action_type)
-        return model_from_json_data(row.action_data, model_type)
+        return model_from_json_data(row.action_data, self.handlers[row.kind].action_type)
+
+    def load_all_actions(self) -> list[BaseAction]:
+        result = list()
+        with Session(self.engine) as session:
+            for row in session.scalars(select(OperationRow)):
+                result.append(self._load_action(row))
+
+        return result
 
     def execute_pending(self, max_operations: Optional[int] = None) -> int:
         self.config.trash_root.mkdir(parents=True, exist_ok=True)

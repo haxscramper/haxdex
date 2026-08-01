@@ -13,7 +13,6 @@ class OperationRow(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String, nullable=False)
-    action_type: Mapped[str] = mapped_column(String, nullable=False)
     action_data: Mapped[Any] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     execution_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)

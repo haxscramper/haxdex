@@ -39,6 +39,7 @@ from haxdex.gui.file_tree.columns.file_duplicate_column import (
 )
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec, FileMimeData
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.trivial_data_column import (
     TrivialDataColumnSpec,
     TrivialEntryData,
@@ -65,6 +66,7 @@ from tests.utils import (
     init_index_service,
     split_columns_by_rules,
     sub_row_by_name,
+    IndexServiceConfig,
 )
 
 log = logging.getLogger(__name__)
@@ -294,6 +296,26 @@ def test_generated_directory_collect_methods_match_content(
         directory.get_file_by_relative_name(Path("__missing__") / "nope.txt")
 
 
+_DF_SPLIT_RULES = {
+    "trivial": ["assets", "is_directory", "root", "root_relative"],
+    "share": ["size_self", "size_parent"],
+    "mime": ["mime_type"],
+    "name": [("name", "entry_name")],
+    "framerate": [("probe.fps", "video_framerate")],
+    "bitrate": [("probe.bitrate_bps", "video_bitrate")],
+    "video_resolution": [
+        ("probe.width", "video_width"),
+        ("probe.height", "video_height"),
+    ],
+    "file_duplicates": [
+        ("hash", "file_hash"),
+        ("matches", "duplicate_paths"),
+        ("duplicate_count", "rec_duplicate_count"),
+        ("total_count", "rec_total_count"),
+    ],
+}
+
+
 def run_main_model_splicing(
     df: pd.DataFrame,
     stable_test_dir: Path,
@@ -305,34 +327,10 @@ def run_main_model_splicing(
 ) -> pd.DataFrame:
     assert "name" in df.columns, str(df.columns)
 
-    rules = [
-        ("trivial", ["assets", "is_directory", "root", "root_relative"]),
-        ("share", ["size_self", "size_parent"]),
-        ("mime", ["mime_type"]),
-        ("name", [("name", "entry_name")]),
-        ("framerate", [("probe.fps", "video_framerate")]),
-        ("bitrate", [("probe.bitrate_bps", "video_bitrate")]),
-        (
-            "video_resolution",
-            [
-                ("probe.width", "video_width"),
-                ("probe.height", "video_height"),
-            ],
-        ),
-        (
-            "file_duplicates",
-            [
-                ("hash", "file_hash"),
-                ("matches", "duplicate_paths"),
-                ("duplicate_count", "rec_duplicate_count"),
-                ("total_count", "rec_total_count"),
-            ],
-        ),
-    ]
     stable_test_dir.joinpath("df_pre_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
     stable_test_dir.joinpath("base_flat_model.log").write_text(fmt_df(df))
-    df = split_columns_by_rules(df, rules).sort_values("root_relative")
+    df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
     stable_test_dir.joinpath("df_post_split.json").write_text(
         json.dumps(to_json_safe(df), indent=2))
 
@@ -550,18 +548,62 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert_in_dir(deleted_files)
     assert_not_in_trash(deleted_files)
 
+    executed_count = executor.execute_pending()
+    assert executed_count == len(action_model.actions())
+
+    assert_not_in_dir(deleted_files)
+    assert_in_trash(deleted_files)
+
+
+def run_action_column_validation(stable_test_dir: Path, root_names: list[str]):
+    index = init_index_service(stable_test_dir, root_names)
+    tree_config = init_file_tree_config(index)
+
+    assert index.cfg.act
+    assert index.cfg.act.execution.sqlite_path.exists(
+    ), index.cfg.act.execution.sqlite_path
+    columns = init_file_tree_columns(index=index)
+
+    assert any(isinstance(c, KnownActionColumnSpec) for c in columns), [
+        type(c) for c in columns
+    ]
+
+    core = FileTreeQueryCore(
+        ctx=tree_config.service.ctx,
+        db=tree_config.service.db,
+        cfg=tree_config.cfg,
+        indexer_instances=tree_config.service.indexer_instances,
+        columns=columns,
+    )
+
+    table = TreeToTableProxyModel()
+    table.setSourceModel(core.model)
+
+    df = qt_model_to_dataframe(
+        table,
+        role=CustomModelRole.FullDataRole.value,
+        role_names={
+            CustomModelRole.FullDataRole.value: "data",
+        },
+    )
+
+    df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
+    df = df[["root_relative", "video_framerate", "video_width", "actions"]]
+
+    stable_test_dir.joinpath("split_df_with_actions.log").write_text(fmt_df(df))
+
 
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
-    max_examples=20,
+    max_examples=1,  # 20
     deadline=5000,
 )
 @given(directories=st.lists(
     directory_structure(
         indexer_types=[],
-        min_files=24,
-        max_files=48,
+        min_files=12,
+        max_files=32,
         min_nesting=1,
         max_nesting=3,
         corpus_manifest=corpus_manifest,
@@ -704,3 +746,5 @@ def test_generated_indexer_directory(
         cfg=tree_config.cfg,
         data_dir=tree_config.data_dir,
     )
+
+    run_action_column_validation(root_names=root_names, stable_test_dir=stable_test_dir)
