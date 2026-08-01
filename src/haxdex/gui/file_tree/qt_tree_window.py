@@ -16,11 +16,13 @@ from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
+from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_view import ActionListView
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
@@ -82,6 +84,7 @@ class FileTreeQueryCore:
         db: IndexDatabase,
         indexer_instances: Sequence[BaseIndexer],
     ) -> list[FileTreeColumnSpec]:
+        assert cfg.file_tree_view
         columns: list[FileTreeColumnSpec] = [
             FileNameColumnSpec(),
             FileMimeColumnSpec("mime"),
@@ -99,7 +102,6 @@ class FileTreeQueryCore:
         if cfg.file_tree_view.reference_dir:
             reference_tree = FileTreeQueryCore.build_reference_tree(
                 ctx=ctx,
-                columns=columns,
                 cfg=cfg,
                 db=db,
                 indexer_instances=indexer_instances,
@@ -107,6 +109,10 @@ class FileTreeQueryCore:
             columns.append(
                 FileDuplicateColumnSpec("file_duplicates",
                                         reference_tree=reference_tree[0]))
+
+        if cfg.act and cfg.act.execution.sqlite_path.exists():
+            executor = ActionExecutor(cfg.act.execution)
+            columns.append(KnownActionColumnSpec("actions", executor))
 
         return columns
 
@@ -236,7 +242,7 @@ class FileTreeQueryWindow(QMainWindow):
         self.restore_ui_state()
         first_hash = self.core.first_hash()
         if first_hash is not None:
-            self.preview_pane.show_hash(first_hash)
+            self.preview_pane.show_hash(first_hash, None)
 
     def _refresh_named_queries(self) -> None:
         for region in self.regions:

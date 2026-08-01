@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 
 from beartype import beartype
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal, QSettings
@@ -22,7 +23,10 @@ from PyQt6.QtWidgets import (
 from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
+from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction, VideoConvertActionHandler
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec, KnownActionData
 from haxdex.gui.file_tree.python_code_editor import PythonQueryEditor
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryResultModel
 from haxdex.services.core.types import FileHash
@@ -88,7 +92,7 @@ class FileTreeRegion(QWidget):
 
     query_submitted = pyqtSignal(object)
     named_queries_changed = pyqtSignal()
-    file_hash_activated = pyqtSignal(object)
+    file_hash_activated = pyqtSignal(object, object)
 
     def __init__(
         self,
@@ -218,11 +222,46 @@ class FileTreeRegion(QWidget):
         self.query_edit.setText(state["text"])
 
     def _on_tree_item_double_clicked(self, index) -> None:
+        column = index.data(CustomModelRole.ColumnSpecRole.value)
         hash_value = index.data(CustomModelRole.HashRole.value)
-        if hash_value is None:
-            log.info("hash value is None")
+
+        if column is not None and isinstance(column, KnownActionColumnSpec):
+            data = index.data(CustomModelRole.FullDataRole.value)
+            log.warning(f"full data for known actions is none column {index.column()}")
+            if data is None:
+                return
+
+            class TmpRes(ActionResult):
+
+                def __init__(self):
+                    self.paths: list[Path] = list()
+
+                def getResultPaths(self) -> list[Path]:
+                    return self.paths
+
+            assert isinstance(data, KnownActionData)
+            result = TmpRes()
+            for act in data.actions:
+                match act:
+                    case VideoConvertAction():
+                        assert column.executor
+                        handler = column.executor.handlers[
+                            VideoConvertActionHandler.action_type.kind]
+                        assert isinstance(handler, VideoConvertActionHandler)
+                        result.paths.append(handler.dest_path(act))
+
+                    case _:
+                        pass
+
+            log.info(f"file hash activated {result.paths}")
+            self.file_hash_activated.emit(FileHash(hash=hash_value), result)
+
         else:
-            self.file_hash_activated.emit(FileHash(hash=hash_value))
+            if hash_value is None:
+                log.info("hash value is None")
+
+            else:
+                self.file_hash_activated.emit(FileHash(hash=hash_value), None)
 
     def refresh_named_queries(self) -> None:
         # Kept for API compatibility with existing callers.

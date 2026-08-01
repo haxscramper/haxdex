@@ -25,12 +25,6 @@ log = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
-
-@beartype
-def _model_type_to_name(model_type: type[BaseAction]) -> str:
-    return f"{model_type.__module__}:{model_type.__qualname__}"
-
-
 _PENDING_STR = "pending"
 _DONE_STR = "done"
 
@@ -142,19 +136,18 @@ class ActionExecutor:
         incoming_by_hash: dict[str, tuple[BaseAction, str, str]] = {}
         for action in actions:
             kind = action.kind
-            action_type = _model_type_to_name(type(action))
             execution_hash = self.handlers[kind].get_hash(action)
 
             existing_in_batch = incoming_by_hash.get(execution_hash)
             if existing_in_batch is not None:
-                _, existing_type, _ = existing_in_batch
-                if existing_type != action_type:
+                _, existing_kind, _ = existing_in_batch
+                if existing_kind != action.kind:
                     raise ValueError(
                         f"Conflicting action types for hash '{execution_hash}': "
-                        f"'{existing_type}' vs '{action_type}'")
+                        f"'{existing_kind}' vs '{action.kind}'")
                 continue
 
-            incoming_by_hash[execution_hash] = (action, action_type, kind)
+            incoming_by_hash[execution_hash] = (action, action.kind, kind)
 
         if not incoming_by_hash:
             return
@@ -164,18 +157,16 @@ class ActionExecutor:
                 select(OperationRow.execution_hash, OperationRow.kind).where(
                     OperationRow.execution_hash.in_(list(
                         incoming_by_hash.keys())))).all()
-            existing_by_hash = {
-                row.execution_hash: row.action_type for row in existing_rows
-            }
+            existing_by_hash = {row.execution_hash: row.kind for row in existing_rows}
 
-            for execution_hash, existing_type in existing_by_hash.items():
-                _, incoming_type, _ = incoming_by_hash[execution_hash]
-                if existing_type != incoming_type:
+            for execution_hash, existing_kind in existing_by_hash.items():
+                _, incoming_kind, _ = incoming_by_hash[execution_hash]
+                if existing_kind != incoming_kind:
                     raise ValueError(
-                        f"Hash '{execution_hash}' already exists with type '{existing_type}', "
-                        f"cannot register action of type '{incoming_type}'")
+                        f"Hash '{execution_hash}' already exists with kind '{existing_kind}', "
+                        f"cannot register action of kind '{incoming_kind}'")
 
-            for execution_hash, (action, action_type, kind) in incoming_by_hash.items():
+            for execution_hash, (action, action_kind, kind) in incoming_by_hash.items():
                 if execution_hash in existing_by_hash:
                     continue
 

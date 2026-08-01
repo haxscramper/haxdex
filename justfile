@@ -56,7 +56,7 @@ flat_query_view: schema
 file_tree: schema
     uv run src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc" 
 
-profile_file_tree: schema
+profile_file_tree:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-tree-view.json -- \
       python src/haxdex/cli/cli.py file_tree_view "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 

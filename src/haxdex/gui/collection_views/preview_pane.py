@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_builder import JsonWidgetBuilder
 from haxdex.gui.collection_views.paths_preview_builder import PathsWidgetBuilder
+from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
 
@@ -113,12 +114,12 @@ class FilePreviewPane(QWidget):
 
         layout.addWidget(self._tabs)
 
-    def show_hash(self, hash: FileHash) -> None:
+    def show_hash(self, hash: FileHash, action: ActionResult | None) -> None:
         previous_index = self._tabs.currentIndex()
         self._tabs.clear()
 
         for name, builder in self._widget_builders.items():
-            widget = builder.build(self._db, hash)
+            widget = builder.build(self._db, hash, action)
             self._tabs.addTab(widget, name)
 
         target_index = (previous_index if 0 <= previous_index < self._tabs.count() else 0)

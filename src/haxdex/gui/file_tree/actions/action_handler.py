@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from pydantic import BaseModel
 from beartype.typing import ClassVar
@@ -29,4 +30,11 @@ class ActionHandler(ABC):
 
     @abstractmethod
     def verify_consistency_single(self, action: BaseAction) -> None:
+        raise NotImplementedError
+
+
+class ActionResult(ABC):
+
+    @abstractmethod
+    def getResultPaths(self) -> list[Path]:
         raise NotImplementedError

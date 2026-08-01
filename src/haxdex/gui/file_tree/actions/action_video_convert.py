@@ -58,7 +58,7 @@ class VideoConvertActionHandler(ActionHandler):
     })
 
     @beartype
-    def _dest_path(self, action: VideoConvertAction) -> Path:
+    def dest_path(self, action: VideoConvertAction) -> Path:
         dest = (self.output_directory / action.file.root /
                 action.file.root_relative).absolute()
         return dest.with_suffix(".mkv")
@@ -67,7 +67,7 @@ class VideoConvertActionHandler(ActionHandler):
     def do_action(self, row: OperationRow, action: BaseAction) -> None:
         assert isinstance(action, VideoConvertAction)
         src = Path(action.file.path).absolute()
-        dest = self._dest_path(action)
+        dest = self.dest_path(action)
 
         if self.dry_run:
             log.info(
@@ -178,7 +178,7 @@ class VideoConvertActionHandler(ActionHandler):
     @beartype
     def undo_action(self, row: OperationRow, action: BaseAction) -> None:
         assert isinstance(action, VideoConvertAction)
-        dest = self._dest_path(action)
+        dest = self.dest_path(action)
 
         if self.dry_run:
             log.info(f"undo video_convert (dry-run): planned remove {dest}")
@@ -203,7 +203,7 @@ class VideoConvertActionHandler(ActionHandler):
     def verify_consistency_single(self, action: BaseAction) -> None:
         assert isinstance(action, VideoConvertAction)
         src = Path(action.file.path).absolute()
-        dest = self._dest_path(action)
+        dest = self.dest_path(action)
 
         if src == self.output_directory:
             raise ValueError(f"Video convert source cannot be output directory: {src}")

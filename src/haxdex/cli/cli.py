@@ -243,7 +243,6 @@ class IndexService():
         assert self.cfg.file_tree_view
         win = FileTreeQueryWindow(
             ctx=self.ctx,
-            file_tree_view=self.cfg.file_tree_view,
             db=self.db,
             indexer_instances=self.indexer_instances,
             builders=self.get_builders(),
@@ -282,6 +281,15 @@ def main() -> None:
 
     _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
     service.ctx.start_trace()
+
+    def register_db_actions() -> ActionExecutor:
+        assert cfg.act
+        executor = ActionExecutor(cfg.act.execution)
+        actions = load_actions(cfg.action_file, list(executor.handlers.values()))
+        executor.init_db()
+        executor.register_actions(actions)
+        return executor
+
     try:
         match args.command:
             case "index":
@@ -291,6 +299,14 @@ def main() -> None:
                 service.run_flat_query_view()
 
             case "file_tree_view":
+                if cfg.act:
+                    executor = ActionExecutor(cfg.act.execution)
+                    if cfg.action_file.exists():
+                        actions = load_actions(cfg.action_file,
+                                               list(executor.handlers.values()))
+                        executor.init_db()
+                        executor.register_actions(actions)
+
                 service.run_tree_view()
 
             case "visual":
@@ -299,16 +315,15 @@ def main() -> None:
                 visualize_trash_actions(service.cfg.visual.trash, cfg.action_file)
 
             case "do_act":
-                assert cfg.act
-                actions = load_actions(cfg.action_file)
-                executor = ActionExecutor(cfg.act.execution)
-                executor.init_db()
-                executor.register_actions(actions)
+                executor = register_db_actions()
                 executor.execute_pending()
 
             case "undo_act":
                 assert cfg.act
                 executor = ActionExecutor(cfg.act.execution)
+                actions = load_actions(cfg.action_file, list(executor.handlers.values()))
+                executor.init_db()
+                executor.register_actions(actions)
                 executor.revert_done()
 
             case _:

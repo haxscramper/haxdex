@@ -9,6 +9,8 @@ from PyQt6.QtCore import pyqtSignal, QModelIndex, Qt
 from PyQt6.QtWidgets import QHeaderView, QPushButton, QTableView, QVBoxLayout, QWidget, QHBoxLayout
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex.gui.file_tree.actions.action_handler import BaseAction
+from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.query_filter import ActionListModel
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
@@ -63,10 +65,16 @@ class ActionListView(QWidget):
         layout.addLayout(buttons_layout)
 
     def _on_tree_item_double_clicked(self, index: QModelIndex) -> None:
-        hash_value = index.data(CustomModelRole.HashRole.value)
-        if hash_value is not None:
-            assert isinstance(hash_value, str), type(hash_value)
-            self.file_hash_activated.emit(FileHash(hash=hash_value))
+        column = index.data(CustomModelRole.ColumnSpecRole.value)
+        if column is not None and isinstance(column, KnownActionColumnSpec):
+            log.info("double click on action column")
+            pass
+
+        else:
+            hash_value = index.data(CustomModelRole.HashRole.value)
+            if hash_value is not None:
+                assert isinstance(hash_value, str), type(hash_value)
+                self.file_hash_activated.emit(FileHash(hash=hash_value))
 
     def _write_actions(self, out: TextIOWrapper):
         model = self.list_view.model()
@@ -78,8 +86,9 @@ class ActionListView(QWidget):
             if action is None:
                 continue
 
-            assert isinstance(action, BaseModel), type(action)
+            assert isinstance(action, BaseAction), type(action)
             json_data = model_to_json_data(action)
+            json_data["kind"] = action.kind
             out.write(json.dumps(json_data, ensure_ascii=False))
             out.write("\n")
 

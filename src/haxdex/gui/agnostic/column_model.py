@@ -1,14 +1,15 @@
 from abc import ABC, abstractmethod
-from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Sequence, ClassVar, Optional
+from beartype.typing import Any, Sequence
+import logging
 
-from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QObject, Qt, QAbstractItemModel
+from PyQt6.QtCore import QModelIndex, QObject, Qt, QAbstractItemModel
 from PyQt6.QtWidgets import QAbstractItemDelegate, QAbstractItemView
-from pydantic import BaseModel
 
-from haxdex.services.core.types import AnyModel, FileHash
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+
+log = logging.getLogger(__name__)
 
 
 @beartype
@@ -77,7 +78,15 @@ class AbstractColumnItemModel(QAbstractItemModel):
             case False:
                 return None
             case True:
-                return self.columns[index.column()].data(index, role)
+                if role == CustomModelRole.ColumnSpecRole.value:
+                    if index.column() < len(self.columns):
+                        return self.columns[index.column()]
+
+                    else:
+                        return None
+
+                else:
+                    return self.columns[index.column()].data(index, role)
 
     def setData(
         self,
