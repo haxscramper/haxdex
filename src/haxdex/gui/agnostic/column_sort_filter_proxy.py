@@ -12,6 +12,7 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
     def __init__(self, parent: None | object = None) -> None:
         super().__init__(parent)
         self.sortPriority: tuple[int, ...] = tuple()
+        self.activeSortPriority: tuple[int, ...] = tuple()
         self.sortRules: dict[int, Callable[[Any, Any], int]] = {}
         self.filterRules: dict[int, Callable[[Any], bool]] = {}
         self.sortRoles: dict[int, int] = {}
@@ -22,7 +23,7 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
     def setSortPriority(self, columns: Sequence[int]) -> None:
         priority = tuple(columns)
         if len(set(priority)) != len(priority):
-            duplicate = next(column for column in priority if priority.count(column) != 1)
+            duplicate = next(column for column in priority if 1 < priority.count(column))
             raise ValueError(f"Sort priority contains duplicate column index {duplicate}")
 
         model = self.sourceModel()
@@ -77,17 +78,19 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
             super().sort(column, order)
             return
 
+        fixedColumn = column
+        if fixedColumn < 0 or columnCount <= fixedColumn:
+            fixedColumn = 0
+
         match len(self.sortPriority):
             case 0:
-                anchor = 0
+                self.activeSortPriority = tuple(
+                    [fixedColumn] +
+                    [idx for idx in range(columnCount) if idx != fixedColumn])
             case _:
-                anchor = self.sortPriority[0]
-                if anchor < 0 or columnCount <= anchor:
-                    raise ValueError(
-                        f"Sort anchor column {anchor} is out of range for model with {columnCount} columns"
-                    )
+                self.activeSortPriority = self.sortPriority
 
-        super().sort(anchor, order)
+        super().sort(self.activeSortPriority[0], order)
 
     def lessThan(self, left: QModelIndex, right: QModelIndex) -> bool:
         model = self.sourceModel()
@@ -95,11 +98,11 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
             return left.row() < right.row()
 
         columnCount = model.columnCount(QModelIndex())
-        match len(self.sortPriority):
+        match len(self.activeSortPriority):
             case 0:
                 priority = tuple(range(columnCount))
             case _:
-                priority = self.sortPriority
+                priority = self.activeSortPriority
 
         for column in priority:
             leftIndex = model.index(left.row(), column, left.parent())
@@ -143,7 +146,7 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
                 return -1
             case (False, True):
                 return 1
-            case (False, False):
+            case _:
                 pass
 
         try:

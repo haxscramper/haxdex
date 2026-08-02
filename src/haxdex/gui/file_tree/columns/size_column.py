@@ -68,5 +68,8 @@ class EntrySizeColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return rate
 
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return rate.size_bytes
+
             case _:
                 return None

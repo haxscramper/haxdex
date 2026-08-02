@@ -49,5 +49,8 @@ class FileMimeColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return mime
 
+            case CustomModelRole.FilterDataRole.value | CustomModelRole.SortDataRole.value:
+                return mime.mime_type
+
             case _:
                 return None

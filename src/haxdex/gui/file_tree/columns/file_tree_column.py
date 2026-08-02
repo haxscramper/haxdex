@@ -9,6 +9,7 @@ from beartype.typing import Any, cast, Optional, ClassVar
 from pydantic import BaseModel, Field
 from abc import ABC, abstractmethod
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.core.types import AnyModel, FileHash
 
 
@@ -85,5 +86,9 @@ class FileTreeColumnSpec(ColumnSpec, ABC):
         match orientation, role:
             case Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole:
                 return self.title
+
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return self.title
+
             case _:
                 return None

@@ -56,11 +56,12 @@ class VideoResolutionColumnSpec(FileTreeColumnSpec):
             case Qt.ItemDataRole.DisplayRole:
                 return format_resolution(res.probe)
 
-            case Qt.ItemDataRole.UserRole:
+            case Qt.ItemDataRole.UserRole | CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
                 if res.probe.width is None or res.probe.height is None:
                     return None
 
-                return res.probe.width * res.probe.height
+                else:
+                    return res.probe.width * res.probe.height
 
             case CustomModelRole.FullDataRole.value:
                 return res

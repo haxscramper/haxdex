@@ -47,5 +47,8 @@ class FileNameColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return data
 
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return data.name
+
             case _:
                 return None

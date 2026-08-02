@@ -65,5 +65,8 @@ class VideoFramerateColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return rate
 
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return rate.probe.fps
+
             case _:
                 return None

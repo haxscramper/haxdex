@@ -178,6 +178,9 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return entry
 
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return float(entry.size_self) / float(entry.size_parent)
+
             case _:
                 return None
 

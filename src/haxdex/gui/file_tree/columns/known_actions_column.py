@@ -66,7 +66,7 @@ class KnownActionColumnSpec(FileTreeColumnSpec):
             return None
 
         match role:
-            case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
+            case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole | CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
                 result: list[str] = list()
                 for act in node.actions:
                     match act:

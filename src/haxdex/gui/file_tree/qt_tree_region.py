@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from haxdex.gui.agnostic.column_sort_filter_proxy import ColumnSortFilterProxyModel
 from haxdex.gui.agnostic.filterable_table_view import FilterColumnConfig, FilterableTableView
 from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
@@ -144,11 +145,23 @@ class TableModelViewer(QWidget):
         self.tableModel = TreeToTableProxyModel(self)
         self.tableModel.setSourceModel(self.sourceModel)
 
+        self.sortFilterModel = ColumnSortFilterProxyModel(self)
+        self.sortFilterModel.setSourceModel(self.tableModel)
+        self.sortPriority: list[int] = list(
+            range(self.tableModel.columnCount(QModelIndex())))
+        self.sortOrderByColumn: dict[int, Qt.SortOrder] = {}
+        self.sortFilterModel.setSortPriority(self.sortPriority)
+        self.sortFilterModel.sort(0, Qt.SortOrder.AscendingOrder)
+
         self.tableView = FilterableTableView(self)
-        self.tableView.setModel(self.tableModel)
+        self.tableView.setModel(self.sortFilterModel)
         self.tableView.doubleClicked.connect(self.row_double_clicked.emit)
         self.tableView.configure_filters(self.build_filter_columns())
         self.tableView.resizeColumnsToContents()
+
+        header = self.tableView.horizontalHeader()
+        assert header is not None
+        header.sectionClicked.connect(self.on_header_clicked)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -156,8 +169,8 @@ class TableModelViewer(QWidget):
 
     def build_filter_columns(self) -> list[FilterColumnConfig]:
         result: list[FilterColumnConfig] = []
-        column_count = self.sourceModel.columnCount(QModelIndex())
-        for column in range(column_count):
+        columnCount = self.sourceModel.columnCount(QModelIndex())
+        for column in range(columnCount):
             header = self.sourceModel.headerData(
                 column,
                 Qt.Orientation.Horizontal,
@@ -167,14 +180,39 @@ class TableModelViewer(QWidget):
             result.append(FilterColumnConfig(column=column, placeholder=placeholder))
         return result
 
-    def current_model(self) -> Any:
-        return self.tableModel
+    def on_header_clicked(self, column: int) -> None:
+        if column in self.sortPriority:
+            self.sortPriority.remove(column)
+        self.sortPriority.insert(0, column)
+
+        columnCount = self.tableModel.columnCount(QModelIndex())
+        for idx in range(columnCount):
+            if idx not in self.sortPriority:
+                self.sortPriority.append(idx)
+
+        previousOrder = self.sortOrderByColumn.get(column, Qt.SortOrder.DescendingOrder)
+        if previousOrder == Qt.SortOrder.AscendingOrder:
+            order = Qt.SortOrder.DescendingOrder
+        else:
+            order = Qt.SortOrder.AscendingOrder
+
+        self.sortOrderByColumn[column] = order
+        self.sortFilterModel.setSortPriority(self.sortPriority)
+        self.sortFilterModel.sort(column, order)
+
+        header = self.tableView.horizontalHeader()
+        assert header is not None
+        header.setSortIndicator(column, order)
+
+    def current_model(self) -> object:
+        return self.sortFilterModel
 
     def selected_nodes(self) -> list[FileTreeNode]:
         selection = self.tableView.selectionModel()
         nodes: list[FileTreeNode] = []
         for proxy_index in selection.selectedRows():
-            source_index = self.tableModel.mapToSource(proxy_index)
+            mapped = self.sortFilterModel.mapToSource(proxy_index)
+            source_index = self.tableModel.mapToSource(mapped)
             node = source_index.internalPointer()
             if node is not None:
                 nodes.append(node)

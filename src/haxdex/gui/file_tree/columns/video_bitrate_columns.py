@@ -64,5 +64,8 @@ class VideoBitrateColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return rate
 
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return rate.probe.bitrate_bps
+
             case _:
                 return None

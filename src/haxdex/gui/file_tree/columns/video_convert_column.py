@@ -8,6 +8,7 @@ from beartype.typing import Any, cast, Optional
 from pydantic import BaseModel
 from rich.console import NO_CHANGE
 
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
@@ -132,6 +133,9 @@ class VideoConvertColumnSpec(FileTreeColumnSpec):
         match role:
             case Qt.ItemDataRole.DisplayRole:
                 return str(rate.target.value)
+
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return rate.target.value
 
             case _:
                 return None

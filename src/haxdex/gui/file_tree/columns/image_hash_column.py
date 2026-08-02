@@ -11,6 +11,8 @@ from beartype import beartype
 from pydantic import BaseModel
 
 from testing.python.haxdex.src.haxdex.gui.file_tree.model.tree_model_build import FileTreeNode
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.image_hash import ImageHashIndexerResult, ImageHashIndexer
@@ -195,6 +197,9 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
 
                 else:
                     return None
+
+            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+                return image_hash.hash
 
             case _:
                 return None
