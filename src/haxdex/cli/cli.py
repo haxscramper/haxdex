@@ -134,6 +134,12 @@ class IndexService():
 
         self.ctx = RunContext(self.db)
 
+    import sys
+    from datetime import datetime
+    from pathlib import Path
+
+    from loguru import logger
+
     def setup_runtime_logging(self, log_cfg: LoggingConfig) -> tuple[Path, Path, Path]:
         run_text_dir = get_xdg_cache_dir(["logs", "run", "text"])
         run_json_dir = get_xdg_cache_dir(["logs", "run", "json"])
@@ -151,6 +157,14 @@ class IndexService():
         logger.remove()
 
         text_format = "{time:YYYY-MM-DDTHH:mm:ss.SSSSSS} {level} {name} {file.name}:{line}: {message}"
+
+        logger.add(
+            sys.stderr,
+            level="INFO",
+            enqueue=False,
+            backtrace=True,
+            diagnose=False,
+        )
 
         logger.add(
             run_text_file,
@@ -188,6 +202,8 @@ class IndexService():
         keep_last_files(run_text_dir, "*.log", 20)
         keep_last_files(run_json_dir, "*.jsonl", 20)
         keep_last_files(perf_dir, "*.json", 20)
+
+        logger.info("finished logger configuration")
 
         return run_text_dir, run_json_dir, perf_dir
 
@@ -280,6 +296,7 @@ def main_impl(command: str, cfg: AppConfig):
     )
 
     _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
+    logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
     service.ctx.start_trace()
 
     def register_db_actions() -> ActionExecutor:
@@ -355,7 +372,6 @@ def main() -> None:
     cfg_path = Path(args.config).expanduser().resolve().absolute()
     payload = commentjson.loads(cfg_path.read_text())
     cfg = AppConfig.model_validate(payload)
-    logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
 
     if args.command == "schema":
         cfg_path.with_stem(cfg_path.stem + "_schema").with_suffix(".json").write_text(

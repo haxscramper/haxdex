@@ -32,7 +32,7 @@ profile_index:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-index.json -- \
       python src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
-# --indexer file_summary \
+# --indexer file_summary \]
 # --resource text_summary \
 # --resource flm_server \
 

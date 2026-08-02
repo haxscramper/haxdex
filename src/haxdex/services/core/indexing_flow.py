@@ -108,7 +108,7 @@ def run_indexing_per_root_plan(
     indexed_total = 0
     logger.info("constructing index jobs plan")
 
-    for path_cfg in cfg.paths:
+    for path_idx, path_cfg in enumerate(cfg.paths):
         if cfg.limit_total is not None and cfg.limit_total <= indexed_total:
             logger.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
             return
@@ -126,6 +126,9 @@ def run_indexing_per_root_plan(
                 root_filters = prepare_root_filters(path_cfg.paths)
 
             with ctx.trace_scope("collect files for path", path=path_cfg.name):
+                logger.info(
+                    f"collect files for path '{path_cfg.name}' {path_idx}/{len(cfg.paths)}"
+                )
                 files = collect_files_for_path(
                     path_cfg.paths,
                     root_filters,
@@ -143,13 +146,15 @@ def run_indexing_per_root_plan(
             plan_run_size = cfg.max_plan_run_size or len(files)
             assert plan_run_size > 0, "max_plan_run_size must be > 0"
 
+            logger.info(f"collected {len(files)} files for indexing")
             total_batches = (len(files) + plan_run_size - 1) // plan_run_size
 
             for batch_idx, start in enumerate(range(0, len(files), plan_run_size),
                                               start=1):
                 batch_files = files[start:start + plan_run_size]
 
-                logger.info("build refs for root")
+                logger.info(
+                    f"run plan for [{start}:{start + plan_run_size}]/{len(files)} files")
                 with ctx.trace_scope(
                         "build refs for root",
                         path=path_cfg.name,
@@ -160,7 +165,6 @@ def run_indexing_per_root_plan(
 
                 indexed_total += len(refs)
 
-                logger.info("prepare files")
                 with ctx.trace_scope(
                         "prepare files",
                         root=root.name,
@@ -171,7 +175,6 @@ def run_indexing_per_root_plan(
                 ):
                     prepared = runner.prepare_files(refs, indexers)
 
-                logger.info("create plan")
                 with ctx.trace_scope(
                         "root plan construction",
                         root=root.name,
