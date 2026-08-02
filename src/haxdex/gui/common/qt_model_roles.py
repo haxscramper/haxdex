@@ -10,3 +10,5 @@ class CustomModelRole(enum.Enum):
     ActionRole = Qt.ItemDataRole.UserRole + 4
     FullDataRole = Qt.ItemDataRole.UserRole + 5
     ColumnSpecRole = Qt.ItemDataRole.UserRole + 6
+    SortDataRole = Qt.ItemDataRole.UserRole + 7
+    FilterDataRole = Qt.ItemDataRole.UserRole + 8

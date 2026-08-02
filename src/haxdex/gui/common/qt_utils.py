@@ -5,6 +5,7 @@ from beartype.typing import Any, Mapping, Sequence
 import pandas as pd
 
 from PyQt6.QtCore import (
+    QModelIndex,
     QSettings,
     QAbstractItemModel,
     Qt,
@@ -20,6 +21,8 @@ def qt_model_to_dataframe(
     model: QAbstractItemModel,
     role: int | Sequence[int] = int(Qt.ItemDataRole.DisplayRole),
     role_names: Mapping[int, str] | None = None,
+    with_tree_path: bool = False,
+    with_tree_depth: bool = False,
 ) -> pd.DataFrame:
     if isinstance(role, int):
         roles = [role]
@@ -56,28 +59,45 @@ def qt_model_to_dataframe(
             f"Could not resolve role names for roles: {unresolved_display}. "
             "Provide them via `role_names` or ensure `model.roleNames()` contains them.")
 
-    row_count = model.rowCount()
-    column_count = model.columnCount()
-
-    rows: list[list[Any]] = []
-    for row in range(row_count):
-        row_values: list[Any] = []
-        for column in range(column_count):
-            index = model.index(row, column)
-            if multi_role:
-                cell_value = {resolved_role_names[r]: model.data(index, r) for r in roles}
-            else:
-                cell_value = model.data(index, roles[0])
-            row_values.append(cell_value)
-        rows.append(row_values)
-
-    columns = [
+    root_column_count = model.columnCount()
+    column_names = [
         model.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
-        for column in range(column_count)
+        for column in range(root_column_count)
     ]
-    columns = [
-        f"column_{column}" if columns[column] is None else columns[column]
-        for column in range(column_count)
+    column_names = [
+        f"column_{column}" if column_names[column] is None else column_names[column]
+        for column in range(root_column_count)
     ]
 
-    return pd.DataFrame(rows, columns=columns)
+    rows: list[dict[str, Any]] = []
+
+    def collect_rows(parent: QModelIndex, path: tuple[int, ...]) -> None:
+        row_count = model.rowCount(parent)
+        column_count = model.columnCount(parent)
+
+        for row in range(row_count):
+            row_dict: dict[str, Any] = {}
+
+            if with_tree_depth:
+                row_dict["_tree_depth"] = len(path)
+
+            if with_tree_path:
+                row_dict["_tree_path"] = path + (row,),
+
+            for column in range(column_count):
+                index = model.index(row, column, parent)
+                column_name = (column_names[column]
+                               if column < len(column_names) else f"column_{column}")
+                if multi_role:
+                    row_dict[column_name] = {
+                        resolved_role_names[r]: model.data(index, r) for r in roles
+                    }
+                else:
+                    row_dict[column_name] = model.data(index, roles[0])
+
+            rows.append(row_dict)
+            collect_rows(model.index(row, 0, parent), path + (row,))
+
+    collect_rows(QModelIndex(), ())
+
+    return pd.DataFrame(rows)
