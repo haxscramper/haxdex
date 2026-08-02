@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QSizePolicy,
+    QSplitter,
 )
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
@@ -33,6 +34,7 @@ from haxdex.gui.collection_views.file_content_view.video_content_view_builder im
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.core.types import FileHash
 from haxdex.services.utils import format_timestamp_relative
 
@@ -174,6 +176,7 @@ class PathsWidgetBuilder(WidgetBuilder):
         self.header_state_key = "paths_widget/table_header_state"
 
         self.root: QWidget | None = None
+        self.splitter: QSplitter | None = None
         self.preview_host: QWidget | None = None
         self.preview_layout: QVBoxLayout | None = None
         self.table: QTableView | None = None
@@ -222,16 +225,17 @@ class PathsWidgetBuilder(WidgetBuilder):
         root_layout = QVBoxLayout(self.root)
         root_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.preview_host = QWidget(self.root)
-        assert self.preview_host is not None
+        self.splitter = QSplitter(Qt.Orientation.Vertical, self.root)
+        self.splitter.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                    QSizePolicy.Policy.Expanding)
+
+        self.preview_host = QWidget(self.splitter)
         self.preview_host.setSizePolicy(QSizePolicy.Policy.Expanding,
                                         QSizePolicy.Policy.Expanding)
         self.preview_layout = QVBoxLayout(self.preview_host)
-        assert self.preview_layout is not None
         self.preview_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.table = QTableView(self.root)
-        assert self.table is not None
+        self.table = QTableView(self.splitter)
         self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.table.setWordWrap(False)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding,
@@ -249,19 +253,20 @@ class PathsWidgetBuilder(WidgetBuilder):
         hh.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         hh.sectionResized.connect(self._save_header_state)
 
-        self.result_previews_host = QWidget(self.root)
-        self.result_previews_host.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Expanding,
-        )
-
+        self.result_previews_host = QWidget(self.splitter)
+        self.result_previews_host.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                                QSizePolicy.Policy.Expanding)
         self.result_previews_layout = QVBoxLayout(self.result_previews_host)
-        assert self.result_previews_layout is not None
         self.result_previews_layout.setContentsMargins(0, 0, 0, 0)
 
-        root_layout.addWidget(self.preview_host, 3)
-        root_layout.addWidget(self.table, 2)
-        root_layout.addWidget(self.result_previews_host, 2)
+        self.splitter.addWidget(self.preview_host)
+        self.splitter.addWidget(self.table)
+        self.splitter.addWidget(self.result_previews_host)
+        self.splitter.setStretchFactor(0, 3)
+        self.splitter.setStretchFactor(1, 2)
+        self.splitter.setStretchFactor(2, 2)
+
+        root_layout.addWidget(self.splitter)
 
         self._restore_header_state()
 
