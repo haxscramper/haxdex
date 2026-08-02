@@ -155,9 +155,14 @@ class TableModelViewer(QWidget):
 
         self.tableView = FilterableTableView(self)
         self.tableView.setModel(self.sortFilterModel)
+        self.tableView.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
+        self.tableView.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.tableView.setHorizontalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.tableView.doubleClicked.connect(self.row_double_clicked.emit)
         self.tableView.configure_filters(self.build_filter_columns())
         self.tableView.resizeColumnsToContents()
+        model.configureView(self.tableView)
 
         header = self.tableView.horizontalHeader()
         assert header is not None
