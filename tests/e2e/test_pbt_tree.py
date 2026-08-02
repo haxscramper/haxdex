@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import dataclasses
 import functools
 import itertools
@@ -929,14 +930,73 @@ def test_cli_index_rerun(
     )
 
     IndexService.reset_for_config(cfg)
-    with patch.object(
-            HashCache,
-            "_calculate",
-            autospec=True,
-            side_effect=HashCache._calculate,
-    ) as hash_cache_calculate:
-        main_impl("index", cfg)
-        hash_cache_1 = hash_cache_calculate.call_count
+
+    with ExitStack() as stack:
+        hash_cache_calculate = stack.enter_context(
+            patch.object(
+                HashCache,
+                "_calculate",
+                autospec=True,
+                side_effect=HashCache._calculate,
+            ))
+
+        indexer_run_spies = {
+            "ffprobe":
+                stack.enter_context(
+                    patch.object(
+                        FFProbeIndexer,
+                        "run",
+                        autospec=True,
+                        side_effect=FFProbeIndexer.run,
+                    )),
+            "exif":
+                stack.enter_context(
+                    patch.object(
+                        ExifMetadataIndexer,
+                        "run",
+                        autospec=True,
+                        side_effect=ExifMetadataIndexer.run,
+                    )),
+            "file_stats":
+                stack.enter_context(
+                    patch.object(
+                        FileStatsIndexer,
+                        "run",
+                        autospec=True,
+                        side_effect=FileStatsIndexer.run,
+                    )),
+            "file_mime":
+                stack.enter_context(
+                    patch.object(
+                        FileMimeIndexer,
+                        "run",
+                        autospec=True,
+                        side_effect=FileMimeIndexer.run,
+                    )),
+            "doc_blocks":
+                stack.enter_context(
+                    patch.object(
+                        DocumentBlockIndexer,
+                        "run",
+                        autospec=True,
+                        side_effect=DocumentBlockIndexer.run,
+                    )),
+        }
+
         main_impl("index", cfg)
 
-        assert hash_cache_1 == hash_cache_calculate.call_count, f"Second indexing run could not restore the hash cache properly"
+        hash_cache_1 = hash_cache_calculate.call_count
+        indexer_calls_1 = {
+            name: spy.call_count for name, spy in indexer_run_spies.items()
+        }
+
+        main_impl("index", cfg)
+
+        assert hash_cache_1 == hash_cache_calculate.call_count, (
+            "Second indexing run could not restore the hash cache properly")
+
+        for name, spy in indexer_run_spies.items():
+            assert indexer_calls_1[name] > 0, (
+                f"{name}.run was not called in the first indexing run")
+            assert spy.call_count == indexer_calls_1[name], (
+                f"{name}.run was called during the second indexing run")
