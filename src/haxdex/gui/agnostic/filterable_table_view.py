@@ -99,7 +99,7 @@ class FilterableTableView(QTableView):
         assert header is not None
         header.setStretchLastSection(False)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.sectionResized.connect(self.filter_header.update_positions)
+        header.sectionResized.connect(lambda *_: self.filter_header.update_positions())
         header.sectionMoved.connect(lambda *_: self.filter_header.update_positions())
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)

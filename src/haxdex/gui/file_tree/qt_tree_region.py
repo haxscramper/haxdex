@@ -1,9 +1,10 @@
 import json
-from loguru import logger
 from pathlib import Path
 
 from beartype import beartype
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal, QSettings
+from beartype.typing import Any
+from loguru import logger
+from PyQt6.QtCore import QPoint, QModelIndex, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -14,13 +15,16 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QPushButton,
     QSplitter,
+    QStackedWidget,
     QToolButton,
     QTreeView,
     QVBoxLayout,
     QWidget,
 )
 
+from haxdex.gui.agnostic.filterable_table_view import FilterColumnConfig, FilterableTableView
 from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
+from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
@@ -44,50 +48,210 @@ class QueryPickerPopup(QDialog):
         self.search = QLineEdit(self)
         self.search.setPlaceholderText("Search queries...")
 
-        self.list_widget = QListWidget(self)
-        self.list_widget.itemClicked.connect(self._on_item_clicked)
-        self.list_widget.itemActivated.connect(self._on_item_clicked)
+        self.listWidget = QListWidget(self)
+        self.listWidget.itemClicked.connect(self.on_item_clicked)
+        self.listWidget.itemActivated.connect(self.on_item_clicked)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
         layout.addWidget(self.search)
-        layout.addWidget(self.list_widget)
+        layout.addWidget(self.listWidget)
 
-        self.search.textChanged.connect(self._rebuild_list)
-        self.search.returnPressed.connect(self._activate_current)
+        self.search.textChanged.connect(self.rebuild_list)
+        self.search.returnPressed.connect(self.activate_current)
 
-        self._rebuild_list()
+        self.rebuild_list()
         self.resize(320, 360)
         self.search.setFocus()
 
-    def _rebuild_list(self) -> None:
+    def rebuild_list(self) -> None:
         filter_text = self.search.text().strip().lower()
-        self.list_widget.clear()
+        self.listWidget.clear()
 
         for name in sorted(self.queries, key=str.casefold):
             if filter_text and filter_text not in name.lower():
                 continue
-            self.list_widget.addItem(QListWidgetItem(name))
+            self.listWidget.addItem(QListWidgetItem(name))
 
-        if self.list_widget.count() > 0:
-            self.list_widget.setCurrentRow(0)
+        if 0 < self.listWidget.count():
+            self.listWidget.setCurrentRow(0)
 
-    def _activate_current(self) -> None:
-        item = self.list_widget.currentItem()
+    def activate_current(self) -> None:
+        item = self.listWidget.currentItem()
         if item is not None:
-            self._on_item_clicked(item)
+            self.on_item_clicked(item)
 
-    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+    def on_item_clicked(self, item: QListWidgetItem) -> None:
         name = item.text()
         self.query_selected.emit(name, self.queries[name])
         self.close()
 
 
 @beartype
-class FileTreeRegion(QWidget):
-    """A single vertical region: file tree on top, Python query editor below."""
+class TreeModelViewer(QWidget):
+    row_double_clicked = pyqtSignal(QModelIndex)
 
+    def __init__(
+        self,
+        model: AbstractColumnItemModel,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.model = model
+
+        self.treeView = QTreeView(self)
+        self.treeView.setIndentation(20)
+        self.treeView.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.treeView.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
+        self.treeView.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.treeView.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.treeView.setModel(self.model)
+        self.model.configureView(self.treeView)
+        self.treeView.doubleClicked.connect(self.row_double_clicked.emit)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.treeView)
+
+    def current_model(self) -> Any:
+        return self.model
+
+    def selected_nodes(self) -> list[FileTreeNode]:
+        selection = self.treeView.selectionModel()
+        nodes: list[FileTreeNode] = []
+        for index in selection.selectedRows():
+            node = index.internalPointer()
+            if node is not None:
+                nodes.append(node)
+        return nodes
+
+
+@beartype
+class TableModelViewer(QWidget):
+    row_double_clicked = pyqtSignal(QModelIndex)
+
+    def __init__(
+        self,
+        model: AbstractColumnItemModel,
+        columns: list[FileTreeColumnSpec],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.sourceModel = model
+        self.columns = columns
+
+        self.tableModel = TreeToTableProxyModel(self)
+        self.tableModel.setSourceModel(self.sourceModel)
+
+        self.tableView = FilterableTableView(self)
+        self.tableView.setModel(self.tableModel)
+        self.tableView.doubleClicked.connect(self.row_double_clicked.emit)
+        self.tableView.configure_filters(self.build_filter_columns())
+        self.tableView.resizeColumnsToContents()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.tableView)
+
+    def build_filter_columns(self) -> list[FilterColumnConfig]:
+        result: list[FilterColumnConfig] = []
+        column_count = self.sourceModel.columnCount(QModelIndex())
+        for column in range(column_count):
+            header = self.sourceModel.headerData(
+                column,
+                Qt.Orientation.Horizontal,
+                Qt.ItemDataRole.DisplayRole,
+            )
+            placeholder = f"filter {header}" if header is not None else f"filter {column}"
+            result.append(FilterColumnConfig(column=column, placeholder=placeholder))
+        return result
+
+    def current_model(self) -> Any:
+        return self.tableModel
+
+    def selected_nodes(self) -> list[FileTreeNode]:
+        selection = self.tableView.selectionModel()
+        nodes: list[FileTreeNode] = []
+        for proxy_index in selection.selectedRows():
+            source_index = self.tableModel.mapToSource(proxy_index)
+            node = source_index.internalPointer()
+            if node is not None:
+                nodes.append(node)
+        return nodes
+
+
+@beartype
+class SwitchableModelViewer(QWidget):
+    row_double_clicked = pyqtSignal(QModelIndex)
+
+    def __init__(
+        self,
+        model: AbstractColumnItemModel,
+        columns: list[FileTreeColumnSpec],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+
+        self.treeViewer = TreeModelViewer(model=model, parent=self)
+        self.tableViewer = TableModelViewer(model=model, columns=columns, parent=self)
+
+        self.modeButton = QToolButton(self)
+        self.modeButton.setText("Table")
+        self.modeButton.setCheckable(True)
+        self.modeButton.toggled.connect(self.on_mode_toggled)
+
+        self.stack = QStackedWidget(self)
+        self.stack.addWidget(self.treeViewer)
+        self.stack.addWidget(self.tableViewer)
+        self.stack.setCurrentWidget(self.treeViewer)
+
+        self.treeViewer.row_double_clicked.connect(self.row_double_clicked.emit)
+        self.tableViewer.row_double_clicked.connect(self.row_double_clicked.emit)
+
+        toolbar = QWidget(self)
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.addWidget(self.modeButton)
+        toolbar_layout.addStretch(1)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(toolbar)
+        layout.addWidget(self.stack)
+
+    def on_mode_toggled(self, checked: bool) -> None:
+        match checked:
+            case True:
+                self.stack.setCurrentWidget(self.tableViewer)
+                self.modeButton.setText("Tree")
+            case False:
+                self.stack.setCurrentWidget(self.treeViewer)
+                self.modeButton.setText("Table")
+
+    def current_model(self) -> Any:
+        current = self.stack.currentWidget()
+        match current:
+            case TreeModelViewer():
+                return current.current_model()
+            case TableModelViewer():
+                return current.current_model()
+            case _:
+                raise TypeError(f"Unsupported viewer type {type(current)}")
+
+    def selected_nodes(self) -> list[FileTreeNode]:
+        current = self.stack.currentWidget()
+        match current:
+            case TreeModelViewer():
+                return current.selected_nodes()
+            case TableModelViewer():
+                return current.selected_nodes()
+            case _:
+                raise TypeError(f"Unsupported viewer type {type(current)}")
+
+
+@beartype
+class FileTreeRegion(QWidget):
     query_submitted = pyqtSignal(object)
     named_queries_changed = pyqtSignal()
     file_hash_activated = pyqtSignal(object, object)
@@ -103,58 +267,54 @@ class FileTreeRegion(QWidget):
 
         self.columns = columns
         self.model = model
-        self.region_id = region_id
-        self.query_picker: QueryPickerPopup | None = None
+        self.regionId = region_id
+        self.queryPicker: QueryPickerPopup | None = None
 
-        self.tree_view = QTreeView(self)
-        self.tree_view.setIndentation(20)
-        self.tree_view.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows)
-        self.tree_view.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
-        self.tree_view.setModel(self.model)
-        self.model.configureView(self.tree_view)
-        self.tree_view.doubleClicked.connect(self._on_tree_item_double_clicked)
+        self.modelViewer = SwitchableModelViewer(model=self.model,
+                                                 columns=self.columns,
+                                                 parent=self)
+        self.modelViewer.row_double_clicked.connect(self.on_item_double_clicked)
 
-        self.query_edit = PythonQueryEditor(self)
+        self.queryEdit = PythonQueryEditor(self)
 
-        self.select_query_button = QToolButton(self)
-        self.select_query_button.setText("☰")
-        self.select_query_button.setToolTip("Select saved query")
-        self.select_query_button.clicked.connect(self._show_query_picker)
+        self.selectQueryButton = QToolButton(self)
+        self.selectQueryButton.setText("☰")
+        self.selectQueryButton.setToolTip("Select saved query")
+        self.selectQueryButton.clicked.connect(self.show_query_picker)
 
-        self.query_name_edit = QLineEdit(self)
-        self.query_name_edit.setPlaceholderText("Query name")
+        self.queryNameEdit = QLineEdit(self)
+        self.queryNameEdit.setPlaceholderText("Query name")
 
-        self.new_query_button = QPushButton("New", self)
-        self.new_query_button.clicked.connect(self._new_query)
+        self.newQueryButton = QPushButton("New", self)
+        self.newQueryButton.clicked.connect(self.new_query)
 
-        self.save_query_button = QPushButton("Save", self)
-        self.save_query_button.clicked.connect(self._save_named_query)
+        self.saveQueryButton = QPushButton("Save", self)
+        self.saveQueryButton.clicked.connect(self.save_named_query)
 
         query_toolbar = QWidget(self)
         query_toolbar_layout = QHBoxLayout(query_toolbar)
         query_toolbar_layout.setContentsMargins(0, 0, 0, 0)
         query_toolbar_layout.setSpacing(8)
-        query_toolbar_layout.addWidget(self.select_query_button)
-        query_toolbar_layout.addWidget(self.query_name_edit, 1)
-        query_toolbar_layout.addWidget(self.new_query_button)
-        query_toolbar_layout.addWidget(self.save_query_button)
+        query_toolbar_layout.addWidget(self.selectQueryButton)
+        query_toolbar_layout.addWidget(self.queryNameEdit, 1)
+        query_toolbar_layout.addWidget(self.newQueryButton)
+        query_toolbar_layout.addWidget(self.saveQueryButton)
 
-        self.run_button = QPushButton("Filter →", self)
-        self.run_button.clicked.connect(self._on_run)
+        self.runButton = QPushButton("Filter →", self)
+        self.runButton.clicked.connect(self.on_run)
 
-        submit = QShortcut(QKeySequence("Ctrl+Return"), self.query_edit)
-        submit.activated.connect(self._on_run)
+        submit = QShortcut(QKeySequence("Ctrl+Return"), self.queryEdit)
+        submit.activated.connect(self.on_run)
 
         bottom = QWidget(self)
         bottom_layout = QVBoxLayout(bottom)
         bottom_layout.setContentsMargins(0, 0, 0, 0)
         bottom_layout.addWidget(query_toolbar)
-        bottom_layout.addWidget(self.query_edit)
-        bottom_layout.addWidget(self.run_button)
+        bottom_layout.addWidget(self.queryEdit)
+        bottom_layout.addWidget(self.runButton)
 
         self.splitter = QSplitter(Qt.Orientation.Vertical, self)
-        self.splitter.addWidget(self.tree_view)
+        self.splitter.addWidget(self.modelViewer)
         self.splitter.addWidget(bottom)
         self.splitter.setStretchFactor(0, 4)
         self.splitter.setStretchFactor(1, 1)
@@ -163,63 +323,56 @@ class FileTreeRegion(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.splitter)
 
-        self.query_name_edit.textChanged.connect(self._persist_current_query_state)
-        if hasattr(self.query_edit, "textChanged"):
-            self.query_edit.textChanged.connect(self._persist_current_query_state)
+        self.queryNameEdit.textChanged.connect(self.persist_current_query_state)
+        if hasattr(self.queryEdit, "textChanged"):
+            self.queryEdit.textChanged.connect(self.persist_current_query_state)
 
-        self._load_current_query_state()
+        self.load_current_query_state()
 
     @staticmethod
-    def _read_named_queries() -> dict[str, str]:
+    def read_named_queries() -> dict[str, str]:
         serialized = get_settings().value("queries/named", "{}")
         queries = json.loads(str(serialized))
-
         if not isinstance(queries, dict):
             raise ValueError("queries/named must contain a JSON object")
-
         return {str(name): str(query) for name, query in queries.items()}
 
     @staticmethod
-    def _write_named_queries(queries: dict[str, str]) -> None:
+    def write_named_queries(queries: dict[str, str]) -> None:
         get_settings().setValue("queries/named", json.dumps(queries, sort_keys=True))
 
-    def _current_query_settings_key(self) -> str:
-        return f"queries/current/{self.region_id}"
+    def current_query_settings_key(self) -> str:
+        return f"queries/current/{self.regionId}"
 
-    def _read_current_query_state(self) -> dict[str, str]:
-        serialized = get_settings().value(self._current_query_settings_key(), "{}")
+    def read_current_query_state(self) -> dict[str, str]:
+        serialized = get_settings().value(self.current_query_settings_key(), "{}")
         state = json.loads(str(serialized))
-
         if not isinstance(state, dict):
             raise ValueError(
-                f"{self._current_query_settings_key()} must contain a JSON object")
-
+                f"{self.current_query_settings_key()} must contain a JSON object")
         return {
             "name": str(state.get("name", "")),
             "text": str(state.get("text", "")),
         }
 
-    def _write_current_query_state(self, name: str, text: str) -> None:
+    def write_current_query_state(self, name: str, text: str) -> None:
         get_settings().setValue(
-            self._current_query_settings_key(),
+            self.current_query_settings_key(),
             json.dumps({
                 "name": name,
                 "text": text
             }, sort_keys=True),
         )
 
-    def _persist_current_query_state(self, *args) -> None:
-        self._write_current_query_state(
-            self.query_name_edit.text(),
-            self.query_edit.text(),
-        )
+    def persist_current_query_state(self, *args: Any) -> None:
+        self.write_current_query_state(self.queryNameEdit.text(), self.queryEdit.text())
 
-    def _load_current_query_state(self) -> None:
-        state = self._read_current_query_state()
-        self.query_name_edit.setText(state["name"])
-        self.query_edit.setText(state["text"])
+    def load_current_query_state(self) -> None:
+        state = self.read_current_query_state()
+        self.queryNameEdit.setText(state["name"])
+        self.queryEdit.setText(state["text"])
 
-    def _on_tree_item_double_clicked(self, index) -> None:
+    def on_item_double_clicked(self, index: QModelIndex) -> None:
         column = index.data(CustomModelRole.ColumnSpecRole.value)
         hash_value = index.data(CustomModelRole.HashRole.value)
 
@@ -229,16 +382,16 @@ class FileTreeRegion(QWidget):
             if data is None:
                 return
 
-            class TmpRes(ActionResult):
+            class QueryActionResult(ActionResult):
 
-                def __init__(self):
-                    self.paths: list[Path] = list()
+                def __init__(self) -> None:
+                    self.paths: list[Path] = []
 
                 def getResultPaths(self) -> list[Path]:
                     return self.paths
 
             assert isinstance(data, KnownActionData)
-            result = TmpRes()
+            result = QueryActionResult()
             for act in data.actions:
                 match act:
                     case VideoConvertAction():
@@ -247,83 +400,72 @@ class FileTreeRegion(QWidget):
                             VideoConvertActionHandler.action_type.kind]
                         assert isinstance(handler, VideoConvertActionHandler)
                         result.paths.append(handler.dest_path(act))
-
                     case _:
-                        pass
+                        continue
 
             logger.info(f"file hash activated {result.paths}")
             self.file_hash_activated.emit(FileHash(hash=hash_value), result)
+            return
 
-        else:
-            if hash_value is None:
-                logger.info("hash value is None")
+        if hash_value is None:
+            logger.info("hash value is None")
+            return
 
-            else:
-                self.file_hash_activated.emit(FileHash(hash=hash_value), None)
+        self.file_hash_activated.emit(FileHash(hash=hash_value), None)
 
     def refresh_named_queries(self) -> None:
-        # Kept for API compatibility with existing callers.
-        pass
+        return
 
-    def _show_query_picker(self, checked: bool = False) -> None:
-        queries = self._read_named_queries()
-        self.query_picker = QueryPickerPopup(queries, self)
-        self.query_picker.query_selected.connect(self._load_named_query)
+    def show_query_picker(self, checked: bool = False) -> None:
+        queries = self.read_named_queries()
+        self.queryPicker = QueryPickerPopup(queries, self)
+        self.queryPicker.query_selected.connect(self.load_named_query)
 
-        button_pos = self.select_query_button.mapToGlobal(
-            QPoint(0, self.select_query_button.height()))
-        self.query_picker.move(button_pos)
-        self.query_picker.show()
+        button_pos = self.selectQueryButton.mapToGlobal(
+            QPoint(0, self.selectQueryButton.height()))
+        self.queryPicker.move(button_pos)
+        self.queryPicker.show()
 
-    def _load_named_query(self, name: str, query: str) -> None:
-        self.query_name_edit.setText(name)
-        self.query_edit.setText(query)
-        self.query_edit.setFocus()
-        self._persist_current_query_state()
+    def load_named_query(self, name: str, query: str) -> None:
+        self.queryNameEdit.setText(name)
+        self.queryEdit.setText(query)
+        self.queryEdit.setFocus()
+        self.persist_current_query_state()
 
-    def _new_query(self, checked: bool = False) -> None:
-        self.query_name_edit.clear()
-        self.query_edit.setText("")
-        self.query_edit.setFocus()
-        self._persist_current_query_state()
+    def new_query(self, checked: bool = False) -> None:
+        self.queryNameEdit.clear()
+        self.queryEdit.setText("")
+        self.queryEdit.setFocus()
+        self.persist_current_query_state()
 
-    def _save_named_query(self, checked: bool = False) -> None:
-        name = self.query_name_edit.text().strip()
+    def save_named_query(self, checked: bool = False) -> None:
+        name = self.queryNameEdit.text().strip()
         if not name:
             return
 
-        queries = self._read_named_queries()
-        queries[name] = self.query_edit.text()
-        self._write_named_queries(queries)
+        queries = self.read_named_queries()
+        queries[name] = self.queryEdit.text()
+        self.write_named_queries(queries)
         self.named_queries_changed.emit()
-        self._persist_current_query_state()
+        self.persist_current_query_state()
 
     def query_text(self) -> str:
-        return self.query_edit.text()
+        return self.queryEdit.text()
 
     def selected_nodes(self) -> list[FileTreeNode]:
-        selection = self.tree_view.selectionModel()
-        nodes: list[FileTreeNode] = []
-
-        for index in selection.selectedRows():
-            node = index.internalPointer()
-            if node is not None:
-                nodes.append(node)
-
-        return nodes
+        return self.modelViewer.selected_nodes()
 
     def compute_filtered(self) -> QueryResultModel:
         text = self.query_text()
         selected = self.selected_nodes()
         scope = selected if selected else None
         evaluator = QueryFilterEvaluator()
-
         return evaluator.filter_model(
-            self.model,
+            self.modelViewer.current_model(),
             text,
             scope_nodes=scope,
         )
 
-    def _on_run(self, checked: bool = False) -> None:
+    def on_run(self, checked: bool = False) -> None:
         logger.info("run clicked")
         self.query_submitted.emit(self)

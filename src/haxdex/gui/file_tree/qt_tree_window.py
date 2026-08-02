@@ -1,8 +1,8 @@
-from PyQt6.QtCore import QCoreApplication, Qt, QModelIndex
+from PyQt6.QtCore import QCoreApplication, QModelIndex, Qt
 from PyQt6.QtGui import QCloseEvent
 from beartype import beartype
 from beartype.typing import Sequence, cast
-
+from loguru import logger
 from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
@@ -10,13 +10,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.cli.cli_config import FileTreeViewConfig, AppConfig
+from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
+from haxdex.gui.file_tree.actions.action_list_model import ActionListModel
 from haxdex.gui.file_tree.actions.action_list_view import ActionListView
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
@@ -27,7 +28,6 @@ from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertColumnSpec
-
 from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
 from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
 from haxdex.gui.file_tree.model.tree_model_build import build_file_tree
@@ -35,11 +35,8 @@ from haxdex.gui.file_tree.model.tree_model_user_edits import store_user_column_e
 from haxdex.gui.file_tree.python_code_editor import QueryError
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_region import FileTreeRegion
-from haxdex.gui.file_tree.query_filter import ActionListModel
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
-from loguru import logger
-
 from haxdex.services.core.types import FileHash
 
 
@@ -72,8 +69,7 @@ class FileTreeQueryCore:
                 user_edit_path=cfg.file_tree_view.user_edit_path,
             )
 
-        else:
-            return None
+        return None
 
     @staticmethod
     def build_default_columns(
@@ -89,7 +85,7 @@ class FileTreeQueryCore:
             EntrySizeColumnSpec("size"),
             SizeShareColumnSpec(
                 "share",
-                [d.path for d in cfg.file_tree_view.root_dirs],
+                [directory.path for directory in cfg.file_tree_view.root_dirs],
             ),
         ]
 
@@ -101,8 +97,10 @@ class FileTreeQueryCore:
                 indexer_instances=indexer_instances,
             )
             columns.append(
-                FileDuplicateColumnSpec("file_duplicates",
-                                        reference_tree=reference_tree[0]))
+                FileDuplicateColumnSpec(
+                    "file_duplicates",
+                    reference_tree=reference_tree[0],
+                ))
 
         columns.extend([
             VideoBitrateColumnSpec("bitrate"),
@@ -125,7 +123,6 @@ class FileTreeQueryCore:
         db: IndexDatabase,
         indexer_instances: Sequence[BaseIndexer],
     ) -> None:
-
         self.columns = columns
         self.cfg = cfg
 
@@ -147,16 +144,15 @@ class FileTreeQueryCore:
             columns=self.columns,
             nodes=nodes,
         )
-        self.model.dataChanged.connect(self._user_data_changed)
+        self.model.dataChanged.connect(self.user_data_changed)
 
     def first_hash(self) -> FileHash | None:
         first_index = self.model.first_index_with_hash()
         if not first_index.isValid():
             return None
-
         return FileHash(hash=first_index.data(CustomModelRole.HashRole.value))
 
-    def _user_data_changed(
+    def user_data_changed(
         self,
         topLeft: QModelIndex,
         bottomRight: QModelIndex,
@@ -228,7 +224,7 @@ class FileTreeQueryWindow(QMainWindow):
 
         self.preview_pane = FilePreviewPane(
             db=db,
-            collection_names=[t.asset_name for t in indexer_instances],
+            collection_names=[instance.asset_name for instance in indexer_instances],
             builders=builders,
             parent=self.main_splitter,
         )
@@ -238,18 +234,18 @@ class FileTreeQueryWindow(QMainWindow):
         self.main_splitter.setStretchFactor(0, 2)
         self.main_splitter.setStretchFactor(1, 1)
 
-        self._add_region(self.core.model)
+        self.add_region(self.core.model)
 
         self.restore_ui_state()
         first_hash = self.core.first_hash()
         if first_hash is not None:
             self.preview_pane.show_hash(first_hash, None)
 
-    def _refresh_named_queries(self) -> None:
+    def refresh_named_queries(self) -> None:
         for region in self.regions:
             region.refresh_named_queries()
 
-    def _add_action_region(self, actions: ActionListModel) -> ActionListView:
+    def add_action_region(self, actions: ActionListModel) -> ActionListView:
         logger.info("add action list view")
         view = ActionListView(
             actions,
@@ -261,7 +257,7 @@ class FileTreeQueryWindow(QMainWindow):
         self.region_widgets.append(view)
         return view
 
-    def _add_region(self, model: AbstractColumnItemModel) -> FileTreeRegion:
+    def add_region(self, model: AbstractColumnItemModel) -> FileTreeRegion:
         region = FileTreeRegion(
             model=model,
             columns=self.columns,
@@ -269,32 +265,29 @@ class FileTreeQueryWindow(QMainWindow):
             region_id=f"region_{len(self.regions)}",
         )
 
-        region.query_submitted.connect(self._on_query_submitted)
-        region.named_queries_changed.connect(self._refresh_named_queries)
+        region.query_submitted.connect(self.on_query_submitted)
+        region.named_queries_changed.connect(self.refresh_named_queries)
         region.file_hash_activated.connect(self.preview_pane.show_hash)
 
         self.region_splitter.addWidget(region)
         self.regions.append(region)
         self.region_widgets.append(region)
-
         return region
 
-    def _on_query_submitted(self, source_region: FileTreeRegion) -> None:
+    def on_query_submitted(self, source_region: FileTreeRegion) -> None:
         try:
             result = source_region.compute_filtered()
             logger.info("compute filtered OK")
-
         except QueryError as error:
-            source_region.query_edit.show_query_error(error)
+            source_region.queryEdit.show_query_error(error)
             return
-
         except Exception as error:
             logger.exception("query failed")
             QMessageBox.warning(self, "Query error", str(error))
             return
 
         source_index = self.region_widgets.index(source_region)
-        while len(self.region_widgets) > source_index + 1:
+        while source_index + 1 < len(self.region_widgets):
             stale = self.region_widgets.pop()
             if isinstance(stale, FileTreeRegion):
                 self.regions.remove(stale)
@@ -302,11 +295,14 @@ class FileTreeQueryWindow(QMainWindow):
             stale.deleteLater()
 
         if isinstance(result, AbstractColumnItemModel):
-            self._add_region(result)
-        elif isinstance(result, ActionListModel):
-            self._add_action_region(result)
-        else:
-            raise TypeError(f"Unsupported query result model: {type(result)!r}")
+            self.add_region(result)
+            return
+
+        if isinstance(result, ActionListModel):
+            self.add_action_region(result)
+            return
+
+        raise TypeError(f"Unsupported query result model: {type(result)!r}")
 
     def restore_ui_state(self) -> None:
         settings = get_settings()
@@ -319,9 +315,15 @@ class FileTreeQueryWindow(QMainWindow):
         if window_state is not None:
             self.restoreState(window_state)
 
-        header_state = settings.value("tree/headerState")
-        if header_state is not None and self.regions:
-            self.regions[0].tree_view.header().restoreState(header_state)
+        tree_header_state = settings.value("tree/headerState")
+        if tree_header_state is not None and self.regions:
+            self.regions[0].modelViewer.treeViewer.treeView.header().restoreState(
+                tree_header_state)
+
+        table_header_state = settings.value("table/headerState")
+        if table_header_state is not None and self.regions:
+            self.regions[0].modelViewer.tableViewer.tableView.horizontalHeader(
+            ).restoreState(table_header_state)
 
         main_splitter_state = settings.value("splitter/main")
         if main_splitter_state is not None and not self.main_splitter.restoreState(
@@ -344,7 +346,12 @@ class FileTreeQueryWindow(QMainWindow):
         if self.regions:
             settings.setValue(
                 "tree/headerState",
-                self.regions[0].tree_view.header().saveState(),
+                self.regions[0].modelViewer.treeViewer.treeView.header().saveState(),
+            )
+            settings.setValue(
+                "table/headerState",
+                self.regions[0].modelViewer.tableViewer.tableView.horizontalHeader().
+                saveState(),
             )
 
     def closeEvent(self, event: QCloseEvent) -> None:
