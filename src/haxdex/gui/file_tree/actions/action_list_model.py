@@ -3,8 +3,10 @@ from pathlib import Path
 
 from PyQt6.QtCore import QAbstractListModel, QObject, QModelIndex, Qt, QSortFilterProxyModel, QAbstractTableModel
 from beartype import beartype
+from beartype.typing import Any
 from pydantic import BaseModel
 
+from haxdex.gui.agnostic.column_model import AbstractColumnItemModel, ColumnSpec
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_handler import BaseAction, ActionHandler
 from haxdex.gui.file_tree.actions.action_move_file import MoveAction
@@ -66,95 +68,190 @@ class ActionProvider:
 
 
 @beartype
-class ActionListModel(QAbstractTableModel):
-    COL_KIND = 0
-    COL_PATH = 1
-    COL_MESSAGE = 2
-    _HEADERS = ("kind", "path", "message")
+class ActionKindColumn(ColumnSpec):
 
-    def __init__(self, actions: list[BaseAction], parent=None) -> None:
-        super().__init__(parent)
-        self._actions = actions
+    def data(
+            self,
+            index: QModelIndex,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        action = index.internalPointer()
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return action.kind
+            case CustomModelRole.SortDataRole.value:
+                return action.kind.casefold()
+            case CustomModelRole.FilterDataRole.value:
+                return action.kind.casefold()
+            case CustomModelRole.HashRole.value:
+                return action.file.hash.hash
+            case CustomModelRole.ActionRole.value:
+                return action
+            case _:
+                return None
+
+    def setData(
+            self,
+            index: QModelIndex,
+            value: Any,
+            role: int = int(Qt.ItemDataRole.EditRole),
+    ) -> bool:
+        return False
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def headerData(
+            self,
+            section: int,
+            orientation: Qt.Orientation,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return "kind"
+            case _:
+                return None
+
+
+@beartype
+class ActionPathColumn(ColumnSpec):
+
+    def data(
+            self,
+            index: QModelIndex,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        action = index.internalPointer()
+        pathText = str(action.file.path)
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return pathText
+            case CustomModelRole.SortDataRole.value:
+                return pathText.casefold()
+            case CustomModelRole.FilterDataRole.value:
+                return pathText.casefold()
+            case CustomModelRole.HashRole.value:
+                return action.file.hash.hash
+            case CustomModelRole.ActionRole.value:
+                return action
+            case _:
+                return None
+
+    def setData(
+            self,
+            index: QModelIndex,
+            value: Any,
+            role: int = int(Qt.ItemDataRole.EditRole),
+    ) -> bool:
+        return False
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def headerData(
+            self,
+            section: int,
+            orientation: Qt.Orientation,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return "path"
+            case _:
+                return None
+
+
+@beartype
+class ActionMessageColumn(ColumnSpec):
+
+    def data(
+            self,
+            index: QModelIndex,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        action = index.internalPointer()
+        messageText = action.message or ""
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return messageText
+            case CustomModelRole.SortDataRole.value:
+                return messageText.casefold()
+            case CustomModelRole.FilterDataRole.value:
+                return messageText.casefold()
+            case CustomModelRole.HashRole.value:
+                return action.file.hash.hash
+            case CustomModelRole.ActionRole.value:
+                return action
+            case _:
+                return None
+
+    def setData(
+            self,
+            index: QModelIndex,
+            value: Any,
+            role: int = int(Qt.ItemDataRole.EditRole),
+    ) -> bool:
+        return False
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
+    def headerData(
+            self,
+            section: int,
+            orientation: Qt.Orientation,
+            role: int = int(Qt.ItemDataRole.DisplayRole),
+    ) -> Any:
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return "message"
+            case _:
+                return None
+
+
+@beartype
+class ActionListModel(AbstractColumnItemModel):
+
+    def __init__(self, actions: list[BaseAction], parent: Any = None) -> None:
+        super().__init__(
+            columns=[ActionKindColumn(),
+                     ActionPathColumn(),
+                     ActionMessageColumn()],
+            parent=parent,
+        )
+        self.actionsList: list[BaseAction] = actions
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         if parent.isValid():
             return 0
-        return len(self._actions)
+        return len(self.actionsList)
 
-    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+    def index(
+            self,
+            row: int,
+            column: int,
+            parent: QModelIndex = QModelIndex(),
+    ) -> QModelIndex:
         if parent.isValid():
-            return 0
-        return 3
+            return QModelIndex()
 
-    def headerData(self,
-                   section: int,
-                   orientation: Qt.Orientation,
-                   role: int = int(Qt.ItemDataRole.DisplayRole)):
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
-            if 0 <= section < len(self._HEADERS):
-                return self._HEADERS[section]
-        return super().headerData(section, orientation, role)
+        if row < 0 or len(self.actionsList) <= row:
+            return QModelIndex()
 
-    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)):
-        if not index.isValid():
-            return None
+        if column < 0 or self.columnCount(QModelIndex()) <= column:
+            return QModelIndex()
 
-        action = self._actions[index.row()]
-        col = index.column()
+        return self.createIndex(row, column, self.actionsList[row])
 
-        if role == Qt.ItemDataRole.DisplayRole:
-            if col == self.COL_KIND:
-                return action.kind
-            if col == self.COL_PATH:
-                return str(action.file.path)
-            if col == self.COL_MESSAGE:
-                return action.message or ""
-            return None
-
-        if role == CustomModelRole.HashRole.value:
-            return action.file.hash.hash
-
-        if role == CustomModelRole.ActionRole.value:
-            return action
-
-        return None
+    def parent(self, index: QModelIndex) -> QModelIndex:
+        return QModelIndex()
 
     def roleNames(self) -> dict[int, bytes]:
         names = super().roleNames()
-        names[CustomModelRole.ActionRole.value] = b"action"  # type: ignore
-        names[CustomModelRole.HashRole.value] = b"hash"  # type: ignore
-        return names  # type: ignore
+        names[CustomModelRole.ActionRole.value] = b"action"  # type: ignore[index]
+        names[CustomModelRole.HashRole.value] = b"hash"  # type: ignore[index]
+        return names  # type: ignore[return-value]
 
     def actions(self) -> list[BaseAction]:
-        return self._actions
-
-
-class ActionFilterProxyModel(QSortFilterProxyModel):
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-        self._column_filters: dict[int, str] = {}
-        self.setDynamicSortFilter(True)
-        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-    def set_column_filter(self, column: int, text: str) -> None:
-        text = text.strip()
-        if text:
-            self._column_filters[column] = text
-        else:
-            self._column_filters.pop(column, None)
-        self.invalidateFilter()
-
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
-        model = self.sourceModel()
-        assert model is not None
-
-        for column, needle in self._column_filters.items():
-            idx = model.index(source_row, column, source_parent)
-            value = idx.data(Qt.ItemDataRole.DisplayRole)
-            haystack = "" if value is None else str(value)
-            if needle.casefold() not in haystack.casefold():
-                return False
-
-        return True
+        return self.actionsList

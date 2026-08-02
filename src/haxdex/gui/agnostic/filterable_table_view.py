@@ -8,81 +8,86 @@ from PyQt6.QtWidgets import (
     QTableView,
     QWidget,
 )
+from beartype import beartype
+from beartype.typing import Any
 
 
+@beartype
 @dataclass(frozen=True, slots=True)
 class FilterColumnConfig:
     column: int
     placeholder: str
 
 
+@beartype
 class ColumnFilterHeaderView(QWidget):
     filter_changed = pyqtSignal(int, str)
 
     def __init__(self, table: QTableView) -> None:
         super().__init__(table.viewport())
-        self._table = table
-        self._editors: dict[int, QLineEdit] = {}
-        self._margin = 1
+        self.table = table
+        self.editors: dict[int, QLineEdit] = {}
+        self.margin = 1
         self.hide()
 
     def configure(self, columns: list[FilterColumnConfig]) -> None:
-        for editor in self._editors.values():
+        for editor in self.editors.values():
             editor.deleteLater()
-        self._editors.clear()
+        self.editors.clear()
 
         for item in columns:
             editor = QLineEdit(self)
             editor.setPlaceholderText(item.placeholder)
             editor.textChanged.connect(
-                lambda text, col=item.column: self.filter_changed.emit(col, text))
-            self._editors[item.column] = editor
+                lambda text, column=item.column: self.filter_changed.emit(column, text))
+            self.editors[item.column] = editor
 
-        self._apply_viewport_margin()
+        self.apply_viewport_margin()
         self.update_positions()
-        self.setVisible(bool(self._editors))
+        self.setVisible(bool(self.editors))
 
     def preferred_height(self) -> int:
-        if not self._editors:
+        if not self.editors:
             return 0
-        any_editor = next(iter(self._editors.values()))
-        return any_editor.sizeHint().height() + (self._margin * 2)
+        editor = next(iter(self.editors.values()))
+        return editor.sizeHint().height() + (self.margin * 2)
 
     def update_positions(self) -> None:
-        if not self._editors:
+        if not self.editors:
             return
 
-        total_height = self.preferred_height()
-        self.setGeometry(0, 0, self._table.viewport().width(), total_height)
+        height = self.preferred_height()
+        self.setGeometry(0, 0, self.table.viewport().width(), height)
 
-        for column, editor in self._editors.items():
-            if self._table.isColumnHidden(column):
+        for column, editor in self.editors.items():
+            if self.table.isColumnHidden(column):
                 editor.hide()
                 continue
 
-            x = self._table.columnViewportPosition(column)
-            width = self._table.columnWidth(column)
+            x = self.table.columnViewportPosition(column)
+            width = self.table.columnWidth(column)
 
             editor.setGeometry(
-                x + self._margin,
-                self._margin,
-                max(0, width - (self._margin * 2)),
-                max(0, total_height - (self._margin * 2)),
+                x + self.margin,
+                self.margin,
+                max(0, width - (self.margin * 2)),
+                max(0, height - (self.margin * 2)),
             )
             editor.show()
 
-    def _apply_viewport_margin(self) -> None:
-        self._table.setViewportMargins(0, self.preferred_height(), 0, 0)
+    def apply_viewport_margin(self) -> None:
+        self.table.setViewportMargins(0, self.preferred_height(), 0, 0)
 
 
+@beartype
 class FilterableTableView(QTableView):
     column_filter_changed = pyqtSignal(int, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._filter_header = ColumnFilterHeaderView(self)
-        self._filter_header.filter_changed.connect(self.column_filter_changed.emit)
+        self.filter_header = ColumnFilterHeaderView(self)
+        self.filter_header.filter_changed.connect(self.column_filter_changed.emit)
 
         self.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -94,25 +99,25 @@ class FilterableTableView(QTableView):
         assert header is not None
         header.setStretchLastSection(False)
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        header.sectionResized.connect(self._filter_header.update_positions)
-        header.sectionMoved.connect(lambda *_: self._filter_header.update_positions)
+        header.sectionResized.connect(self.filter_header.update_positions)
+        header.sectionMoved.connect(lambda *_: self.filter_header.update_positions())
 
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.horizontalScrollBar().valueChanged.connect(
-            lambda _value: self._filter_header.update_positions())
+            lambda _value: self.filter_header.update_positions())
 
         self.viewport().installEventFilter(self)
 
     def configure_filters(self, columns: list[FilterColumnConfig]) -> None:
-        self._filter_header.configure(columns)
+        self.filter_header.configure(columns)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched is self.viewport() and event.type() == QEvent.Type.Resize:
-            self._filter_header.update_positions()
+            self.filter_header.update_positions()
         return super().eventFilter(watched, event)
 
-    def resizeEvent(self, event) -> None:
+    def resizeEvent(self, event: Any) -> None:
         super().resizeEvent(event)
-        self._filter_header.update_positions()
+        self.filter_header.update_positions()
