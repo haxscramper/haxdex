@@ -8,7 +8,8 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import IndexerOutput
-from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
+from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data, format_json_with_fjson
+from haxdex.services.utils import ExceptionContextNote
 
 log = logging.getLogger(__name__)
 
@@ -28,10 +29,11 @@ def parse_indexer_output(indexer: BaseIndexer, data: dict) -> IndexerOutput:
     assert data["indexer_id"] == indexer.asset_name, (
         f"cached indexer id '{data['indexer_id']}' does not match "
         f"'{indexer.asset_name}'")
-    return IndexerOutput(
-        indexer_id=indexer.asset_name,
-        result=model_from_json_data(indexer.result_model, data["result"]),
-    )
+    with ExceptionContextNote(lambda: format_json_with_fjson(data, max_width=200)):
+        return IndexerOutput(
+            indexer_id=indexer.asset_name,
+            result=model_from_json_data(data["result"], indexer.result_model),
+        )
 
 
 def has_cached_result(indexer: BaseIndexer, file_hash: str) -> bool:

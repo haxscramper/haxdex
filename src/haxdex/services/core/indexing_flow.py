@@ -151,6 +151,7 @@ def run_indexing_per_root_plan(
                                               start=1):
                 batch_files = files[start:start + plan_run_size]
 
+                log.info("build refs for root")
                 with ctx.trace_scope(
                         "build refs for root",
                         path=path_cfg.name,
@@ -161,6 +162,7 @@ def run_indexing_per_root_plan(
 
                 indexed_total += len(refs)
 
+                log.info("prepare files")
                 with ctx.trace_scope(
                         "prepare files",
                         root=root.name,
@@ -171,6 +173,7 @@ def run_indexing_per_root_plan(
                 ):
                     prepared = runner.prepare_files(refs, indexers)
 
+                log.info("create plan")
                 with ctx.trace_scope(
                         "root plan construction",
                         root=root.name,
