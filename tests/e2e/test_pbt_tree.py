@@ -36,7 +36,9 @@ from haxdex.gui.file_tree.actions.action_list_model import (
     ActionListModel,
     ActionProvider,
     TrashAction,
+    load_actions,
 )
+from haxdex.gui.file_tree.actions.action_list_view import ActionListView
 from haxdex.gui.file_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,
     FileDuplicateData,
@@ -59,7 +61,9 @@ from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from haxdex.services.indexers.full_document.full_document import DocumentBlockIndexer
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer
-from haxdex.services.pydantic_utils import format_json_with_fjson, model_from_json_data, to_json_safe
+from haxdex.services.pydantic_utils import format_json_with_fjson, model_from_json_data, to_json_safe, \
+    model_to_json_data
+from tests.conftest import stable_test_dir
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,
@@ -448,7 +452,7 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
 
 @beartype
 def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
-                                data_dir: Path):
+                                data_dir: Path, stable_test_dir: Path):
     evaluator = QueryFilterEvaluator()
 
     act = ActionProvider()
@@ -509,10 +513,14 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert cfg.act
     executor = ActionExecutor(config=cfg.act.execution)
     executor.init_db()
-    # in the main GUI/CLI this step is done by
-    # - store actions to file from the GUI
-    # - load actions and execute them from CLI
-    executor.register_actions(action_model.actions())
+
+    actions_file = stable_test_dir.joinpath("actions.jsonl")
+    with actions_file.open("w") as out:
+        for act in action_model.actions():
+            ActionListView._write_action1(act, out)
+
+    executor.register_actions(
+        load_actions(actions_file, handlers=list(executor.handlers.values())))
 
     # trash file destination is computed to include the original root name
     trash_root = cfg.act.execution.trash_root
@@ -749,6 +757,7 @@ def run_initial_index_collection(
         core,
         cfg=tree_config.cfg,
         data_dir=tree_config.data_dir,
+        stable_test_dir=stable_test_dir,
     )
 
 

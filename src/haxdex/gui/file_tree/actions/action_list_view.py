@@ -74,6 +74,13 @@ class ActionListView(QWidget):
                 assert isinstance(hash_value, str), type(hash_value)
                 self.file_hash_activated.emit(FileHash(hash=hash_value), None)
 
+    @staticmethod
+    def _write_action1(action: BaseAction, out: TextIOWrapper):
+        json_data = model_to_json_data(action)
+        json_data["kind"] = action.kind
+        out.write(json.dumps(json_data, ensure_ascii=False))
+        out.write("\n")
+
     def _write_actions(self, out: TextIOWrapper):
         model = self.list_view.model()
         assert model is not None
@@ -85,10 +92,7 @@ class ActionListView(QWidget):
                 continue
 
             assert isinstance(action, BaseAction), type(action)
-            json_data = model_to_json_data(action)
-            json_data["kind"] = action.kind
-            out.write(json.dumps(json_data, ensure_ascii=False))
-            out.write("\n")
+            self._write_action1(action, out)
 
     def _overwrite_actions(self) -> None:
         with self.action_file.open("w", encoding="utf-8") as out:
