@@ -511,7 +511,8 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     assert round(with_duplicates["no_first"].sum()) == len(action_model.actions())
 
     assert cfg.act
-    executor = ActionExecutor(config=cfg.act.execution)
+
+    executor = ActionExecutor(cfg.act.execution.model_copy(update=dict(dry_run=True)))
     executor.init_db()
 
     actions_file = stable_test_dir.joinpath("actions.jsonl")
@@ -556,6 +557,14 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
         for root_name, rel in files:
             dst = trash_path(root_name, rel)
             assert not dst.exists(), dst
+
+    assert_in_dir(deleted_files)
+    assert_not_in_trash(deleted_files)
+
+    executed_count = executor.execute_pending()
+    assert executed_count == len(action_model.actions())
+
+    executor = ActionExecutor(cfg.act.execution.model_copy(update=dict(dry_run=False)))
 
     assert_in_dir(deleted_files)
     assert_not_in_trash(deleted_files)

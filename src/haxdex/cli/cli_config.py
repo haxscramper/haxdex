@@ -144,11 +144,11 @@ class FileTreeViewConfig(BaseModel, extra="forbid"):
     user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite").expanduser()
 
 
-class ActionConfig(BaseModel, extra="forbid"):
+class ActionConfig(BaseModel, extra="forbid", frozen=True):
     execution: ActionExecutionConfig
 
 
-class VisualConfig(BaseModel, extra="forbid"):
+class VisualConfig(BaseModel, extra="forbid", frozen=True):
     trash: Optional[TrashActionVisualConfig] = None
 
 

@@ -27,7 +27,7 @@ _PENDING_STR = "pending"
 _DONE_STR = "done"
 
 
-class ActionExecutionConfig(BaseModel):
+class ActionExecutionConfig(BaseModel, extra="forbid", frozen=True):
     trash_root: Path
     sqlite_path: Path
     output_directory: Path
@@ -210,12 +210,17 @@ class ActionExecutor:
                 if max_operations is not None and max_operations <= executed:
                     break
                 action = self._load_action(row)
-                row.started_at = _now()
-                session.commit()
-                self.handlers[row.kind].do_action(row, action)
-                row.status = _DONE_STR
-                row.finished_at = _now()
-                session.commit()
+                if self.config.dry_run:
+                    self.handlers[row.kind].do_action(row, action)
+
+                else:
+                    row.started_at = _now()
+                    session.commit()
+                    self.handlers[row.kind].do_action(row, action)
+                    row.status = _DONE_STR
+                    row.finished_at = _now()
+                    session.commit()
+
                 executed += 1
         return executed
 
@@ -228,10 +233,15 @@ class ActionExecutor:
                         OperationRow.id.desc())))
             for row in rows:
                 action = self._load_action(row)
-                self.handlers[row.kind].undo_action(row, action)
-                row.status = _PENDING_STR
-                row.started_at = None
-                row.finished_at = None
-                session.commit()
+
+                if self.config.dry_run:
+                    self.handlers[row.kind].undo_action(row, action)
+                else:
+                    self.handlers[row.kind].undo_action(row, action)
+                    row.status = _PENDING_STR
+                    row.started_at = None
+                    row.finished_at = None
+                    session.commit()
+
                 reverted += 1
         return reverted
