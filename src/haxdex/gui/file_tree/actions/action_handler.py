@@ -11,6 +11,7 @@ from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 
 class BaseAction(BaseModel, extra="forbid"):
     file: FileTreeNode
+    message: str | None = None
     kind: ClassVar[str]
 
     @model_validator(mode="before")

@@ -52,14 +52,17 @@ class ActionProvider:
     def __init__(self) -> None:
         self.actions: list[BaseModel] = []
 
-    def trash(self, file: FileTreeNode) -> None:
-        self.actions.append(TrashAction(file=file))
+    def trash(self, file: FileTreeNode, message: str | None = None) -> None:
+        self.actions.append(TrashAction(file=file, message=message))
 
-    def move(self, file: FileTreeNode, dest: str) -> None:
-        self.actions.append(MoveAction(file=file, dest=dest))
+    def move(self, file: FileTreeNode, dest: str, message: str | None = None) -> None:
+        self.actions.append(MoveAction(file=file, dest=dest, message=message))
 
-    def convert_video(self, file: FileTreeNode, target: VideoConvertData):
-        self.actions.append(VideoConvertAction(file=file, target=target))
+    def convert_video(self,
+                      file: FileTreeNode,
+                      target: VideoConvertData,
+                      message: str | None = None):
+        self.actions.append(VideoConvertAction(file=file, target=target, message=message))
 
 
 @beartype
