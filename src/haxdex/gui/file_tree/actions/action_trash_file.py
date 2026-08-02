@@ -9,10 +9,25 @@ from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
 
 from loguru import logger
+import os
 
 
 class TrashAction(BaseAction):
     kind: ClassVar[str] = "trash"
+
+
+def validate_output_path(dest: Path) -> None:
+    parent = dest.parent
+
+    if not parent.exists():
+        raise FileNotFoundError(parent)
+
+    if not parent.is_dir():
+        raise NotADirectoryError(parent)
+
+    fd = os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    os.close(fd)
+    os.unlink(dest)
 
 
 @beartype
@@ -76,25 +91,27 @@ class TrashActionHandler(ActionHandler):
         src = Path(action.file.path).absolute()
         dest = self.get_dest_forward(action).absolute()
 
-        # logger.info(f"do trash: executing move({src} -> {dest})")
+        logger.debug(f"do trash: executing move({src} -> {dest})")
 
         if self.dry_run:
             return
 
+        validate_output_path(dest)
         shutil.move(str(src), str(dest))
 
     def undo_action(self, row: OperationRow, action: BaseAction) -> None:
         assert isinstance(action, TrashAction)
-        src = Path(action.file.path).absolute()
-        dest = self.get_dest_undo(action).absolute()
+        restore_dest = Path(action.file.path).absolute()
+        trash_src = self.get_dest_undo(action).absolute()
 
-        # logger.info(f"undo trash: executing move({dest} -> {src})")
+        logger.debug(f"undo trash: executing move({trash_src} -> {restore_dest})")
 
         if self.dry_run:
             return
 
-        src.parent.mkdir(parents=True, exist_ok=True)
-        shutil.move(str(dest), str(src))
+        restore_dest.parent.mkdir(parents=True, exist_ok=True)
+        validate_output_path(restore_dest)
+        shutil.move(str(trash_src), str(restore_dest))
 
     def get_hash(self, action: BaseAction) -> str:
         assert isinstance(action, TrashAction)
@@ -104,6 +121,10 @@ class TrashActionHandler(ActionHandler):
 
     def verify_consistency_single(self, action: BaseAction) -> None:
         assert isinstance(action, TrashAction)
-        src = action.file.path
-        if src == self.trash_root:
+        src = Path(action.file.path).absolute()
+
+        if src == self.trash_root.absolute():
             raise ValueError(f"Trash source cannot be trash root: {src}")
+
+        do_dest = self.get_dest_forward(action).absolute()
+        validate_output_path(do_dest)

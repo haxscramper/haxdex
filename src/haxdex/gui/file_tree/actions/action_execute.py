@@ -32,6 +32,7 @@ class ActionExecutionConfig(BaseModel, extra="forbid", frozen=True):
     sqlite_path: Path
     output_directory: Path
     dry_run: bool = True
+    max_actions: int | None = None
 
     @field_validator("output_directory")
     @classmethod
@@ -90,12 +91,21 @@ class ActionExecutor:
         convert_counts: dict[Path, int] = {}
         trash_paths: set[Path] = set()
 
+        had_self_validation_failure = False
+
         for action in actions:
             kind = action.kind
             if kind not in self.handlers:
                 raise ValueError(f"Unsupported action kind: {kind}")
 
-            self.handlers[kind].verify_consistency_single(action)
+            try:
+                self.handlers[kind].verify_consistency_single(action)
+
+            except Exception as e:
+                logger.exception("self-validation check failed")
+                had_self_validation_failure = True
+                continue
+
             src = action.file.path
 
             match kind:
@@ -107,6 +117,11 @@ class ActionExecutor:
                     convert_counts[src] = convert_counts.get(src, 0) + 1
                 case _:
                     raise ValueError(f"Unsupported action kind: {kind}")
+
+        if had_self_validation_failure:
+            raise ValueError(
+                f"Had self-validation consistency failures for the actions, cannot execute"
+            )
 
         for src, count in move_counts.items():
             if 1 < count:

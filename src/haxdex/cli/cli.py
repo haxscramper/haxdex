@@ -336,7 +336,8 @@ def main_impl(command: str, cfg: AppConfig):
 
             case "do_act":
                 executor = register_db_actions()
-                executor.execute_pending()
+                assert cfg.act
+                executor.execute_pending(max_operations=cfg.act.execution.max_actions)
 
             case "undo_act":
                 assert cfg.act
