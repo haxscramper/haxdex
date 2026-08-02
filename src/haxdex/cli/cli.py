@@ -115,7 +115,6 @@ class IndexService():
                         f"Indexer '{key}' requires indexer '{dep}' to be enabled")
 
             cfg = self.cfg.indexers[key]
-            logger.info(f"Should load cache for {t.asset_name}: {cfg.use_cache}")
             instance = t(
                 database=self.indexer_connection,
                 config=cfg,

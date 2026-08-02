@@ -91,10 +91,6 @@ class FileTreeQueryCore:
                 "share",
                 [d.path for d in cfg.file_tree_view.root_dirs],
             ),
-            VideoBitrateColumnSpec("bitrate"),
-            VideoResolutionColumnSpec("resolution"),
-            VideoFramerateColumnSpec("framerate"),
-            VideoConvertColumnSpec("convert"),
         ]
 
         if cfg.file_tree_view.reference_dir:
@@ -107,6 +103,13 @@ class FileTreeQueryCore:
             columns.append(
                 FileDuplicateColumnSpec("file_duplicates",
                                         reference_tree=reference_tree[0]))
+
+        columns.extend([
+            VideoBitrateColumnSpec("bitrate"),
+            VideoResolutionColumnSpec("resolution"),
+            VideoFramerateColumnSpec("framerate"),
+            VideoConvertColumnSpec("convert"),
+        ])
 
         if cfg.act and cfg.act.execution.sqlite_path.exists():
             executor = ActionExecutor(cfg.act.execution)

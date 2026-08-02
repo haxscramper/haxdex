@@ -17,7 +17,7 @@ from haxdex.services.pydantic_utils import model_to_json_data
 
 
 class ActionListView(QWidget):
-    file_hash_activated = pyqtSignal(object)
+    file_hash_activated = pyqtSignal(object, object)
 
     def __init__(self,
                  actions: ActionListModel,
@@ -72,7 +72,7 @@ class ActionListView(QWidget):
             hash_value = index.data(CustomModelRole.HashRole.value)
             if hash_value is not None:
                 assert isinstance(hash_value, str), type(hash_value)
-                self.file_hash_activated.emit(FileHash(hash=hash_value))
+                self.file_hash_activated.emit(FileHash(hash=hash_value), None)
 
     def _write_actions(self, out: TextIOWrapper):
         model = self.list_view.model()

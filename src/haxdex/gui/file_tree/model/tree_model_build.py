@@ -99,49 +99,52 @@ def _build_directory_tree(
     columns: Sequence[FileTreeColumnSpec],
 ) -> list[FileTreeNode]:
     files_by_parent: dict[tuple[Path, Path], list[FileTreeNode]] = {}
-    directory_paths: dict[Path, set[Path]] = {}
+    child_dirs_by_parent: dict[tuple[Path, Path], list[Path]] = {}
+    child_dir_sets: dict[tuple[Path, Path], set[Path]] = {}
     root_names: dict[Path, str] = {}
+    roots: set[Path] = set()
 
     for root_path, file_node in flat_nodes:
+        roots.add(root_path)
+
         if file_node.root is not None:
             root_names.setdefault(root_path, file_node.root)
 
-        directory_paths.setdefault(root_path, set()).add(root_path)
-
-        relative_path = file_node.path.relative_to(root_path)
+        relative_parts = file_node.path.relative_to(root_path).parts
         parent_path = root_path
 
-        for part in relative_path.parts[:-1]:
-            next_path = parent_path / part
-            directory_paths[root_path].add(next_path)
-            parent_path = next_path
+        for part in relative_parts[:-1]:
+            child_path = parent_path / part
+            key = (root_path, parent_path)
+
+            seen_children = child_dir_sets.setdefault(key, set())
+            if child_path not in seen_children:
+                seen_children.add(child_path)
+                child_dirs_by_parent.setdefault(key, []).append(child_path)
+
+            parent_path = child_path
 
         files_by_parent.setdefault((root_path, parent_path), []).append(file_node)
 
+    for key in child_dirs_by_parent:
+        child_dirs_by_parent[key].sort()
+
+    for key in files_by_parent:
+        files_by_parent[key].sort(key=lambda node: node.path)
+
     def _root_relative(directory_path: Path, root_path: Path) -> str:
-        rel = directory_path.relative_to(root_path)
-        return "" if rel == Path(".") else rel.as_posix()
+        if directory_path == root_path:
+            return ""
+        return directory_path.relative_to(root_path).as_posix()
 
-    def build_directory(
-        root_path: Path,
-        directory_path: Path,
-    ) -> FileTreeNode:
+    def build_directory(root_path: Path, directory_path: Path) -> FileTreeNode:
+        key = (root_path, directory_path)
+
         nested: list[FileTreeNode] = []
-
-        child_directories = sorted(
-            path for path in directory_paths[root_path]
-            if path.parent == directory_path and path != directory_path)
-
-        for child_path in child_directories:
+        for child_path in child_dirs_by_parent.get(key, []):
             nested.append(build_directory(root_path, child_path))
 
-        nested.extend(
-            sorted(
-                files_by_parent.get((root_path, directory_path), []),
-                key=lambda node: node.path,
-            ),)
-
-        assert directory_path.exists()
+        nested.extend(files_by_parent.get(key, []))
 
         col_data = {
             column.column_name:
@@ -168,9 +171,7 @@ def _build_directory_tree(
             nested=nested,
         )
 
-    return [
-        build_directory(root_path, root_path) for root_path in sorted(directory_paths)
-    ]
+    return [build_directory(root_path, root_path) for root_path in sorted(roots)]
 
 
 def load_file_tree_from_cache(

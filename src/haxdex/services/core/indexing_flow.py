@@ -222,7 +222,7 @@ def run_indexing_per_root_plan(
                     duration_fmt = "n/a/plan, ETA n/a"
 
                 logger.info(
-                    f"run plan for [{start}:{start + plan_run_size}]/{len(files)} "
+                    f"run plan for {start}/{len(files)} "
                     f"({(float(start) /float(len(files)) * 100.0):.2f}%) {duration_fmt}")
 
                 indexed_count, elapsed = run_indexing_batch(
