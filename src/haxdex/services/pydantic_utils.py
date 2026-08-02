@@ -244,7 +244,15 @@ def _needs_runtime_pydantic_resolution(annotation: Any) -> bool:
     origin = get_origin(annotation)
 
     if origin is Annotated:
-        inner, *_ = get_args(annotation)
+        inner, *metadata = get_args(annotation)
+
+        inner_origin = get_origin(inner)
+        if inner_origin in (Union, types.UnionType):
+            has_discriminator = any(
+                getattr(meta, "discriminator", None) is not None for meta in metadata)
+            if has_discriminator:
+                return False
+
         return _needs_runtime_pydantic_resolution(inner)
 
     if origin in (Union, types.UnionType):
