@@ -238,7 +238,7 @@ def to_json_safe(value: Any) -> Any:
 
 
 def _needs_runtime_pydantic_resolution(annotation: Any) -> bool:
-    if annotation is BaseModel:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return True
 
     origin = get_origin(annotation)

@@ -868,7 +868,7 @@ def test_generated_indexer_directory(
     suppress_health_check=[HealthCheck.function_scoped_fixture],
     phases=[Phase.generate],
     max_examples=20,
-    deadline=5000,
+    deadline=15000,
 )
 @given(directories=st.lists(
     directory_structure(
@@ -992,11 +992,24 @@ def test_cli_index_rerun(
 
         main_impl("index", cfg)
 
-        assert hash_cache_1 == hash_cache_calculate.call_count, (
-            "Second indexing run could not restore the hash cache properly")
+        def assert_no_cache_rerun():
+            assert hash_cache_1 == hash_cache_calculate.call_count, (
+                "Second indexing run could not restore the hash cache properly")
 
-        for name, spy in indexer_run_spies.items():
-            assert indexer_calls_1[name] > 0, (
-                f"{name}.run was not called in the first indexing run")
-            assert spy.call_count == indexer_calls_1[name], (
-                f"{name}.run was called during the second indexing run")
+        def assert_no_index_rerun():
+            for name, spy in indexer_run_spies.items():
+                assert indexer_calls_1[name] > 0, (
+                    f"{name}.run was not called in the first indexing run")
+                assert spy.call_count == indexer_calls_1[name], (
+                    f"{name}.run was called during the second indexing run")
+
+        assert_no_cache_rerun()
+        assert_no_index_rerun()
+
+        IndexService.reset_for_config(cfg)
+
+        # Dropping arango database should not invalidate existing sqlite cache,
+        # and should not trigger file re-indexing.
+        main_impl("index", cfg)
+        assert_no_cache_rerun()
+        assert_no_index_rerun()

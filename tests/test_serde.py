@@ -278,3 +278,142 @@ def test_unregistered_type_raises_serialization_error() -> None:
             match="no serializer registered for type",
     ):
         to_json_safe(Unsupported(1))
+
+
+class CaseIndexEdge(BaseModel, extra="forbid"):
+    file_hash: str
+    from_: str
+    to_: str
+
+
+class CaseDocumentLink(CaseIndexEdge, extra="forbid"):
+    order: int
+    relation: Literal["nested"] = "nested"
+
+
+class CaseIndexMultiDocument(IndexDocument, extra="forbid"):
+    file_hash: str
+
+
+class CaseParagraphDocument(CaseIndexMultiDocument, extra="forbid"):
+    type: Literal["paragraph"] = "paragraph"
+    text: str
+
+
+class CaseHeadingDocument(CaseIndexMultiDocument, extra="forbid"):
+    type: Literal["heading"] = "heading"
+    level: int
+    text: str
+
+
+CaseDocumentType = Annotated[
+    Union[CaseParagraphDocument, CaseHeadingDocument],
+    Field(discriminator="type"),
+]
+
+
+class CaseMultiDocumentModel(BaseModel, extra="forbid"):
+    kind: Literal["processed"] = "processed"
+    edge_type: ClassVar[Any]
+    document_type: ClassVar[Any]
+
+    edges: list[CaseIndexEdge]
+    documents: list[CaseIndexMultiDocument]
+
+
+class CaseDocumentBlockIndexerResult(CaseMultiDocumentModel, extra="forbid"):
+    edge_type: ClassVar[type] = CaseDocumentLink
+    document_type: ClassVar[Any] = CaseDocumentType
+
+
+def test_roundtrip_document_block_like_result_with_subtype_edges_and_documents() -> None:
+    file_hash = "f" * 64
+    parent_hash = "a" * 64
+    child_hash = "b" * 64
+    heading_hash = "c" * 64
+    paragraph_hash = "d" * 64
+
+    value = CaseDocumentBlockIndexerResult(
+        edges=[
+            CaseDocumentLink(
+                file_hash=file_hash,
+                from_=parent_hash,
+                to_=heading_hash,
+                order=0,
+                relation="nested",
+            ),
+            CaseDocumentLink(
+                file_hash=file_hash,
+                from_=heading_hash,
+                to_=paragraph_hash,
+                order=1,
+                relation="nested",
+            ),
+        ],
+        documents=[
+            CaseHeadingDocument(
+                hash=heading_hash,
+                file_hash=file_hash,
+                level=1,
+                text="Title",
+            ),
+            CaseParagraphDocument(
+                hash=paragraph_hash,
+                file_hash=file_hash,
+                text="Body",
+            ),
+        ],
+    )
+
+    serialized = model_to_json_data(value)
+    restored = from_json_safe(serialized, CaseDocumentBlockIndexerResult)
+
+    assert isinstance(restored.edges[0], CaseDocumentLink)
+    assert isinstance(restored.edges[1], CaseDocumentLink)
+    assert isinstance(restored.documents[0], CaseHeadingDocument)
+    assert isinstance(restored.documents[1], CaseParagraphDocument)
+
+    failures: list[str] = []
+    compare_values(value, restored, "$", failures)
+    if 0 < len(failures):
+        pytest.fail("roundtrip mismatches:\n" + "\n".join(failures))
+
+
+def test_cache_like_payload_restores_nested_runtime_models_for_basemodel_subclass_target(
+) -> None:
+    file_hash = "1" * 64
+    root_hash = "2" * 64
+    child_hash = "3" * 64
+    doc_hash = "4" * 64
+
+    original = CaseDocumentBlockIndexerResult(
+        edges=[
+            CaseDocumentLink(
+                file_hash=file_hash,
+                from_=root_hash,
+                to_=child_hash,
+                order=0,
+                relation="nested",
+            )
+        ],
+        documents=[
+            CaseParagraphDocument(
+                hash=doc_hash,
+                file_hash=file_hash,
+                text="payload",
+            )
+        ],
+    )
+
+    payload = {"result": model_to_json_data(original)}
+    restored = from_json_safe(payload["result"], CaseDocumentBlockIndexerResult)
+
+    assert isinstance(restored.edges[0], CaseDocumentLink)
+    assert restored.edges[0].order == 0
+    assert restored.edges[0].relation == "nested"
+    assert isinstance(restored.documents[0], CaseParagraphDocument)
+
+    failures: list[str] = []
+    compare_values(original, restored, "$", failures)
+    if 0 < len(failures):
+        pytest.fail("roundtrip mismatches:\n" + "\n".join(failures))

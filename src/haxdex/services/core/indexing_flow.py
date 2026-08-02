@@ -214,7 +214,8 @@ def run_indexing_per_root_plan(
                 batch_files = files[start:start + plan_run_size]
 
                 if plan_exec_times:
-                    avg_plan = sum(plan_exec_times) / len(plan_exec_times)
+                    last_exec = plan_exec_times[-20:]
+                    avg_plan = sum(last_exec) / len(last_exec)
                     remaining_batches = total_batches - batch_idx + 1
                     duration_fmt = f"{format_duration(avg_plan)}/plan, ETA {format_duration(avg_plan * remaining_batches)}"
                 else:
@@ -222,7 +223,7 @@ def run_indexing_per_root_plan(
 
                 logger.info(
                     f"run plan for [{start}:{start + plan_run_size}]/{len(files)} "
-                    f"({float(start) /float(len(files)):.2f}%) {duration_fmt}")
+                    f"({(float(start) /float(len(files)) * 100.0):.2f}%) {duration_fmt}")
 
                 indexed_count, elapsed = run_indexing_batch(
                     db=db,

@@ -351,7 +351,7 @@ def main_impl(command: str, cfg: AppConfig):
                 raise ValueError(f"Unexpected command {command}")
 
     except Exception as ex:
-        logger.critical(f"{ex}", exc_info=ex)
+        logger.opt(exception=ex).critical("{}", ex)
         raise
 
     finally:

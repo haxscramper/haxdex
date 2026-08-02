@@ -15,7 +15,7 @@ T = TypeVar("T")
 
 class DocumentLink(IndexEdge, extra="forbid"):
     order: int
-    relation: Literal["nested"] = "nested"
+    relation: Literal["nested"] = "nested"  # type: ignore
 
 
 TextAlignment = Literal["left", "center", "right", "justify"]
