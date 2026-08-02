@@ -24,7 +24,7 @@ def test_chain_two_indexers(
     stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
-    call_log: list[str] = []
+    call_logger: list[str] = []
 
     class RootModel(IndexDocument):
         value: str
@@ -96,7 +96,7 @@ def test_chain_two_indexers(
     assert isinstance(outputs.result, NestedModel)
 
     assert outputs.result.value == "nested-value"
-    assert call_log == ["root", "nested"]
+    assert call_logger == ["root", "nested"]
 
 
 def test_branching_indexers(
@@ -104,7 +104,7 @@ def test_branching_indexers(
     stable_test_dir: Path,
     index_cache_database: Engine,
 ) -> None:
-    call_log: list[str] = []
+    call_logger: list[str] = []
 
     class ModelA(IndexDocument):
         value: str
@@ -187,11 +187,11 @@ def test_branching_indexers(
         ]),
     )
 
-    assert call_log[0] == "A"
-    assert call_log[1] == "B"
+    assert call_logger[0] == "A"
+    assert call_logger[1] == "B"
     assert call_logger.index("B") < call_logger.index("C")
     assert call_logger.index("B") < call_logger.index("D")
-    assert set(call_log) == {"A", "B", "C", "D"}
+    assert set(call_logger) == {"A", "B", "C", "D"}
 
 
 def test_indexer_receives_resource(

@@ -151,7 +151,6 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
         self_size = get_self_size()
         if not self_size:
-            logger.warning(f"no size for {args.path}")
             return None
 
         if resolved_path.parent not in self.directory_size_bytes.per_path:
