@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
+from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction, VideoConvertActionHandler
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from beartype.typing import cast, Optional
 from loguru import logger
@@ -15,6 +16,13 @@ from loguru import logger
 
 class KnownActionData(BaseModel, extra="forbid"):
     actions: list[BaseAction]
+
+
+def target_size_percent_of_original(original_file: Path, target_file: Path) -> str:
+    original_size = original_file.stat().st_size
+    target_size = target_file.stat().st_size
+    percent = round((target_size / original_size) * 100)
+    return f"{percent}%"
 
 
 @beartype
@@ -61,7 +69,17 @@ class KnownActionColumnSpec(FileTreeColumnSpec):
             case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole:
                 result: list[str] = list()
                 for act in node.actions:
-                    result.append(f"{act.kind} {act.file.path}")
+                    match act:
+                        case VideoConvertAction():
+                            handler = cast(
+                                VideoConvertActionHandler, self.executor.handlers[
+                                    VideoConvertActionHandler.action_type.kind])
+                            result.append(
+                                f"{target_size_percent_of_original(act.file.path, handler.dest_path(act))}"
+                            )
+
+                        case _:
+                            result.append(f"{act.kind} {act.file.path}")
 
                 return "\n".join(result)
 

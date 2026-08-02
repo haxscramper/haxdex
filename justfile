@@ -1,5 +1,5 @@
-# CONFIG_FILE := "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
-CONFIG_FILE := "~/tmp/full_index_organization/full_index_config.jsonc"
+CONFIG_FILE := "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
+# CONFIG_FILE := "~/tmp/full_index_organization/full_index_config.jsonc"
 
 [env("DISPLAY", ":2")]
 test:
