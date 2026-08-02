@@ -3,7 +3,12 @@ import linecache
 from loguru import logger
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QModelIndex, QObject
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QAbstractProxyModel,
+    QModelIndex,
+    QObject,
+)
 from beartype import beartype
 from beartype.typing import Callable, cast
 
@@ -52,8 +57,11 @@ class QueryFilterEvaluator:
         actions_fn(provider, rebuilt)
         return rebuilt
 
-    def _filter_tree(self, nodes: list[FileTreeNode],
-                     filter_fn: FilterFn) -> list[FileTreeNode]:
+    def _filter_tree(
+        self,
+        nodes: list[FileTreeNode],
+        filter_fn: FilterFn,
+    ) -> list[FileTreeNode]:
         rebuilt: list[FileTreeNode] = []
 
         for node in nodes:
@@ -62,6 +70,53 @@ class QueryFilterEvaluator:
             rebuilt.append(copied)
 
         return list(filter_fn(rebuilt))
+
+    def _collect_scope_nodes(
+            self,
+            model: QAbstractItemModel,
+            parent: QModelIndex = QModelIndex(),
+    ) -> list[FileTreeNode]:
+        nodes: list[FileTreeNode] = []
+        row_count = model.rowCount(parent)
+
+        for row in range(row_count):
+            index = model.index(row, 0, parent)
+            if not index.isValid():
+                continue
+
+            pointer = index.internalPointer()
+            if not isinstance(pointer, FileTreeNode):
+                raise QueryError("model index internalPointer() is not FileTreeNode "
+                                 f"(got {type(pointer).__name__})")
+
+            copied = pointer.model_copy()
+            copied.nested = self._collect_scope_nodes(model, index)
+            nodes.append(copied)
+
+        return nodes
+
+    def _resolve_columns(self, model: QAbstractItemModel) -> object:
+        current: QAbstractItemModel | None = model
+        visited: set[int] = set()
+
+        while current is not None:
+            model_id = id(current)
+            if model_id in visited:
+                break
+            visited.add(model_id)
+
+            columns = getattr(current, "columns", None)
+            if columns is not None:
+                return columns
+
+            if isinstance(current, QAbstractProxyModel):
+                current = current.sourceModel()
+            else:
+                current = None
+
+        raise QueryError(
+            "cannot construct FileTreeModel: no `columns` found on model or proxy source chain"
+        )
 
     def _parse_query_shape(self, query_text: str) -> str:
         tree = ast.parse(query_text, QUERY_FILENAME, "exec")
@@ -136,8 +191,10 @@ class QueryFilterEvaluator:
                 raise QueryError(
                     "query defines 'actions'/'action' but it is not callable")
 
-            def built_actions(provider: ActionProvider,
-                              nodes: list[FileTreeNode]) -> object:
+            def built_actions(
+                provider: ActionProvider,
+                nodes: list[FileTreeNode],
+            ) -> object:
                 return actions_obj(provider, nodes)  # type: ignore
 
             actions_fn = built_actions
@@ -155,7 +212,7 @@ class QueryFilterEvaluator:
 
     def filter_model(
         self,
-        model: AbstractColumnItemModel,
+        model: QAbstractItemModel,
         query_text: str | QueryProgram,
         *,
         scope_nodes: list[FileTreeNode] | None = None,
@@ -167,8 +224,10 @@ class QueryFilterEvaluator:
             else:
                 program = self._build_program(query_text)
 
-            assert isinstance(model, FileTreeModel)
-            scope = scope_nodes if scope_nodes else model.nodes
+            if scope_nodes is None:
+                scope = self._collect_scope_nodes(model)
+            else:
+                scope = scope_nodes
 
             if program.filter_fn:
                 pre_provider = ActionProvider()
@@ -182,9 +241,11 @@ class QueryFilterEvaluator:
                 if program.post_traverse_fn:
                     self._actions_tree(scope, program.post_traverse_fn, post_provider)
 
+                columns = self._resolve_columns(model)
+
                 return FileTreeModel(
                     nodes=filtered_nodes,
-                    columns=model.columns,
+                    columns=columns,
                     parent=parent,
                 )
 

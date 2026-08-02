@@ -5,12 +5,12 @@ CONFIG_FILE := "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
 test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
-        --disable-warnings "tests/e2e/test_pbt_tree.py::test_generated_indexer_directory" \
+        --disable-warnings \
         > test_results.tmp.log 2>&1
  
 #  "tests/e2e/test_pbt_tree.py::test_cli_index_rerun" 
 # tests/test_serde.py
-#           \
+#          "tests/e2e/test_pbt_tree.py::test_generated_indexer_directory"  
 #  "tests/gui/test_model_dump.py"
 #        "tests/gui/test_execute_actions.py" 
 
