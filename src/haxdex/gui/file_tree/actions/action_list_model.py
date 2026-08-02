@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QAbstractListModel, QObject, QModelIndex, Qt
+from PyQt6.QtCore import QAbstractListModel, QObject, QModelIndex, Qt, QSortFilterProxyModel, QAbstractTableModel
 from beartype import beartype
 from pydantic import BaseModel
 
@@ -66,9 +66,13 @@ class ActionProvider:
 
 
 @beartype
-class ActionListModel(QAbstractListModel):
+class ActionListModel(QAbstractTableModel):
+    COL_KIND = 0
+    COL_PATH = 1
+    COL_MESSAGE = 2
+    _HEADERS = ("kind", "path", "message")
 
-    def __init__(self, actions: list[BaseAction], parent: QObject | None = None) -> None:
+    def __init__(self, actions: list[BaseAction], parent=None) -> None:
         super().__init__(parent)
         self._actions = actions
 
@@ -77,34 +81,80 @@ class ActionListModel(QAbstractListModel):
             return 0
         return len(self._actions)
 
-    def data(self, index: QModelIndex,
-             role: int = int(Qt.ItemDataRole.DisplayRole)) -> object:
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        if parent.isValid():
+            return 0
+        return 3
+
+    def headerData(self,
+                   section: int,
+                   orientation: Qt.Orientation,
+                   role: int = int(Qt.ItemDataRole.DisplayRole)):
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            if 0 <= section < len(self._HEADERS):
+                return self._HEADERS[section]
+        return super().headerData(section, orientation, role)
+
+    def data(self, index: QModelIndex, role: int = int(Qt.ItemDataRole.DisplayRole)):
         if not index.isValid():
             return None
 
         action = self._actions[index.row()]
+        col = index.column()
 
-        match role:
-            case Qt.ItemDataRole.DisplayRole:
-                match action:
-                    case TrashAction():
-                        return f"trash {action.file.path}"
+        if role == Qt.ItemDataRole.DisplayRole:
+            if col == self.COL_KIND:
+                return action.kind
+            if col == self.COL_PATH:
+                return str(action.file.path)
+            if col == self.COL_MESSAGE:
+                return action.message or ""
+            return None
 
-                    case _:
-                        return str(action)
+        if role == CustomModelRole.HashRole.value:
+            return action.file.hash.hash
 
-            case CustomModelRole.HashRole.value:
-                return action.file.hash.hash
-
-            case CustomModelRole.ActionRole.value:
-                return action
+        if role == CustomModelRole.ActionRole.value:
+            return action
 
         return None
 
     def roleNames(self) -> dict[int, bytes]:
         names = super().roleNames()
-        names[self.ActionRole] = b"action"  # type: ignore
+        names[CustomModelRole.ActionRole.value] = b"action"  # type: ignore
+        names[CustomModelRole.HashRole.value] = b"hash"  # type: ignore
         return names  # type: ignore
 
     def actions(self) -> list[BaseAction]:
         return self._actions
+
+
+class ActionFilterProxyModel(QSortFilterProxyModel):
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._column_filters: dict[int, str] = {}
+        self.setDynamicSortFilter(True)
+        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+    def set_column_filter(self, column: int, text: str) -> None:
+        text = text.strip()
+        if text:
+            self._column_filters[column] = text
+        else:
+            self._column_filters.pop(column, None)
+        self.invalidateFilter()
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        model = self.sourceModel()
+        assert model is not None
+
+        for column, needle in self._column_filters.items():
+            idx = model.index(source_row, column, source_parent)
+            value = idx.data(Qt.ItemDataRole.DisplayRole)
+            haystack = "" if value is None else str(value)
+            if needle.casefold() not in haystack.casefold():
+                return False
+
+        return True
