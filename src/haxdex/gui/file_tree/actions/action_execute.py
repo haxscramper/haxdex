@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
-import logging
+from loguru import logger
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -20,8 +20,6 @@ from haxdex.gui.file_tree.actions.action_trash_file import TrashActionHandler
 from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertActionHandler
 from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
 from haxdex.services.utils import dump_with_type
-
-log = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 

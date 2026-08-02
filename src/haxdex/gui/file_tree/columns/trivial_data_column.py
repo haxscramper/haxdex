@@ -10,9 +10,7 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode, FileTreeInitArgs
 from haxdex.services.core.types import FileHash
 
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class TrivialEntryData(BaseModel, extra="forbid"):

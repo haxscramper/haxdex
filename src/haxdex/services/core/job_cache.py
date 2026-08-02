@@ -1,6 +1,6 @@
 import hashlib
 import json
-import logging
+from loguru import logger
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -10,8 +10,6 @@ from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import IndexerOutput
 from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data, format_json_with_fjson
 from haxdex.services.utils import ExceptionContextNote
-
-log = logging.getLogger(__name__)
 
 
 def get_schema_hash(indexer: BaseIndexer) -> str:
@@ -78,7 +76,7 @@ def load_cached_output(
         return None
 
     if cache_row["schema_hash"] != schema_hash:
-        log.info(
+        logger.info(
             "Cache schema mismatch for indexer {} "
             "(cached={}, current={}), recomputing.".format(
                 indexer.asset_name,
@@ -91,7 +89,7 @@ def load_cached_output(
         return parse_indexer_output(indexer, cache_row["result"])
 
     except json.JSONDecodeError as err:
-        log.error(
+        logger.error(
             f"Could not parse cached database value for "
             f"{indexer.asset_name}: {err}",)
         return None

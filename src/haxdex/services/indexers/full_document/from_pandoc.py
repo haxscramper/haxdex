@@ -1,5 +1,5 @@
 import json
-import logging
+from loguru import logger
 from pathlib import Path
 
 import plumbum
@@ -35,8 +35,6 @@ from haxdex.services.indexers.full_document.full_document_types import (
     inline_nodes_to_content,
     merge_text,
 )
-
-log = logging.getLogger(__name__)
 
 
 def _convert_inlines(

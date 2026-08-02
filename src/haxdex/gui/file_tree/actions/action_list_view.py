@@ -1,7 +1,7 @@
 from io import TextIOWrapper
 from pathlib import Path
 import json
-import logging
+from loguru import logger
 from typing import Any
 
 from pydantic import BaseModel
@@ -14,8 +14,6 @@ from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnS
 from haxdex.gui.file_tree.query_filter import ActionListModel
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
-
-log = logging.getLogger(__name__)
 
 
 class ActionListView(QWidget):
@@ -67,7 +65,7 @@ class ActionListView(QWidget):
     def _on_tree_item_double_clicked(self, index: QModelIndex) -> None:
         column = index.data(CustomModelRole.ColumnSpecRole.value)
         if column is not None and isinstance(column, KnownActionColumnSpec):
-            log.info("double click on action column")
+            logger.info("double click on action column")
             pass
 
         else:
@@ -96,10 +94,10 @@ class ActionListView(QWidget):
         with self.action_file.open("w", encoding="utf-8") as out:
             self._write_actions(out)
 
-        log.info(f"Saved actions to {self.action_file}")
+        logger.info(f"Saved actions to {self.action_file}")
 
     def _on_save_actions_clicked(self) -> None:
         with self.action_file.open("a", encoding="utf-8") as out:
             self._write_actions(out)
 
-        log.info(f"Saved actions to {self.action_file}")
+        logger.info(f"Saved actions to {self.action_file}")

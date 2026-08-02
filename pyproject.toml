@@ -25,6 +25,7 @@ dependencies = [
     "jax[rocm7-local]>=0.10.2",
     "jedi>=0.20.0",
     "langchain-text-splitters>=1.1.2",
+    "loguru>=0.7.3",
     "mistletoe>=1.6.0",
     "msgpack>=1.2.1",
     "numpy>=2.5.0",

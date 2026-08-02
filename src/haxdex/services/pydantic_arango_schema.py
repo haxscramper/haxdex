@@ -4,9 +4,7 @@ from pydantic import BaseModel
 
 from haxdex.services.pydantic_utils import _DUMPERS, _TYPE_TAG, _RegisteredType, _PYDANTIC_TYPE_TAG
 import types as py_types
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 @dataclass

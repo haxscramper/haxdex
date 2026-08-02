@@ -2,7 +2,7 @@ import dataclasses
 import functools
 import itertools
 import json
-import logging
+from loguru import logger
 import shutil
 from collections import defaultdict
 from pathlib import Path
@@ -80,8 +80,6 @@ from tests.utils import (
     sub_row_by_name,
     IndexServiceConfig,
 )
-
-log = logging.getLogger(__name__)
 
 corpus_root = Path("/tmp/haxdex_tests/pbt_corpus")
 corpus_manifest = create_default_persistent_corpus(corpus_root)
@@ -501,7 +499,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     with_duplicates["no_first"] = with_duplicates["rec_duplicate_count"] / (
         with_duplicates["rec_duplicate_count"] + 1)
 
-    # log.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
+    # logger.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
     assert round(with_duplicates["no_first"].sum()) == len(action_model.actions())
 
@@ -676,8 +674,8 @@ def run_initial_index_collection(
         columns=init_file_tree_columns(index=index, reference_tree=reference_tree[0]),
     )
 
-    # log.info(simple_dump(core.model))
-    # log.info("\n" + render_text(model_dump.dump(core.model)))
+    # logger.info(simple_dump(core.model))
+    # logger.info("\n" + render_text(model_dump.dump(core.model)))
     stable_test_dir.joinpath("simple_dump.txt").write_text(
         simple_dump_rows_json(core.model))
 
@@ -756,7 +754,7 @@ def run_action_column_validation(
     root_names: list[str],
     materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]],
 ):
-    log.info(f"run action column validation root names {root_names}")
+    logger.info(f"run action column validation root names {root_names}")
     index = init_index_service(stable_test_dir, root_names, reset=False)
 
     run_index_validation(index, [d for _, _, d in materialized_roots])
@@ -837,7 +835,7 @@ def test_generated_indexer_directory(
     stable_test_dir: Path,
     directories: list[GeneratedDirectory],
 ) -> None:
-    log.info(f"hypothesis example {current_build_context().data.index}")
+    logger.info(f"hypothesis example {current_build_context().data.index}")
     data_dir = stable_test_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -890,7 +888,7 @@ def test_cli_index_rerun(
     stable_test_dir: Path,
     directories: list[GeneratedDirectory],
 ) -> None:
-    log.info(f"hypothesis example {current_build_context().data.index}")
+    logger.info(f"hypothesis example {current_build_context().data.index}")
     data_dir = stable_test_dir / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
 

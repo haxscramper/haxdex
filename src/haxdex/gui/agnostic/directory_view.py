@@ -31,16 +31,9 @@ from PyQt6.QtWidgets import (
     QApplication,
 )
 
-import logging
+from loguru import logger
 
 from beartype import beartype
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(levelname)s %(filename)s:%(lineno)d: %(message)s",
-)
-
-log = logging.getLogger(__name__)
 
 IMAGE_EXTENSIONS = {
     ".bmp",

@@ -1,5 +1,5 @@
 # haxdex/services/indexers/media_transcription.py
-import logging
+from loguru import logger
 import os
 import subprocess
 import tempfile
@@ -18,8 +18,6 @@ from haxdex.services.resources.whisper_transcribe import (
     WhisperTranscribeResource,
     WhisperTranscribeResult,
 )
-
-log = logging.getLogger(__name__)
 
 
 class MediaTranscriptionAnalysis(BaseModel, extra="forbid"):
@@ -120,7 +118,7 @@ class MediaTranscriptionIndexer(BaseIndexer):
         except Exception as exc:
             analysis.transcribe_ok = False
             analysis.transcribe_error = str(exc)
-            log.error("media transcription indexer error", exc_info=True)
+            logger.error("media transcription indexer error", exc_info=True)
 
         finally:
             if wav_path.exists():

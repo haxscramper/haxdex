@@ -1,11 +1,9 @@
 # haxdex/services/resources/text_summary.py
-import logging
+from loguru import logger
 from typing import Any, ClassVar, Literal, Union
 
 from pydantic import BaseModel, Field
 from beartype.typing import Annotated
-
-log = logging.getLogger(__name__)
 
 from haxdex.services.core.job_types import (
     BaseResource,

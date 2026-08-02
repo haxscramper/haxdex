@@ -1,6 +1,6 @@
 import hashlib
 import json
-import logging
+from loguru import logger
 from beartype import beartype
 from beartype.typing import Any, Literal, Annotated, Sequence, TypeVar, Union
 from pydantic import BaseModel, Field, TypeAdapter, field_serializer, field_validator
@@ -9,8 +9,6 @@ from pydantic_core import core_schema
 
 from haxdex.services.core.types import IndexDocument, IndexEdge, IndexMultiDocument
 from haxdex.services.utils import dump_with_type, dumps_with_type
-
-log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 

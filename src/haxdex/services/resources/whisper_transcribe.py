@@ -1,6 +1,6 @@
 # haxdex/services/resources/whisper_transcribe.py
 import atexit
-import logging
+from loguru import logger
 import os
 import subprocess
 import threading
@@ -13,8 +13,6 @@ import httpx
 from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
-
-log = logging.getLogger(__name__)
 
 
 class WhisperSegment(BaseModel, extra="forbid"):
@@ -115,7 +113,7 @@ class WhisperTranscribeResource(BaseResource):
             raise FileNotFoundError(
                 f"missing GGML download script: {self._ggml_download_script}")
 
-        log.info(f"Input transcription model is missing {self._model_path}")
+        logger.info(f"Input transcription model is missing {self._model_path}")
         result = subprocess.run(
             ["sh", str(self._ggml_download_script), self._download_model_name],
             cwd=str(self._model_dir),
@@ -133,7 +131,7 @@ class WhisperTranscribeResource(BaseResource):
             raise FileNotFoundError(
                 f"model download finished but file was not found: {self._model_path}")
 
-        log.info("Model download OK")
+        logger.info("Model download OK")
 
     def _is_server_healthy(self) -> bool:
         if self._proc is not None and self._proc.poll() is not None:
@@ -309,7 +307,7 @@ class WhisperTranscribeResource(BaseResource):
         try:
             return self._transcribe_once(request)
         except Exception:
-            log.error("whisper transcription error", exc_info=True)
+            logger.error("whisper transcription error", exc_info=True)
             with self._lock:
                 self._restart_server_locked()
             return self._transcribe_once(request)

@@ -6,11 +6,9 @@ from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.agnostic.tree_column_model import AbstractTreeColumnModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-import logging
+from loguru import logger
 
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
-
-log = logging.getLogger(__name__)
 
 
 @beartype

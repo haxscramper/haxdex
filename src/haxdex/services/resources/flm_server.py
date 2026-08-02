@@ -1,6 +1,6 @@
 # haxdex/services/resources/flm_server.py
 import atexit
-import logging
+from loguru import logger
 import os
 import subprocess
 import threading
@@ -11,8 +11,6 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
-
-log = logging.getLogger(__name__)
 
 
 class FlmMessage(BaseModel, extra="forbid"):
@@ -138,7 +136,7 @@ class FlmServerResource(BaseResource):
             self._restart_server_locked()
 
     def _create_completion(self, request: FlmRequest):
-        log.info(f"message sizes: {[len(msg.content) for msg in request.messages]}")
+        logger.info(f"message sizes: {[len(msg.content) for msg in request.messages]}")
 
         params: dict[str, Any] = {
             "model": request.model,
@@ -175,7 +173,7 @@ class FlmServerResource(BaseResource):
         try:
             completion = self._create_completion(request)
         except Exception:
-            log.error("exception when running requests", exc_info=True)
+            logger.error("exception when running requests", exc_info=True)
             with self._lock:
                 self._restart_server_locked()
             completion = self._create_completion(request)

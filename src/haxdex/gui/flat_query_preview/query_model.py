@@ -1,5 +1,5 @@
 from __future__ import annotations
-import logging
+from loguru import logger
 from typing import Any, Dict, List, Optional
 
 from beartype import beartype
@@ -13,8 +13,6 @@ from PyQt6.QtCore import (
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 
 @beartype

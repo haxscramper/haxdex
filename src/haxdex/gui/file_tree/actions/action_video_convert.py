@@ -1,6 +1,6 @@
 import hashlib
 import json
-import logging
+from loguru import logger
 import subprocess
 from dataclasses import dataclass
 from fractions import Fraction
@@ -12,8 +12,6 @@ from beartype.typing import ClassVar
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertTarget, VideoConvertData
-
-log = logging.getLogger(__name__)
 
 
 @beartype
@@ -70,7 +68,7 @@ class VideoConvertActionHandler(ActionHandler):
         dest = self.dest_path(action)
 
         if self.dry_run:
-            log.info(
+            logger.info(
                 f"do video_convert (dry-run): planned conversion {src} -> {dest} target={action.target.target}"
             )
             return
@@ -139,7 +137,7 @@ class VideoConvertActionHandler(ActionHandler):
             # Target dimensions are outside the VAAPI encoder's supported range
             # (e.g. very small videos below the 128px minimum). Fall back to a
             # fully software encode path.
-            log.info(
+            logger.info(
                 f"do video_convert: target {target_width}x{target_height} outside VAAPI "
                 f"range [{self._VAAPI_MIN_DIM}-{self._VAAPI_MAX_DIM}], using software encode"
             )
@@ -172,7 +170,7 @@ class VideoConvertActionHandler(ActionHandler):
                 str(dest),
             ]
 
-        log.info(f"do video_convert: executing {' '.join(command)}")
+        logger.info(f"do video_convert: executing {' '.join(command)}")
         subprocess.run(command, check=True)
 
     @beartype
@@ -181,10 +179,10 @@ class VideoConvertActionHandler(ActionHandler):
         dest = self.dest_path(action)
 
         if self.dry_run:
-            log.info(f"undo video_convert (dry-run): planned remove {dest}")
+            logger.info(f"undo video_convert (dry-run): planned remove {dest}")
             return
 
-        log.info(f"undo video_convert: removing {dest}")
+        logger.info(f"undo video_convert: removing {dest}")
         if dest.exists():
             if dest.is_dir():
                 raise ValueError(

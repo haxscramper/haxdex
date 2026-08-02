@@ -9,9 +9,7 @@ from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
 from haxdex.services.file_iteration import match_root, RootFilter
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 AQL_FILE_PATHS = """
 FOR file IN files
@@ -54,12 +52,12 @@ def _fetch_file_paths_impl(db: IndexDatabase,
 
         root_filter, relative = matched
         if not relative:
-            log.debug(f"could not find relative name for {path_str}")
+            logger.debug(f"could not find relative name for {path_str}")
             continue
 
         if root_filter.ignore_spec is not None and root_filter.ignore_spec.match_file(
                 relative):
-            log.info(f"skipping {path_str} via filter")
+            logger.info(f"skipping {path_str} via filter")
             continue
 
         rows.append(

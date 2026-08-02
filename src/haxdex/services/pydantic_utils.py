@@ -20,12 +20,10 @@ import plumbum
 import PIL.TiffImagePlugin
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticSerializationError
-import logging
+from loguru import logger
 import pandas as pd
 
 from haxdex.services.utils import ExceptionContextNote
-
-log = logging.getLogger(__name__)
 
 T = TypeVar("T")
 

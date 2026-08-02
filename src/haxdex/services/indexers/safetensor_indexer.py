@@ -1,5 +1,5 @@
 import json
-import logging
+from loguru import logger
 import struct
 from collections import Counter
 from pathlib import Path
@@ -10,8 +10,6 @@ from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunCo
 from haxdex.services.pydantic_utils import try_parse_json
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from pydantic import BaseModel
-
-log = logging.getLogger(__name__)
 
 
 class TensorInfo(BaseModel, extra="forbid"):
@@ -104,5 +102,5 @@ class SafetensorIndexer(BaseIndexer):
     ) -> IndexerOutput:
         path = ctx.get_path(request.file_ref)
         result = IndexerOutput(indexer_id=self.asset_name, result=_parse(path))
-        log.info(f"{path} OK")
+        logger.info(f"{path} OK")
         return result

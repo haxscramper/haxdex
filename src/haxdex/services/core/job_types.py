@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
+from loguru import logger
 import os
 import re
 import threading
@@ -34,8 +34,6 @@ from haxdex.services.core.types import (
 )
 from haxdex.services.pydantic_utils import (
     to_json_safe,)
-
-log = logging.getLogger(__name__)
 
 
 class TraceWriter:

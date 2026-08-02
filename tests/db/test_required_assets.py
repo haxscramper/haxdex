@@ -43,7 +43,7 @@ def test_chain_two_indexers(
             resources,
             assets,
         ) -> IndexerOutput:
-            call_log.append("root")
+            call_logger.append("root")
             return IndexerOutput(
                 indexer_id=self.asset_name,
                 result=RootModel(value="root-value", hash="FCED" * 16),
@@ -61,7 +61,7 @@ def test_chain_two_indexers(
             resources,
             assets,
         ) -> IndexerOutput:
-            call_log.append("nested")
+            call_logger.append("nested")
             assert "root_indexer" in assets
             root_output = assets["root_indexer"]
             assert isinstance(root_output, IndexerOutput)
@@ -123,7 +123,7 @@ def test_branching_indexers(
         result_model = ModelA
 
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
-            call_log.append("A")
+            call_logger.append("A")
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=ModelA(value="A", hash="345E" * 16))
 
@@ -133,7 +133,7 @@ def test_branching_indexers(
         required_assets = ("indexer_a",)
 
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
-            call_log.append("B")
+            call_logger.append("B")
             assert "indexer_a" in assets
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=ModelB(value="B", hash="7890" * 16))
@@ -144,7 +144,7 @@ def test_branching_indexers(
         required_assets = ("indexer_b",)
 
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
-            call_log.append("C")
+            call_logger.append("C")
             assert "indexer_b" in assets
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=ModelC(value="C", hash="7666" * 16))
@@ -155,7 +155,7 @@ def test_branching_indexers(
         required_assets = ("indexer_b",)
 
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
-            call_log.append("D")
+            call_logger.append("D")
             assert "indexer_b" in assets
             return IndexerOutput(indexer_id=self.asset_name,
                                  result=ModelD(value="D", hash="345F" * 16))
@@ -189,8 +189,8 @@ def test_branching_indexers(
 
     assert call_log[0] == "A"
     assert call_log[1] == "B"
-    assert call_log.index("B") < call_log.index("C")
-    assert call_log.index("B") < call_log.index("D")
+    assert call_logger.index("B") < call_logger.index("C")
+    assert call_logger.index("B") < call_logger.index("D")
     assert set(call_log) == {"A", "B", "C", "D"}
 
 

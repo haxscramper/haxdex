@@ -14,9 +14,7 @@ from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
 from haxdex.services.utils import format_size
 import enum
 
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class VideoConvertTarget(str, enum.Enum):

@@ -13,9 +13,7 @@ from haxdex.services.resources.text_summary import (
     TextSummaryResource,
     TextSummaryResult,
 )
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class FileSummaryIndexerResult(TextSummaryResult, extra="forbid"):

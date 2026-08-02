@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 
 from beartype.typing import Any
 

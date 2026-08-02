@@ -6,9 +6,7 @@ from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunCo
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 import imagehash
 from PIL import Image
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class ImageHashIndexerResult(IndexDocument, extra="forbid"):
@@ -38,7 +36,7 @@ class ImageHashIndexer(BaseIndexer):
     ) -> IndexerOutput:
         path = ctx.get_path(request.file_ref)
         assert path.exists(), path
-        log.debug(f"Image hash for '{path}'")
+        logger.debug(f"Image hash for '{path}'")
         try:
             image = Image.open(path)
             image.load()

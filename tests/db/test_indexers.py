@@ -17,14 +17,12 @@ from haxdex.services.indexers.file_stats import FileStatsIndexerResult
 from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.indexers.chunk_indexing.full_text import FullTextIndexerResult
-import logging
+from loguru import logger
 import functools
 
 from haxdex.services.pydantic_utils import first_by_field_value
 from haxdex.services.resources.text_summary import SummaryChunk
 from haxdex.services.utils import dump_with_type
-
-log = logging.getLogger(__name__)
 
 ARANGO_HOST = os.environ.get("ARANGO_HOST", "http://localhost:8529")
 ARANGO_USER = os.environ.get("ARANGO_USER", "root")
@@ -90,8 +88,8 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
     assert isinstance(out.result, FullTextIndexerResult)
     text = sample_file.read_text()
 
-    log.debug("dump with type")
-    log.debug(json.dumps(dump_with_type(out), indent=2))
+    logger.debug("dump with type")
+    logger.debug(json.dumps(dump_with_type(out), indent=2))
 
     def obj_has_field_value(obj: object, field: str, value: Any) -> bool:
         return getattr(obj, field) == value
@@ -208,7 +206,7 @@ def test_file_summary_indexer_with_flm(
         runtime.run_indexer(ref, runtime.get_indexers(["file_summary"]))
         out = runtime.get_indexer_result(ref, "file_summary")
         assert isinstance(out.result, FileSummaryIndexerResult)
-        log.debug(json.dumps(dump_with_type(out), indent=2))
+        logger.debug(json.dumps(dump_with_type(out), indent=2))
 
         file = first_by_field_value(out.result.documents, "type", "chunk")
         assert isinstance(file, SummaryChunk)

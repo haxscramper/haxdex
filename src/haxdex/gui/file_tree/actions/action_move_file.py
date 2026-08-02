@@ -7,9 +7,7 @@ from beartype.typing import ClassVar
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class MoveAction(BaseAction):
@@ -32,7 +30,7 @@ class MoveActionHandler(ActionHandler):
         assert dest is not None
         src = action.file.path
 
-        log.info(f"do action for file move: executing move({src} -> {dest}")
+        logger.info(f"do action for file move: executing move({src} -> {dest}")
 
         if self.dry_run:
             return
@@ -46,7 +44,7 @@ class MoveActionHandler(ActionHandler):
         dest = action.file.path
         src = Path(action.dest)
 
-        log.info(f"Undo action for file move: executing move({src} -> {dest})")
+        logger.info(f"Undo action for file move: executing move({src} -> {dest})")
         if self.dry_run:
             return
 

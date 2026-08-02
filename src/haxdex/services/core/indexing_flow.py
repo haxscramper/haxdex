@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+from loguru import logger
 from pathlib import Path
 from beartype.typing import Sequence
 from beartype import beartype
@@ -11,8 +11,6 @@ from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext, META_SUFFIX
 from haxdex.services.core.types import FileRef, RootRef
 from haxdex.services.file_iteration import RootFilter, prepare_root_filters, DirConfig
-
-log = logging.getLogger(__name__)
 
 
 @beartype
@@ -69,7 +67,7 @@ def collect_files_for_path(
             candidates = (p for p in source.rglob("*") if p.is_file())
 
         if not candidates:
-            log.warning(f"no candidates from {source}")
+            logger.warning(f"no candidates from {source}")
 
         for file in candidates:
             if file in seen:
@@ -79,7 +77,7 @@ def collect_files_for_path(
                 continue
 
             if not _is_file_selected_by_filters(file, filters):
-                log.debug(f"ignoring {file}")
+                logger.debug(f"ignoring {file}")
                 continue
 
             seen.add(file)
@@ -108,11 +106,11 @@ def run_indexing_per_root_plan(
     indexers: Sequence[BaseIndexer],
 ) -> None:
     indexed_total = 0
-    log.info("constructing index jobs plan")
+    logger.info("constructing index jobs plan")
 
     for path_cfg in cfg.paths:
         if cfg.limit_total is not None and cfg.limit_total <= indexed_total:
-            log.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
+            logger.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
             return
 
         assert path_cfg.root_path.is_absolute(), str(path_cfg.root_path)
@@ -139,7 +137,7 @@ def run_indexing_per_root_plan(
                 files = files[:remaining]
 
             if not files:
-                log.info(f"no more files, total indexed {indexed_total}")
+                logger.info(f"no more files, total indexed {indexed_total}")
                 continue
 
             plan_run_size = cfg.max_plan_run_size or len(files)
@@ -151,7 +149,7 @@ def run_indexing_per_root_plan(
                                               start=1):
                 batch_files = files[start:start + plan_run_size]
 
-                log.info("build refs for root")
+                logger.info("build refs for root")
                 with ctx.trace_scope(
                         "build refs for root",
                         path=path_cfg.name,
@@ -162,7 +160,7 @@ def run_indexing_per_root_plan(
 
                 indexed_total += len(refs)
 
-                log.info("prepare files")
+                logger.info("prepare files")
                 with ctx.trace_scope(
                         "prepare files",
                         root=root.name,
@@ -173,7 +171,7 @@ def run_indexing_per_root_plan(
                 ):
                     prepared = runner.prepare_files(refs, indexers)
 
-                log.info("create plan")
+                logger.info("create plan")
                 with ctx.trace_scope(
                         "root plan construction",
                         root=root.name,

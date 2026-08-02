@@ -1,7 +1,7 @@
 import enum
 import hashlib
 import json
-import logging
+from loguru import logger
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -18,8 +18,6 @@ from haxdex.services.core.types import (
 )
 from haxdex.services.indexers.full_document.full_document_types import DocumentBlock, InlineContent
 import haxdex.services.indexers.full_document.full_document_types as doc_types
-
-log = logging.getLogger(__name__)
 
 
 class ChunkUnit(str, enum.Enum):

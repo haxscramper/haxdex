@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
-import logging
+from loguru import logger
 import subprocess
 import time
 from pathlib import Path
@@ -22,8 +22,6 @@ from docling_core.types.doc.document import (
     ContentLayer,
 )
 
-log = logging.getLogger(__name__)
-
 
 class DoclingPage(BaseModel, extra="forbid"):
     extractor: Literal["docling"] = "docling"
@@ -39,7 +37,7 @@ def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
     try:
         requests.get(f"{base_url}/api/tags", timeout=2)
     except requests.exceptions.RequestException:
-        log.info("Ollama is not running. Starting 'ollama serve'...")
+        logger.info("Ollama is not running. Starting 'ollama serve'...")
         subprocess.Popen(
             ["ollama", "serve"],
             stdout=subprocess.DEVNULL,
@@ -54,12 +52,12 @@ def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
         else:
             raise RuntimeError("Failed to start or connect to 'ollama serve'")
 
-    log.info(f"Checking if model {model_name} is available...")
+    logger.info(f"Checking if model {model_name} is available...")
     result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
     if model_name not in result.stdout:
-        log.info(f"Model {model_name} not found. Pulling (this might take a while)...")
+        logger.info(f"Model {model_name} not found. Pulling (this might take a while)...")
         subprocess.run(["ollama", "pull", model_name], check=True)
-        log.info(f"Model {model_name} pulled successfully.")
+        logger.info(f"Model {model_name} pulled successfully.")
 
 
 def _rasterize_page(pdf_path: Path, page_num: int, raster_dir: Path) -> Path:
@@ -153,7 +151,7 @@ class DoclingExtractor:
 
     def extract_page(self, pdf_path: Path, page_num: int,
                      raster_dir: Path) -> DoclingPage:
-        log.info(f"Docling extracting page {page_num} from {pdf_path.name}")
+        logger.info(f"Docling extracting page {page_num} from {pdf_path.name}")
 
         image_path = _rasterize_page(pdf_path, page_num, raster_dir)
         image = PILImage.open(str(image_path))

@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import logging
+from loguru import logger
 import os
 import re
 from pathlib import Path
@@ -16,8 +16,6 @@ import pymupdf4llm
 from pydantic import BaseModel
 
 from haxdex.services.resources.pdf.page_model import BoundingBox, DocTag
-
-log = logging.getLogger(__name__)
 
 
 class MyPDFPage(BaseModel, extra="forbid"):
@@ -537,7 +535,7 @@ class MyPDFExtractor:
         return len(text.strip()) > 20
 
     def extract_page(self, pdf_path: Path, page_num: int) -> MyPDFPage:
-        log.info(f"MyPDF extracting page {page_num} from {pdf_path.name}")
+        logger.info(f"MyPDF extracting page {page_num} from {pdf_path.name}")
 
         root_tag = DocTag(id=f"page{page_num}-root", tag_name="root", text="")
 

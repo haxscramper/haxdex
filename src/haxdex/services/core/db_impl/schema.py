@@ -16,9 +16,7 @@ from haxdex.services.pydantic_arango_schema import (
     arango_schema_for_model,
 )
 
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 @beartype
@@ -124,7 +122,7 @@ class SchemaMixin:
                     edge=edge,
                     schema=expected_schema,
                 )
-                log.warning(
+                logger.warning(
                     f"DB schema changed for {name} collection has no items, dropping")
                 return
 

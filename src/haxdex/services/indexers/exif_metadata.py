@@ -1,7 +1,7 @@
 import base64
 import hashlib
 import json
-import logging
+from loguru import logger
 import math
 import re
 from datetime import datetime
@@ -21,8 +21,6 @@ from haxdex.services.pydantic_utils import try_parse_json
 from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 from PIL import Image, ExifTags
 from pydantic import BaseModel, ConfigDict, Field
-
-log = logging.getLogger(__name__)
 
 RX_DELETE = re.compile(r"[- _,()/\\:]")
 

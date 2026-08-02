@@ -1,7 +1,7 @@
 from argparse import ArgumentError
 import hashlib
 import json
-import logging
+from loguru import logger
 from pathlib import Path
 from typing import Annotated, Literal, Union
 
@@ -25,8 +25,6 @@ from haxdex.services.indexers.full_document.from_pandoc import pandoc_to_documen
 from haxdex.services.indexers.full_document.full_document_types import _flatten
 
 import haxdex.services.indexers.full_document.full_document_types as doc_types
-
-log = logging.getLogger(__name__)
 
 
 class DocumentBlockIndexerResult(MultiDocumentModel, extra="forbid"):
@@ -100,7 +98,7 @@ class DocumentBlockIndexer(BaseIndexer):
         path = ctx.get_path(request.file_ref)
 
         mime = self._magic.from_file(str(path.resolve()))
-        log.info(f"Converting {path} to full document, using mime {mime}")
+        logger.info(f"Converting {path} to full document, using mime {mime}")
         root = pandoc_to_document(path, file_hash=request.get_hash_str())
 
         documents: list[IndexDocument] = []

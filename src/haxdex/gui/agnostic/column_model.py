@@ -2,14 +2,12 @@ from abc import ABC, abstractmethod
 
 from beartype import beartype
 from beartype.typing import Any, Sequence
-import logging
+from loguru import logger
 
 from PyQt6.QtCore import QModelIndex, QObject, Qt, QAbstractItemModel
 from PyQt6.QtWidgets import QAbstractItemDelegate, QAbstractItemView
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-
-log = logging.getLogger(__name__)
 
 
 @beartype

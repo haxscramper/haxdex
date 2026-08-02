@@ -32,9 +32,7 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeInitArgs,
 )
 from haxdex.services.utils import create_cache_engine
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 CACHE_SCHEMA_TABLE = "file_tree_column_schemas"
 CACHE_FILE_TABLE = "file_tree_file_columns"
@@ -143,7 +141,7 @@ def initialize_cache(
     cache_needs_rebuild = not required_tables.issubset(existing_tables)
 
     if not required_tables.issubset(existing_tables):
-        log.info(
+        logger.info(
             f"Existing DB tables {existing_tables} is not a subset of requried tables {required_tables}"
         )
 
@@ -157,12 +155,12 @@ def initialize_cache(
                                or path_table_columns != expected_path_table_columns)
 
         if len(path_table_columns) != len(expected_path_table_columns):
-            log.info(
+            logger.info(
                 f"Expected path table columns len({expected_path_table_columns}) != path table columns len({path_table_columns})"
             )
 
         if path_table_columns != expected_path_table_columns:
-            log.info(
+            logger.info(
                 f"Expected path table columns {expected_path_table_columns} != path table columns {path_table_columns}"
             )
 
@@ -181,17 +179,17 @@ def initialize_cache(
                                or file_table_columns != expected_file_table_columns)
 
         if len(file_table_columns) != len(expected_file_table_columns):
-            log.info(
+            logger.info(
                 f"Expected file table columns len({expected_file_table_columns}) != file table columns len({file_table_columns})"
             )
 
         if file_table_columns != expected_file_table_columns:
-            log.info(
+            logger.info(
                 f"Expected file table columns {expected_file_table_columns} != file table columns {file_table_columns}"
             )
 
     if cache_needs_rebuild:
-        log.info("Need to rebuild cache")
+        logger.info("Need to rebuild cache")
         _drop_cache_database(engine)
         metadata.create_all(engine)
 
@@ -217,7 +215,7 @@ def initialize_cache(
     schema_changed = cached_schema_hashes != expected_schema_hashes
 
     if schema_changed:
-        log.info("Schema changed, dropping tables")
+        logger.info("Schema changed, dropping tables")
         file_table.drop(engine)
         file_table.create(engine)
 
@@ -231,7 +229,7 @@ def initialize_cache(
                 } for column_name, schema_hash in expected_schema_hashes.items()],
             )
 
-    log.info("OK")
+    logger.info("OK")
     return engine, schema_table, file_table, path_table
 
 

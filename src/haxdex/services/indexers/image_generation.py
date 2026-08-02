@@ -1,6 +1,6 @@
 from collections import defaultdict, deque
 import json
-import logging
+from loguru import logger
 from datetime import datetime
 from pathlib import Path
 
@@ -19,8 +19,6 @@ from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunCo
 from haxdex.services.pydantic_utils import to_json_safe
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from pydantic import BaseModel
-
-log = logging.getLogger(__name__)
 
 
 class LoraParams(BaseModel, extra="forbid"):

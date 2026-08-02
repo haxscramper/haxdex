@@ -1,5 +1,6 @@
 import dataclasses
 import functools
+from loguru import logger
 import logging
 import shutil
 from contextlib import contextmanager, redirect_stderr
@@ -204,6 +205,23 @@ def sub_row_by_name(index: QModelIndex,
     raise ValueError(f"no index for {suffix}")
 
 
+class _InterceptHandler(logging.Handler):
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level: str | int = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        frame = logging.currentframe()
+        depth = 2
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
 @contextmanager
 def capture_all_logs_to_test_file(
     stable_test_dir: Path,
@@ -225,25 +243,27 @@ def capture_all_logs_to_test_file(
 
     run_log_path.write_text("")
     with run_log_path.open("w", encoding="utf-8") as log_file, redirect_stderr(log_file):
-        root.handlers.clear()
-        root.setLevel(level)
+        sink_id = logger.add(
+            log_file,
+            level=level,
+            format="{level} {name} {file.name}:{line}: {message}",
+            enqueue=False,
+            backtrace=True,
+            diagnose=False,
+        )
 
-        handler = logging.StreamHandler(log_file)
-        handler.setLevel(level)
-        handler.setFormatter(
-            logging.Formatter(
-                "%(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s"))
-        root.addHandler(handler)
+        root.handlers.clear()
+        root.addHandler(_InterceptHandler())
+        root.setLevel(level)
 
         try:
             yield run_log_path
         finally:
-            root.removeHandler(handler)
-            handler.close()
+            logger.remove(sink_id)
             root.handlers[:] = old_root_handlers
             root.setLevel(old_root_level)
-            for logger, old_propagate in touched:
-                logger.propagate = old_propagate
+            for lg, old_propagate in touched:
+                lg.propagate = old_propagate
 
 
 def capture_logs(test_name: str | None = None, level: int = logging.DEBUG):

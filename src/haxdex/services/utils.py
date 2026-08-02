@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import enum
 import json
+from loguru import logger
 import logging
 from datetime import datetime, timezone
 

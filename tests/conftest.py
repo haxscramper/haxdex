@@ -19,9 +19,8 @@ from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
 from haxdex.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource, FlmServerResourceConfig
 from haxdex.services.utils import get_custom_traceback_handler, stfu_logs
+from loguru import logger
 import logging
-
-log = logging.getLogger(__name__)
 
 ARANGO_HOST = "http://localhost:8529"
 ARANGO_USER = "root"

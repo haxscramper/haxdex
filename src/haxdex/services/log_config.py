@@ -1,10 +1,11 @@
 import json
-import logging
+from loguru import logger
 from datetime import datetime
 from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
+import logging
 
 
 @beartype

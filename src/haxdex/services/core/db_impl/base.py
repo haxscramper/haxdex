@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from pathlib import Path
 from typing import cast
 
@@ -9,8 +9,6 @@ from beartype.typing import Dict
 
 from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.types import FileRef
-
-log = logging.getLogger(__name__)
 
 
 class DatabaseBase:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from loguru import logger
 from collections.abc import Sequence
 from pathlib import Path
 from pprint import pformat
@@ -29,8 +29,6 @@ from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
 from haxdex.services.file_iteration import match_root, RootFilter, prepare_root_filters
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
-
-log = logging.getLogger(__name__)
 
 
 def _load_flat_file_nodes(
@@ -192,7 +190,7 @@ def load_file_tree_from_cache(
             columns,
         )
 
-        log.debug(f"loaded flat file nodes {len(flat_nodes)} entries")
+        logger.debug(f"loaded flat file nodes {len(flat_nodes)} entries")
 
     with ctx.trace_scope("arrange file tree"):
         return _build_directory_tree(flat_nodes, columns)
@@ -211,7 +209,7 @@ def build_file_tree(
     assert 0 < len(root_directories)
     root_filters = prepare_root_filters(root_directories)
     if not root_filters:
-        log.warning("no root filters")
+        logger.warning("no root filters")
         return []
 
     file_paths = fetch_file_paths(ctx, db, root_filters)

@@ -1,5 +1,5 @@
 import json
-import logging
+from loguru import logger
 
 from sqlalchemy import Engine
 import glom
@@ -11,8 +11,6 @@ from pydantic import BaseModel, Field, model_validator, model_serializer
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexerResult
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
-
-log = logging.getLogger(__name__)
 
 
 class XYObject(BaseModel, extra="allow"):

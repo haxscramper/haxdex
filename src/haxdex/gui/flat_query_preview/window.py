@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+from loguru import logger
 from typing import List, Optional, Sequence
 
 from beartype import beartype
@@ -26,8 +26,6 @@ from haxdex.gui.file_preview_delegate import (
 from haxdex.gui.flat_query_preview.query_model import QueryResultModel
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 TILE_SIZE = 128
 BATCH_SIZE = 200
@@ -107,11 +105,11 @@ class FlatQueryViewWindow(QMainWindow):
 
     def _on_run(self) -> None:
         query = self._query_edit.toPlainText()
-        log.info("Running AQL query:\n%s", query)
+        logger.info("Running AQL query:\n%s", query)
 
         count = self._model.run_query(query)
         self._status.setText(f"Loaded {count} rows")
-        log.info("Initial results loaded: %d", count)
+        logger.info("Initial results loaded: %d", count)
 
         self._cache = ThumbnailCache(TILE_SIZE)
         self._cache.updated.connect(self._list.viewport().update)
@@ -125,5 +123,5 @@ class FlatQueryViewWindow(QMainWindow):
         hash = FileHash(hash=hash_str)
         self._current_hash = hash
 
-        log.info(f"Selected hash {hash.hash}")
+        logger.info(f"Selected hash {hash.hash}")
         self._preview.show_hash(hash)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+from loguru import logger
 from typing import List, Optional, Sequence
 
 from beartype import beartype
@@ -22,8 +22,6 @@ from haxdex.gui.collection_views.paths_preview_builder import PathsWidgetBuilder
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 
 class HorizontalTextTabBar(QTabBar):
@@ -127,4 +125,4 @@ class FilePreviewPane(QWidget):
 
     def _on_tab_changed(self, index: int) -> None:
         if index >= 0:
-            log.info(f"Tab changed to {index}")
+            logger.info(f"Tab changed to {index}")

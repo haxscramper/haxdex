@@ -11,9 +11,7 @@ from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunCo
 from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 from plumbum import local
 from pydantic import BaseModel
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 @beartype
@@ -30,7 +28,7 @@ class FFProbeInfoModel(BaseModel):
 
 @beartype
 def run_ffprobe(path: Path) -> FFProbeInfoModel | None:
-    log.debug(f"running probe on {path}")
+    logger.debug(f"running probe on {path}")
     ffprobe = local["ffprobe"]
     result = ffprobe.run([
         "-v",

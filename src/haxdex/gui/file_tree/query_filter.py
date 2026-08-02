@@ -1,6 +1,6 @@
 import ast
 import linecache
-import logging
+from loguru import logger
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QModelIndex, QObject
@@ -16,8 +16,6 @@ from haxdex.gui.file_tree.python_code_editor import (
     as_query_error,
 )
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
-
-log = logging.getLogger(__name__)
 
 FilterFn = Callable[[list[FileTreeNode]], list[FileTreeNode]]
 TraverseFn = Callable[["ActionProvider", list[FileTreeNode]], object]

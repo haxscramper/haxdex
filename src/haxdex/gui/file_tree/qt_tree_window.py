@@ -38,11 +38,9 @@ from haxdex.gui.file_tree.qt_tree_region import FileTreeRegion
 from haxdex.gui.file_tree.query_filter import ActionListModel
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
-import logging
+from loguru import logger
 
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 
 @beartype
@@ -140,7 +138,7 @@ class FileTreeQueryCore:
             user_edit_path=cfg.file_tree_view.user_edit_path,
         )
 
-        log.debug(f"build file tree with {len(nodes)}")
+        logger.debug(f"build file tree with {len(nodes)}")
 
         self.model = FileTreeModel(
             columns=self.columns,
@@ -163,7 +161,7 @@ class FileTreeQueryCore:
     ) -> None:
         column = self.columns[topLeft.column()]
         node = cast(FileTreeNode, topLeft.internalPointer())
-        log.info(
+        logger.info(
             f"user entered custom data for column {column.getColumnData(topLeft)} for {node.root} {node.root_relative}"
         )
 
@@ -249,7 +247,7 @@ class FileTreeQueryWindow(QMainWindow):
             region.refresh_named_queries()
 
     def _add_action_region(self, actions: ActionListModel) -> ActionListView:
-        log.info("add action list view")
+        logger.info("add action list view")
         view = ActionListView(
             actions,
             parent=self.region_splitter,
@@ -281,14 +279,14 @@ class FileTreeQueryWindow(QMainWindow):
     def _on_query_submitted(self, source_region: FileTreeRegion) -> None:
         try:
             result = source_region.compute_filtered()
-            log.info("compute filtered OK")
+            logger.info("compute filtered OK")
 
         except QueryError as error:
             source_region.query_edit.show_query_error(error)
             return
 
         except Exception as error:
-            log.exception("query failed")
+            logger.exception("query failed")
             QMessageBox.warning(self, "Query error", str(error))
             return
 

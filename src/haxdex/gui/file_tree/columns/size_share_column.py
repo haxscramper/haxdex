@@ -20,9 +20,7 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class SizeShareData(BaseModel, extra="forbid"):
@@ -153,7 +151,7 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
         self_size = get_self_size()
         if not self_size:
-            log.warning(f"no size for {args.path}")
+            logger.warning(f"no size for {args.path}")
             return None
 
         if resolved_path.parent not in self.directory_size_bytes.per_path:

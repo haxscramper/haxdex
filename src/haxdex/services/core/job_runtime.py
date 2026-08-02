@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import logging
+from loguru import logger
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -36,8 +36,6 @@ from haxdex.services.core.types import (
     is_processed_result,
 )
 from haxdex.services.utils import ExceptionContextNote
-
-log = logging.getLogger(__name__)
 
 
 class ActionKind(str, Enum):
@@ -432,7 +430,7 @@ class IndexRuntime:
                 batches_per_min_str = "n/a"
                 eta_plan_str = "unknown"
 
-            log.debug(
+            logger.debug(
                 "batch {}/{}: indexer={} kind={} window={} files={} sub_batches={} batches_per_min={} eta_plan={}"
                 .format(
                     batch_idx,
@@ -607,7 +605,7 @@ class IndexRuntime:
                 sub_batches_per_sec_str = "n/a"
                 eta_batch_str = "unknown"
 
-            log.debug(
+            logger.debug(
                 "sub-batch {}/{}: indexer={} size={} sub_batches_per_sec={} eta_batch={}".
                 format(
                     sub_idx,
@@ -646,4 +644,4 @@ class IndexRuntime:
 
             recent_sub_batch_times.append(monotonic() - sub_batch_started_at)
 
-        log.debug("finished indexer batch")
+        logger.debug("finished indexer batch")

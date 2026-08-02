@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from beartype.typing import Any
 from beartype import beartype
 
@@ -13,8 +13,6 @@ from haxdex.services.core.types import (
     IndexDocument,
     VectorIndexConfig,
 )
-
-log = logging.getLogger(__name__)
 
 
 @beartype

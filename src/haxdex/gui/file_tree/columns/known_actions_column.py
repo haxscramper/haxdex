@@ -10,9 +10,7 @@ from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
 from beartype.typing import cast, Optional
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class KnownActionData(BaseModel, extra="forbid"):

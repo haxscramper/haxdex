@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import logging
+from loguru import logger
 from pathlib import Path
 from typing import Annotated, Union
 
@@ -12,8 +12,6 @@ from haxdex.services.core.job_types import BaseResource, RunContext
 from haxdex.services.resources.pdf.docling_extractor import DoclingExtractor, DoclingPage
 from haxdex.services.resources.pdf.mypdf_extractor import MyPDFExtractor, MyPDFPage
 from haxdex.services.utils import get_xdg_cache_dir
-
-log = logging.getLogger(__name__)
 
 
 class PdfExtractorRequest(BaseModel, extra="forbid"):
@@ -77,7 +75,7 @@ class PdfExtractor(BaseResource):
             max_pages = len(pdf)
             first_page, last_page = self._parse_page_range(request.pages, max_pages)
 
-            log.info(
+            logger.info(
                 f"Processing PDF: {pdf_path.name} | "
                 f"Range: {first_page}-{last_page} ({last_page - first_page + 1} pages)")
 

@@ -20,9 +20,7 @@ from haxdex.services.indexers.chunk_indexing.chunking import (
 from haxdex.services.indexers.full_document.full_document import (
     DocumentBlockIndexerResult,)
 
-import logging
-
-log = logging.getLogger(__name__)
+from loguru import logger
 
 
 class FullTextChunk(ChunkDocument, extra="forbid"):
@@ -70,7 +68,7 @@ class FullTextIndexer(BaseIndexer):
 
         file_hash = request.get_hash_str()
 
-        # log.info(
+        # logger.info(
         #     f"document block result is {full_document.model_dump_json(indent=2, serialize_as_any=True)}"
         # )
 
@@ -83,7 +81,7 @@ class FullTextIndexer(BaseIndexer):
         else:
             chunks = []
 
-        log.debug(f"created {len(chunks)} chunks")
+        logger.debug(f"created {len(chunks)} chunks")
 
         documents, edges = chunks_to_multidoc(chunks, file_hash, ChunkDocument)
         return IndexerOutput(

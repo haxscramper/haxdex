@@ -12,11 +12,10 @@ from haxdex.services.indexers.chunk_indexing.file_embedding import EmbeddingChun
 from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
 from haxdex.services.indexers.full_document.full_document_types import Heading
 from haxdex.services.pydantic_utils import first_by_field_value
-import logging
+from loguru import logger
 
 from haxdex.services.utils import dump_with_type
 
-log = logging.getLogger(__name__)
 corpus = Path(__file__).parent.joinpath("corpus")
 
 
@@ -118,7 +117,7 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
         RETURN {{ doc: doc }}
     """
 
-    log.debug(aql)
+    logger.debug(aql)
 
     for document in db.execute_query_with_conversion(
             aql,
@@ -128,7 +127,7 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
         docs.append(document)
 
     doc0 = docs[0][0]
-    log.debug(json.dumps(dump_with_type(doc0), indent=2))
+    logger.debug(json.dumps(dump_with_type(doc0), indent=2))
     assert isinstance(doc0, FullTextChunk), type(doc0)
 
     doc_idx = runtime.get_indexer("document_block")
@@ -146,6 +145,6 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
     parent_chunk = db.get_indexer_one_document(parent_of[0], doc_idx)
     assert isinstance(parent_chunk, Heading), type(parent_chunk)
 
-    log.debug(len(docs))
+    logger.debug(len(docs))
 
     # assert False

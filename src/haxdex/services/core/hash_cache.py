@@ -1,5 +1,5 @@
 import hashlib
-import logging
+from loguru import logger
 import os
 from pathlib import Path
 
@@ -10,8 +10,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):

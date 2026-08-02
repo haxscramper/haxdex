@@ -1,6 +1,6 @@
 import argparse
 import json
-import logging
+from loguru import logger
 import sys
 import traceback
 import warnings
@@ -43,12 +43,12 @@ from haxdex.services.utils import (
     stfu_logs,
 )
 from haxdex.visual.trash_action_visual import visualize_trash_actions
+import logging
 
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s",
 )
-log = logging.getLogger(__name__)
 
 
 def showwarning(message, category, filename, lineno, file=None, line=None):
@@ -115,7 +115,7 @@ class IndexService():
                         f"Indexer '{key}' requires indexer '{dep}' to be enabled")
 
             cfg = self.cfg.indexers[key]
-            log.info(f"Should load cache for {t.asset_name}: {cfg.use_cache}")
+            logger.info(f"Should load cache for {t.asset_name}: {cfg.use_cache}")
             instance = t(
                 database=self.indexer_connection,
                 config=cfg,
@@ -144,29 +144,46 @@ class IndexService():
         perf_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().isoformat()
-        text_log_format = (
-            "%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d: %(message)s")
-
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.DEBUG)
 
         run_text_file = run_text_dir / f"{timestamp}.log"
-        run_text_handler = logging.FileHandler(run_text_file, mode="w+")
-        run_text_handler.setFormatter(logging.Formatter(text_log_format))
-        root_logger.addHandler(run_text_handler)
-
         run_json_file = run_json_dir / f"{timestamp}.jsonl"
-        run_json_handler = logging.FileHandler(run_json_file, mode="w+")
-        run_json_handler.setFormatter(JsonlFormatter())
-        root_logger.addHandler(run_json_handler)
+
+        logger.remove()
+
+        text_format = "{time:YYYY-MM-DDTHH:mm:ss.SSSSSS} {level} {name} {file.name}:{line}: {message}"
+
+        logger.add(
+            run_text_file,
+            level="DEBUG",
+            format=text_format,
+            mode="w",
+            enqueue=False,
+            backtrace=True,
+            diagnose=False,
+        )
+
+        logger.add(
+            run_json_file,
+            level="DEBUG",
+            serialize=True,
+            mode="w",
+            enqueue=False,
+            backtrace=True,
+            diagnose=False,
+        )
 
         if log_cfg.logfile is not None:
-            user_handler = logging.FileHandler(str(log_cfg.logfile), mode="w+")
-            if log_cfg.logfile_format == "json":
-                user_handler.setFormatter(JsonlFormatter())
-            else:
-                user_handler.setFormatter(logging.Formatter(text_log_format))
-            root_logger.addHandler(user_handler)
+            log_cfg.logfile.parent.mkdir(parents=True, exist_ok=True)
+            logger.add(
+                log_cfg.logfile,
+                level="DEBUG",
+                serialize=(log_cfg.logfile_format == "json"),
+                format=text_format,
+                mode="w",
+                enqueue=False,
+                backtrace=True,
+                diagnose=False,
+            )
 
         keep_last_files(run_text_dir, "*.log", 20)
         keep_last_files(run_json_dir, "*.jsonl", 20)
@@ -201,7 +218,7 @@ class IndexService():
         for idx in self.indexer_instances:
             self.db.enable_index(idx)
 
-        log.info(f"Enabled indexers {[t.asset_name for t in self.indexer_instances]}")
+        logger.info(f"Enabled indexers {[t.asset_name for t in self.indexer_instances]}")
 
         run_indexing_per_root_plan(
             db=self.db,
@@ -313,7 +330,7 @@ def main_impl(command: str, cfg: AppConfig):
                 raise ValueError(f"Unexpected command {command}")
 
     except Exception as ex:
-        log.critical(f"{ex}", exc_info=ex)
+        logger.critical(f"{ex}", exc_info=ex)
         raise
 
     finally:
@@ -323,7 +340,7 @@ def main_impl(command: str, cfg: AppConfig):
         keep_last_files(perf_dir, "*.json", 20)
 
         if service.cfg.perf_trace_file is not None:
-            log.info(f"Trace file {service.cfg.perf_trace_file}")
+            logger.info(f"Trace file {service.cfg.perf_trace_file}")
             service.ctx.writer.save(str(service.cfg.perf_trace_file))
 
 
@@ -338,7 +355,7 @@ def main() -> None:
     cfg_path = Path(args.config).expanduser().resolve().absolute()
     payload = commentjson.loads(cfg_path.read_text())
     cfg = AppConfig.model_validate(payload)
-    log.debug(json.dumps(model_to_json_data(cfg), indent=2))
+    logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
 
     if args.command == "schema":
         cfg_path.with_stem(cfg_path.stem + "_schema").with_suffix(".json").write_text(

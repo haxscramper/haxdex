@@ -1,5 +1,5 @@
 import json
-import logging
+from loguru import logger
 from pathlib import Path
 
 from beartype import beartype
@@ -30,8 +30,6 @@ from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnS
 from haxdex.gui.file_tree.python_code_editor import PythonQueryEditor
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryResultModel
 from haxdex.services.core.types import FileHash
-
-log = logging.getLogger(__name__)
 
 
 @beartype
@@ -227,7 +225,7 @@ class FileTreeRegion(QWidget):
 
         if column is not None and isinstance(column, KnownActionColumnSpec):
             data = index.data(CustomModelRole.FullDataRole.value)
-            log.warning(f"full data for known actions is none column {index.column()}")
+            logger.warning(f"full data for known actions is none column {index.column()}")
             if data is None:
                 return
 
@@ -253,12 +251,12 @@ class FileTreeRegion(QWidget):
                     case _:
                         pass
 
-            log.info(f"file hash activated {result.paths}")
+            logger.info(f"file hash activated {result.paths}")
             self.file_hash_activated.emit(FileHash(hash=hash_value), result)
 
         else:
             if hash_value is None:
-                log.info("hash value is None")
+                logger.info("hash value is None")
 
             else:
                 self.file_hash_activated.emit(FileHash(hash=hash_value), None)
@@ -327,5 +325,5 @@ class FileTreeRegion(QWidget):
         )
 
     def _on_run(self, checked: bool = False) -> None:
-        log.info("run clicked")
+        logger.info("run clicked")
         self.query_submitted.emit(self)

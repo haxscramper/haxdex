@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import enum
 import io
-import logging
+from loguru import logger
 
 from beartype import beartype
 from beartype.typing import Callable, List, Tuple, Any, Dict
@@ -17,8 +17,6 @@ from rich.measure import Measurement
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
-
-log = logging.getLogger(__name__)
 
 
 @beartype
@@ -1157,7 +1155,7 @@ def _render_node(
                                       depth=depth,
                                       nested_in_cell_depth=nested_in_cell_depth)
     structure = config.infer_structure(context)
-    log.debug(
+    logger.debug(
         f"structure {structure} at depth {depth} rows {context.row_count} "
         f"columns {context.column_count} nested {context.nested_columns} tree {context.tree_columns}"
     )
