@@ -15,7 +15,8 @@ from beartype.typing import cast, Iterator, Any
 import pandas as pd
 
 from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import ActionConfig, AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, FileTreeViewConfig
+from haxdex.cli.cli_config import ActionConfig, AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, \
+    FileTreeViewConfig, LoggingConfig
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig, ActionExecutor
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
@@ -104,7 +105,7 @@ def init_index_service(
         db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
         action_file=stable_test_dir.joinpath("actions.jsonl"),
         act=ActionConfig(execution=act_conf),
-    )
+        logging=LoggingConfig())
 
     if reset:
         IndexService.reset_for_config(cfg)

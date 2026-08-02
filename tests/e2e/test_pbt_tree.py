@@ -22,7 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from haxdex.cli.cli import IndexService, main_impl
-from haxdex.cli.cli_config import AppConfig, IndexConfig, IndexPathConfig, DatabaseConfig
+from haxdex.cli.cli_config import AppConfig, IndexConfig, IndexPathConfig, DatabaseConfig, LoggingConfig
 from haxdex.gui.agnostic import model_dump
 from haxdex.gui.agnostic.model_dump import render_text, simple_dump, simple_dump_rows_json
 from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
@@ -30,6 +30,7 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_execute import _DONE_STR, ActionExecutor
+from unittest.mock import patch
 from haxdex.gui.file_tree.actions.action_list_model import (
     ActionListModel,
     ActionProvider,
@@ -50,6 +51,7 @@ from haxdex.gui.file_tree.model.tree_model_fetch import AQL_FILE_PATHS, fetch_fi
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
+from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.file_iteration import prepare_root_filters, DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
@@ -923,8 +925,18 @@ def test_cli_index_rerun(
         hash_cache=stable_test_dir.joinpath("hash_cache.sqlite"),
         db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
         action_file=stable_test_dir.joinpath("actions.jsonl"),
+        logging=LoggingConfig(setup_handlers=False),
     )
 
     IndexService.reset_for_config(cfg)
-    main_impl("index", cfg)
-    main_impl("index", cfg)
+    with patch.object(
+            HashCache,
+            "_calculate",
+            autospec=True,
+            side_effect=HashCache._calculate,
+    ) as hash_cache_calculate:
+        main_impl("index", cfg)
+        hash_cache_1 = hash_cache_calculate.call_count
+        main_impl("index", cfg)
+
+        assert hash_cache_1 == hash_cache_calculate.call_count, f"Second indexing run could not restore the hash cache properly"

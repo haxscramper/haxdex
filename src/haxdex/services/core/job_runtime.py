@@ -537,7 +537,8 @@ class IndexRuntime:
                     continue
 
                 with ExceptionContextNote(
-                        f"copy cached indexer asset: {indexer.asset_name}"):
+                        f"copy cached indexer asset: {indexer.asset_name}"
+                ), self.ctx.trace_scope("do cache copy"):
                     self.db.store_indexer_output(ref, out)
 
     def _run_indexer_batch(self, batch: PlannedIndexerBatch) -> None:

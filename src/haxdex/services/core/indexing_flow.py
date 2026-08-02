@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from loguru import logger
 from pathlib import Path
-from beartype.typing import Sequence
+from beartype.typing import Sequence, Any
 from beartype import beartype
 
 from haxdex.cli.cli_config import IndexPathConfig, IndexConfig
@@ -11,6 +11,9 @@ from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext, META_SUFFIX
 from haxdex.services.core.types import FileRef, RootRef
 from haxdex.services.file_iteration import RootFilter, prepare_root_filters, DirConfig
+from haxdex.services.utils import format_duration
+from time import perf_counter
+import os
 
 
 @beartype
@@ -77,7 +80,7 @@ def collect_files_for_path(
                 continue
 
             if not _is_file_selected_by_filters(file, filters):
-                logger.debug(f"ignoring {file}")
+                # logger.debug(f"ignoring {file}")
                 continue
 
             seen.add(file)
@@ -98,20 +101,77 @@ def build_refs_for_root(
 
 
 @beartype
+def run_indexing_batch(
+    db: IndexDatabase,
+    runner: IndexRuntime,
+    ctx: RunContext,
+    indexers: Sequence[BaseIndexer],
+    root: Any,
+    path_name: str,
+    batch_idx: int,
+    total_batches: int,
+    batch_files: Sequence[Any],
+) -> tuple[int, float]:
+    t0 = perf_counter()
+
+    with ctx.trace_scope(
+            "build refs for root",
+            path=path_name,
+            batch=batch_idx,
+            batch_files=len(batch_files),
+    ):
+        refs = build_refs_for_root(db, root, batch_files)
+
+    with ctx.trace_scope(
+            "prepare files",
+            root=root.name,
+            batch=batch_idx,
+            total_batches=total_batches,
+            files=len(refs),
+            indexers=len(indexers),
+    ):
+        prepared = runner.prepare_files(refs, indexers)
+
+    with ctx.trace_scope(
+            "root plan construction",
+            root=root.name,
+            batch=batch_idx,
+            total_batches=total_batches,
+            files=len(refs),
+            indexers=len(indexers),
+    ):
+        plan = runner.create_plan(prepared, indexers)
+
+    with ctx.trace_scope(
+            "root plan execution",
+            root=root.name,
+            batch=batch_idx,
+            total_batches=total_batches,
+            batches=len(plan.batches),
+            total_runs=plan.total_runs(),
+    ):
+        runner.execute_plan(plan)
+
+    elapsed = perf_counter() - t0
+    return len(refs), elapsed
+
+
+@beartype
 def run_indexing_per_root_plan(
     db: IndexDatabase,
     runner: IndexRuntime,
     ctx: RunContext,
     cfg: IndexConfig,
     indexers: Sequence[BaseIndexer],
-) -> None:
+) -> int:
     indexed_total = 0
+    plan_exec_times: list[float] = []
     logger.info("constructing index jobs plan")
 
     for path_idx, path_cfg in enumerate(cfg.paths):
         if cfg.limit_total is not None and cfg.limit_total <= indexed_total:
             logger.info(f"limit total {cfg.limit_total} <= indexed total {indexed_total}")
-            return
+            return indexed_total
 
         assert path_cfg.root_path.is_absolute(), str(path_cfg.root_path)
         assert path_cfg.root_path.exists(), str(path_cfg.root_path)
@@ -153,44 +213,29 @@ def run_indexing_per_root_plan(
                                               start=1):
                 batch_files = files[start:start + plan_run_size]
 
+                if plan_exec_times:
+                    avg_plan = sum(plan_exec_times) / len(plan_exec_times)
+                    remaining_batches = total_batches - batch_idx + 1
+                    duration_fmt = f"{format_duration(avg_plan)}/plan, ETA {format_duration(avg_plan * remaining_batches)}"
+                else:
+                    duration_fmt = "n/a/plan, ETA n/a"
+
                 logger.info(
-                    f"run plan for [{start}:{start + plan_run_size}]/{len(files)} files")
-                with ctx.trace_scope(
-                        "build refs for root",
-                        path=path_cfg.name,
-                        batch=batch_idx,
-                        batch_files=len(batch_files),
-                ):
-                    refs = build_refs_for_root(db, root, batch_files)
+                    f"run plan for [{start}:{start + plan_run_size}]/{len(files)} "
+                    f"({float(start) /float(len(files)):.2f}%) {duration_fmt}")
 
-                indexed_total += len(refs)
+                indexed_count, elapsed = run_indexing_batch(
+                    db=db,
+                    runner=runner,
+                    ctx=ctx,
+                    indexers=indexers,
+                    root=root,
+                    path_name=path_cfg.name,
+                    batch_idx=batch_idx,
+                    total_batches=total_batches,
+                    batch_files=batch_files,
+                )
+                indexed_total += indexed_count
+                plan_exec_times.append(elapsed)
 
-                with ctx.trace_scope(
-                        "prepare files",
-                        root=root.name,
-                        batch=batch_idx,
-                        total_batches=total_batches,
-                        files=len(refs),
-                        indexers=len(indexers),
-                ):
-                    prepared = runner.prepare_files(refs, indexers)
-
-                with ctx.trace_scope(
-                        "root plan construction",
-                        root=root.name,
-                        batch=batch_idx,
-                        total_batches=total_batches,
-                        files=len(refs),
-                        indexers=len(indexers),
-                ):
-                    plan = runner.create_plan(prepared, indexers)
-
-                with ctx.trace_scope(
-                        "root plan execution",
-                        root=root.name,
-                        batch=batch_idx,
-                        total_batches=total_batches,
-                        batches=len(plan.batches),
-                        total_runs=plan.total_runs(),
-                ):
-                    runner.execute_plan(plan)
+    return indexed_total

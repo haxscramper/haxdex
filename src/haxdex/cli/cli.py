@@ -149,6 +149,10 @@ class IndexService():
         run_json_dir.mkdir(parents=True, exist_ok=True)
         perf_dir.mkdir(parents=True, exist_ok=True)
 
+        if not log_cfg.setup_handlers:
+            logger.info("not setup runtime loggin")
+            return run_text_dir, run_json_dir, perf_dir
+
         timestamp = datetime.now().isoformat()
 
         run_text_file = run_text_dir / f"{timestamp}.log"

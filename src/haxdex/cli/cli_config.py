@@ -109,7 +109,8 @@ class LoggingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     logfile: OutputFile | None = None
-    logfile_format: Literal["text", "json"] = "text"
+    logfile_format: Literal["text", "json"] = "text"  # type: ignore
+    setup_handlers: bool = True
 
 
 class IndexPathConfig(BaseModel, extra="forbid"):

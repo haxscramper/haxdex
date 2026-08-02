@@ -5,10 +5,10 @@ CONFIG_FILE := "~/tmp/full_index_organization/full_index_config.jsonc"
 test:
     uv run python -m pytest -vv -ra \
         --log-level=DEBUG \
-        --disable-warnings \
+        --disable-warnings "tests/e2e/test_pbt_tree.py::test_cli_index_rerun" \
         > test_results.tmp.log 2>&1
 
-# "tests/e2e/test_pbt_tree.py::test_cli_index_rerun"  \
+#   \
 #         "tests/e2e/test_pbt_tree.py"  \
 #  "tests/gui/test_model_dump.py"
 #        "tests/gui/test_execute_actions.py" 
@@ -29,7 +29,7 @@ index:
     uv run src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
 profile_index:
-    uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-index.json -- \
+    uv run py-spy record --rate 50 --format chrometrace -o /tmp/haxdex-perf-index.json -- \
       python src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
 # --indexer file_summary \]
