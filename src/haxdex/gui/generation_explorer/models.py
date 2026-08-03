@@ -68,3 +68,13 @@ class GenerationRowState:
     loras: list[LoraState]
     vae: str | None
     clip: str | None
+
+
+@beartype
+@dataclass
+class ImageSearchRecord:
+    path: str
+    md5: str
+    generation_params: GenerationParamsIndexerResult | None
+    wd_tags: WdTagIndexerResult | None
+    searchable_tags: set[str]

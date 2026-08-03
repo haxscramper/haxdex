@@ -23,7 +23,8 @@ from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_model import load_actions
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryWindow
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.gui.generation_explorer.window import GenerationExplorerWindow
+from haxdex.gui.generation_explorer.image_search_window import ImageSearchWindow
+from haxdex.gui.generation_explorer.image_table_window import GenerationExplorerWindow
 from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
 from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
@@ -336,6 +337,21 @@ def main_impl(command: str, cfg: AppConfig):
                 assert cfg.generation_explorer
                 qt_app = QApplication(sys.argv)
                 win = GenerationExplorerWindow(
+                    settings=cfg.generation_explorer,
+                    index_database=service.db,
+                    safetensor_indexer=service.get_indexer(SafetensorIndexer.asset_name),
+                    wd_tag_indexer=service.get_indexer(WdTagIndexer.asset_name),
+                    generation_params_indexer=service.get_indexer(
+                        GenerationParamsIndexer.asset_name),
+                )
+
+                win.show()
+                sys.exit(qt_app.exec())
+
+            case "generation_search":
+                assert cfg.generation_explorer
+                qt_app = QApplication(sys.argv)
+                win = ImageSearchWindow(
                     settings=cfg.generation_explorer,
                     index_database=service.db,
                     safetensor_indexer=service.get_indexer(SafetensorIndexer.asset_name),

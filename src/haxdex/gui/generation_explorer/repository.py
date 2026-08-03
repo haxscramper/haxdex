@@ -13,6 +13,7 @@ from .models import (
     LoraState,
     SafetensorIndexerResult,
     WdTagIndexerResult,
+    ImageSearchRecord,
 )
 from ...services.core.types import FileHash
 
@@ -58,6 +59,68 @@ class ExplorerRepository:
         if value is None:
             return None
         return WdTagIndexerResult.model_validate(value)
+
+    def _normalize_tag(self, value: str) -> str:
+        return value.strip().casefold()
+
+    def _split_prompt_tags(self, prompt: str) -> set[str]:
+        output: set[str] = set()
+        for part in prompt.split(","):
+            normalized = self._normalize_tag(part)
+            if normalized != "":
+                output.add(normalized)
+        return output
+
+    def build_image_search_records(
+            self, records: list[IndexedFileRecord]) -> list[ImageSearchRecord]:
+        output: list[ImageSearchRecord] = []
+
+        for record in records:
+            extension = Path(record.path).suffix.lower()
+            if extension not in IMAGE_EXTS:
+                continue
+
+            tags: set[str] = set()
+
+            generation = record.generation_params
+            if generation is not None:
+                tags |= self._split_prompt_tags(generation.positive)
+                tags |= self._split_prompt_tags(generation.negative)
+
+                checkpoint = self._normalize_tag(generation.checkpoint)
+                if checkpoint != "":
+                    tags.add(checkpoint)
+
+                vae = self._normalize_tag(generation.vae or "")
+                if vae != "":
+                    tags.add(vae)
+
+                clip = self._normalize_tag(generation.clip or "")
+                if clip != "":
+                    tags.add(clip)
+
+                for lora in generation.loras:
+                    lora_name = self._normalize_tag(lora.model)
+                    if lora_name != "":
+                        tags.add(lora_name)
+
+            wd = record.wd_tags
+            if wd is not None:
+                for tag in wd.tags:
+                    name = self._normalize_tag(tag.name)
+                    if name != "":
+                        tags.add(name)
+
+            output.append(
+                ImageSearchRecord(
+                    path=record.path,
+                    md5=record.file_hash,
+                    generation_params=generation,
+                    wd_tags=wd,
+                    searchable_tags=tags,
+                ))
+
+        return output
 
     def load_indexed_files(self) -> list[IndexedFileRecord]:
         file_paths = self.load_file_paths()

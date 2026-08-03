@@ -58,8 +58,11 @@ flat_query_view: schema
 file_tree: schema
     uv run src/haxdex/cli/cli.py file_tree_view "{{ CONFIG_FILE }}" 
 
-generation_explorer: schema
-    uv run src/haxdex/cli/cli.py generation_explorer "{{ CONFIG_FILE }}" 
+generation_explorer:
+    uv run src/haxdex/cli/cli.py generation_explorer "{{ CONFIG_FILE }}"
+
+generation_search:
+    uv run src/haxdex/cli/cli.py generation_search "{{ CONFIG_FILE }}"
 
 profile_file_tree:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-tree-view.json -- \
