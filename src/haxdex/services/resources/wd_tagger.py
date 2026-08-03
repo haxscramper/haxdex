@@ -203,5 +203,6 @@ class WdTagger(BaseResource):
         result.sort(key=lambda x: x.probability, reverse=True)
         return result
 
-    def handle(self, ctx: RunContext, request: WdTaggerRequest) -> WdTaggerResult:
+    def handle(self, ctx: RunContext, request: WdTaggerRequest,
+               resources: dict[str, BaseResource]) -> WdTaggerResult:
         return WdTaggerResult(tags=self.tag_image(ctx, Path(request.path)))

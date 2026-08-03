@@ -9,6 +9,8 @@ from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequ
 from PIL import Image
 from pydantic import BaseModel
 
+from loguru import logger
+
 
 class WdTagIndexerResult(IndexDocument, extra="forbid"):
     tags: list[WdTag]
@@ -33,6 +35,8 @@ class WdTagIndexer(BaseIndexer):
         assets: dict[str, object],
     ) -> IndexerOutput:
         tagger: WdTagger = cast(WdTagger, resources["wd_tagger"])
+        logger.debug(f"{ctx.get_path(request.file_ref)}")
+
         return IndexerOutput(
             indexer_id=self.asset_name,
             result=WdTagIndexerResult(

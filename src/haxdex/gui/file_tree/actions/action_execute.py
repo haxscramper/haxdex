@@ -231,10 +231,17 @@ class ActionExecutor:
                 else:
                     row.started_at = _now()
                     session.commit()
-                    self.handlers[row.kind].do_action(row, action)
-                    row.status = _DONE_STR
-                    row.finished_at = _now()
-                    session.commit()
+
+                    try:
+                        self.handlers[row.kind].do_action(row, action)
+                        row.status = _DONE_STR
+                        row.finished_at = _now()
+                    except Exception as e:
+                        logger.exception(e)
+                        logger.error(f"Could not execute action {action}")
+
+                    finally:
+                        session.commit()
 
                 executed += 1
         return executed

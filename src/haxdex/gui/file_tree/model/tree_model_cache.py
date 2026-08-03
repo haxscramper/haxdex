@@ -6,7 +6,7 @@ from sqlalchemy import (
     bindparam,)
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from haxdex.gui.file_tree.model.tree_model_fetch import _FilePathRow, fetch_indexer_assets
+from haxdex.gui.file_tree.model.tree_model_fetch import FilePathRow, fetch_indexer_assets
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
@@ -46,7 +46,7 @@ class _CachePathKey:
     relative: str
 
 
-def _row_cache_key(row: _FilePathRow) -> _CachePathKey:
+def _row_cache_key(row: FilePathRow) -> _CachePathKey:
     return _CachePathKey(hash=row.hash, root=row.root, relative=row.relative)
 
 
@@ -236,9 +236,9 @@ def initialize_cache(
 def _get_uncached_rows(
     engine: Engine,
     file_table: Table,
-    file_paths: Sequence[_FilePathRow],
-) -> list[_FilePathRow]:
-    ordered_rows_by_key: dict[_CachePathKey, _FilePathRow] = {}
+    file_paths: Sequence[FilePathRow],
+) -> list[FilePathRow]:
+    ordered_rows_by_key: dict[_CachePathKey, FilePathRow] = {}
 
     for row in file_paths:
         key = _row_cache_key(row)
@@ -262,7 +262,7 @@ def _get_uncached_rows(
 def _store_path_hashes(
     engine: Engine,
     path_table: Table,
-    file_paths: Sequence[_FilePathRow],
+    file_paths: Sequence[FilePathRow],
 ) -> None:
     path_rows = {result.path: result for result in file_paths}
 
@@ -307,8 +307,8 @@ def store_missing_file_columns(
     ctx: RunContext,
     engine: Engine,
     file_table: Table,
-    file_paths: Sequence[_FilePathRow],
-    missing_rows: Sequence[_FilePathRow],
+    file_paths: Sequence[FilePathRow],
+    missing_rows: Sequence[FilePathRow],
     db: IndexDatabase,
     indexers: Sequence[BaseIndexer],
     columns: Sequence[FileTreeColumnSpec],
@@ -374,7 +374,7 @@ def populate_cache(
     engine: Engine,
     file_table: Table,
     path_table: Table,
-    file_paths: Sequence[_FilePathRow],
+    file_paths: Sequence[FilePathRow],
     indexers: Sequence[BaseIndexer],
     columns: Sequence[FileTreeColumnSpec],
 ) -> None:

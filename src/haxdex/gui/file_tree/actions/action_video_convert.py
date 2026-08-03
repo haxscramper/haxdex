@@ -111,7 +111,11 @@ class VideoConvertActionHandler(ActionHandler):
                 "-i",
                 str(src),
                 "-map",
-                "0",
+                "0:v:0",
+                "-map",
+                "0:a?",
+                "-map",
+                "0:s?",
                 "-vf",
                 vf,
             ]

@@ -30,6 +30,12 @@ QueryResultModel = AbstractColumnItemModel | ActionListModel
 
 
 @dataclass(slots=True)
+class QueryResult():
+    model: QueryResultModel
+    is_action: bool
+
+
+@dataclass(slots=True)
 class QueryProgram:
     filter_fn: FilterFn | None = None
     actions_fn: ActionsFn | None = None
@@ -217,7 +223,7 @@ class QueryFilterEvaluator:
         *,
         scope_nodes: list[FileTreeNode] | None = None,
         parent: QObject | None = None,
-    ) -> QueryResultModel:
+    ) -> QueryResult:
         try:
             if isinstance(query_text, QueryProgram):
                 program = query_text
@@ -243,10 +249,13 @@ class QueryFilterEvaluator:
 
                 columns = self._resolve_columns(model)
 
-                return FileTreeModel(
-                    nodes=filtered_nodes,
-                    columns=columns,
-                    parent=parent,
+                return QueryResult(
+                    model=FileTreeModel(
+                        nodes=filtered_nodes,
+                        columns=columns,
+                        parent=parent,
+                    ),
+                    is_action=False,
                 )
 
             elif program.actions_fn:
@@ -261,7 +270,10 @@ class QueryFilterEvaluator:
                 if program.post_traverse_fn:
                     self._actions_tree(scope, program.post_traverse_fn, provider)
 
-                return ActionListModel(actions=provider.actions)
+                return QueryResult(
+                    model=ActionListModel(actions=provider.actions),
+                    is_action=True,
+                )
 
             else:
                 raise QueryError("No `filter` or `actions` model, cannot filter")

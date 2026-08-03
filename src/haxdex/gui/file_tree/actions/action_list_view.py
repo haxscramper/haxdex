@@ -80,10 +80,10 @@ class ActionListView(QWidget):
         self.tableWidget.configure_filters(filter_columns or default_filters)
 
         self.saveActionsButton = QPushButton("save actions", self)
-        self.saveActionsButton.clicked.connect(self.on_save_actions_clicked)
+        self.saveActionsButton.clicked.connect(lambda *_: self.on_save_actions_clicked())
 
         self.overwriteActionsButton = QPushButton("overwrite actions", self)
-        self.overwriteActionsButton.clicked.connect(self.overwrite_actions)
+        self.overwriteActionsButton.clicked.connect(lambda *_: self.overwrite_actions())
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

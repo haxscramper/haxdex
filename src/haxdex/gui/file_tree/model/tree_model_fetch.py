@@ -25,7 +25,7 @@ FOR file IN files
 
 
 @dataclass(slots=True, frozen=True)
-class _FilePathRow:
+class FilePathRow:
     path: str
     hash: str
     root: str
@@ -33,8 +33,8 @@ class _FilePathRow:
 
 
 def _fetch_file_paths_impl(db: IndexDatabase,
-                           root_filters: Sequence[RootFilter]) -> list[_FilePathRow]:
-    rows: list[_FilePathRow] = []
+                           root_filters: Sequence[RootFilter]) -> list[FilePathRow]:
+    rows: list[FilePathRow] = []
 
     for item in db.aql.execute(AQL_FILE_PATHS):  # type: ignore
         path = Path(item["path"])
@@ -61,7 +61,7 @@ def _fetch_file_paths_impl(db: IndexDatabase,
             continue
 
         rows.append(
-            _FilePathRow(
+            FilePathRow(
                 path=path_str,
                 hash=item["hash"],
                 root=item["root"],
@@ -75,7 +75,7 @@ def fetch_file_paths(
     ctx: RunContext,
     db: IndexDatabase,
     root_filters: Sequence[RootFilter],
-) -> list[_FilePathRow]:
+) -> list[FilePathRow]:
     with ctx.trace_scope("fetch file paths"):
         return _fetch_file_paths_impl(db, root_filters)
 

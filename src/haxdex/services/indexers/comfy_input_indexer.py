@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator, model_serializer
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexerResult
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
+from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 
 
 class XYObject(BaseModel, extra="allow"):
@@ -185,7 +185,7 @@ class ComfyInput(BaseModel, extra="forbid"):
         description="Incoming links to the node -- origin slot/id is a dependee node")
 
 
-class ComfyInputIndexerResult(BaseModel, extra="forbid"):
+class ComfyInputIndexerResult(IndexDocument, extra="forbid"):
     inputs: list[ComfyInput]
     note: str = ""
 
@@ -216,8 +216,11 @@ class ComfyInputIndexer(BaseIndexer):
                 "workflow" not in pre_data.file.original_metadata_full["exif_metadata"]):
             return IndexerOutput(
                 indexer_id=self.asset_name,
-                result=ComfyInputIndexerResult(inputs=[],
-                                               note="no workflow data detected"),
+                result=ComfyInputIndexerResult(
+                    inputs=[],
+                    note="no workflow data detected",
+                    hash=request.get_hash_str(),
+                ),
             )
 
         else:
@@ -226,7 +229,7 @@ class ComfyInputIndexer(BaseIndexer):
             Path("/tmp/result.json").write_text(json.dumps(workflow_js, indent=2))
 
             workflow = ComfyWorkflow1_0(**workflow_js)
-            result = ComfyInputIndexerResult(inputs=[])
+            result = ComfyInputIndexerResult(inputs=[], hash=request.get_hash_str())
 
             for node in workflow.nodes:
                 if node.widgets_values:

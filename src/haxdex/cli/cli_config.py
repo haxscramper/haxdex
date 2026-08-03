@@ -6,6 +6,7 @@ from beartype import beartype
 from beartype.typing import Any, Literal, Mapping
 
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig
+from haxdex.gui.generation_explorer.models import ExplorerSettings
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig
 from haxdex.services.default_job_types import (
     DEFAULT_INDEXER_TYPES,
@@ -173,6 +174,8 @@ class AppConfig(BaseModel, extra="forbid"):
         description="JSONL file to write all collected actions")
 
     act: ActionConfig | None = None
+
+    generation_explorer: ExplorerSettings | None = None
 
     indexers: dict[str, BaseIndexerConfig] = Field(default_factory=dict, exclude=True)
     resources: dict[str, BaseModel] = Field(default_factory=dict, exclude=True)

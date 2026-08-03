@@ -8,7 +8,7 @@ from beartype.typing import Any
 from sqlalchemy import Engine
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.pydantic_utils import try_parse_json
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
+from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 from pydantic import BaseModel
 
 
@@ -20,7 +20,7 @@ class TensorInfo(BaseModel, extra="forbid"):
     byte_size: int
 
 
-class SafetensorIndexerResult(BaseModel, extra="forbid"):
+class SafetensorIndexerResult(IndexDocument, extra="forbid"):
     size_bytes: int
     header_size: int
     metadata: dict[str, Any]
@@ -38,7 +38,7 @@ def _read_header(path: Path) -> tuple[int, dict[str, object]]:
     return header_size, header
 
 
-def _parse(path: Path) -> SafetensorIndexerResult:
+def _parse(path: Path, request: IndexerRequest) -> SafetensorIndexerResult:
     size_bytes = path.stat().st_size
     header_size, header = _read_header(path)
 
@@ -80,6 +80,7 @@ def _parse(path: Path) -> SafetensorIndexerResult:
         total_tensor_bytes=total_tensor_bytes,
         dtype_counts=dict(dtype_counts),
         tensors=tensors,
+        hash=request.get_hash_str(),
     )
 
 
@@ -101,6 +102,6 @@ class SafetensorIndexer(BaseIndexer):
         assets: dict[str, object],
     ) -> IndexerOutput:
         path = ctx.get_path(request.file_ref)
-        result = IndexerOutput(indexer_id=self.asset_name, result=_parse(path))
+        result = IndexerOutput(indexer_id=self.asset_name, result=_parse(path, request))
         logger.info(f"{path} OK")
         return result

@@ -294,15 +294,11 @@ class FileTreeQueryWindow(QMainWindow):
             stale.setParent(None)
             stale.deleteLater()
 
-        if isinstance(result, AbstractColumnItemModel):
-            self.add_region(result)
-            return
+        if result.is_action:
+            self.add_action_region(result.model)
 
-        if isinstance(result, ActionListModel):
-            self.add_action_region(result)
-            return
-
-        raise TypeError(f"Unsupported query result model: {type(result)!r}")
+        else:
+            self.add_region(result.model)
 
     def restore_ui_state(self) -> None:
         settings = get_settings()

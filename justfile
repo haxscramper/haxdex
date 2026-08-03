@@ -1,5 +1,4 @@
-CONFIG_FILE := "~/defaultdirs/temporary_interchange/content_root_indexing.jsonc"
-# CONFIG_FILE := "~/tmp/full_index_organization/full_index_config.jsonc"
+CONFIG_FILE := env_var('HAXDEX_CONFIG_FILE')
 
 [env("DISPLAY", ":2")]
 test:
@@ -58,6 +57,9 @@ flat_query_view: schema
 
 file_tree: schema
     uv run src/haxdex/cli/cli.py file_tree_view "{{ CONFIG_FILE }}" 
+
+generation_explorer: schema
+    uv run src/haxdex/cli/cli.py generation_explorer "{{ CONFIG_FILE }}" 
 
 profile_file_tree:
     uv run py-spy record --format chrometrace -o /tmp/haxdex-perf-tree-view.json -- \

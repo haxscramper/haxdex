@@ -17,7 +17,7 @@ from haxdex.services.indexers.exif_metadata import (
 )
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.pydantic_utils import to_json_safe
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
+from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 from pydantic import BaseModel
 
 
@@ -26,7 +26,7 @@ class LoraParams(BaseModel, extra="forbid"):
     weight: float
 
 
-class GenerationParamsIndexerResult(BaseModel, extra="forbid"):
+class GenerationParamsIndexerResult(IndexDocument, extra="forbid"):
     positive: str
     negative: str
     width: int
@@ -96,7 +96,8 @@ def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
         return key, "normal"
 
 
-def _extract_generation_params(nodes: list[ComfyInput]) -> GenerationParamsIndexerResult:
+def _extract_generation_params(nodes: list[ComfyInput],
+                               request: IndexerRequest) -> GenerationParamsIndexerResult:
     by_id: dict[str, ComfyInput] = {n.node_id: n for n in nodes}
 
     # Build dependency graph. A link's origin_id is the dependee, so the
@@ -210,6 +211,7 @@ def _extract_generation_params(nodes: list[ComfyInput]) -> GenerationParamsIndex
         loras=loras,
         vae=vae,
         clip=clip,
+        hash=request.get_hash_str(),
     )
 
 
@@ -259,10 +261,11 @@ class GenerationParamsIndexer(BaseIndexer):
                     loras=[
                         LoraParams(model=l.name, weight=l.weight) for l in exif.file.loras
                     ],
+                    hash=request.get_hash_str(),
                 )
 
             else:
-                return _extract_generation_params(comfy.inputs)
+                return _extract_generation_params(comfy.inputs, request)
 
         try:
             result = run()

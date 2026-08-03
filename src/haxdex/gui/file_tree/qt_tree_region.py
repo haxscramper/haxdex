@@ -33,7 +33,7 @@ from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
 from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec, KnownActionData
 from haxdex.gui.file_tree.python_code_editor import PythonQueryEditor
-from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryResultModel
+from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryResult, QueryResultModel
 from haxdex.services.core.types import FileHash
 
 
@@ -498,7 +498,7 @@ class FileTreeRegion(QWidget):
     def selected_nodes(self) -> list[FileTreeNode]:
         return self.modelViewer.selected_nodes()
 
-    def compute_filtered(self) -> QueryResultModel:
+    def compute_filtered(self) -> QueryResult:
         text = self.query_text()
         selected = self.selected_nodes()
         scope = selected if selected else None
