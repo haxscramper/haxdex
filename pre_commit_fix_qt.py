@@ -5,8 +5,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 PROJECT_DIR = REPO_ROOT
-QT_CORE = PROJECT_DIR / ".venv/lib/python3.12/site-packages/PyQt6/QtCore.pyi"
-QT_WIDGETS = PROJECT_DIR / ".venv/lib/python3.12/site-packages/PyQt6/QtWidgets.pyi"
+QT_CORE = PROJECT_DIR / ".venv/lib/python3.13/site-packages/PyQt6/QtCore.pyi"
+QT_WIDGETS = PROJECT_DIR / ".venv/lib/python3.13/site-packages/PyQt6/QtWidgets.pyi"
 
 
 def main() -> int:

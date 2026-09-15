@@ -8,7 +8,7 @@ test:
         > test_results.tmp.log 2>&1
  
 #  "tests/e2e/test_pbt_tree.py::test_cli_index_rerun" 
-# tests/test_serde.py
+# tests/test_serde.
 #          "tests/e2e/test_pbt_tree.py::test_generated_indexer_directory"  
 #  "tests/gui/test_model_dump.py"
 #        "tests/gui/test_execute_actions.py" 
