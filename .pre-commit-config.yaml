@@ -21,3 +21,7 @@ repos:
         entry: clang-format -i
         language: system
         types_or: [c, c++, cuda]
+  - repo: https://github.com/jumanjihouse/pre-commit-hooks
+    rev: 3.0.0
+    hooks:
+      - id: forbid-binary
