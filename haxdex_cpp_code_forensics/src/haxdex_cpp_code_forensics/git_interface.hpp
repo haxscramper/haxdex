@@ -4,10 +4,10 @@
 
 #include <array>
 #include <boost/outcome.hpp>
-#include <hstd/stdlib/Func.hpp>
-#include <hstd/stdlib/Ptrs.hpp>
-#include <hstd/stdlib/Str.hpp>
-#include <hstd/stdlib/Variant.hpp>
+#include <hstd_cpp_lib/stdlib/Func.hpp>
+#include <hstd_cpp_lib/stdlib/Str.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Ptrs.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Variant.hpp>
 
 BOOST_DESCRIBE_ENUM(
     git_delta_t,

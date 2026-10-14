@@ -2,9 +2,9 @@
 
 #include <absl/log/log.h>
 #include <boost/graph/adjacency_list.hpp>
-#include <hstd/ext/graph/visual/graph_graphviz.hpp>
-#include <hstd/stdlib/Opt.hpp>
-#include <hstd/system/generator.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Opt.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Vec.hpp>
+#include <hstd_cpp_lib/system/generator.hpp>
 #include <unordered_map>
 
 #include "git_interface.hpp"
@@ -75,6 +75,9 @@ struct CommitGraph {
 
     VDesc get_desc(git_oid const& oid);
     CommitGraph(hstd::SPtr<git_repository> repo, hstd::Str const& branch);
-
+    // TODO: re-enable
+#warning TODO re-enable
+#if false
     hstd::SPtr<hstd::ext::graph::gv::GraphGroup> toGraphviz() const;
+#endif
 };

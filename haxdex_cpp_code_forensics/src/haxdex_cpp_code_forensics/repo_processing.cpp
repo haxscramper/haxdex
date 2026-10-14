@@ -7,18 +7,19 @@
 #include <boost/asio/thread_pool.hpp>
 #include <fstream>
 #include <git2/patch.h>
-#include <hstd/ext/logger.hpp>
-#include <hstd/stdlib/Map.hpp>
-#include <hstd/stdlib/Set.hpp>
-#include <hstd/stdlib/strutils.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
+#include <hstd_cpp_lib/stdlib/algorithms/strutils.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Map.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Set.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/specializations/OptFormatter.hpp>
 #include <immer/flex_vector_transient.hpp>
 
 #include <algorithm>
 
-#include <hstd/stdlib/Ranges.hpp>
-#include <hstd/stdlib/Variant.hpp>
-#include <hstd/stdlib/VariantFormatter.hpp>
-#include <hstd/system/reflection.hpp>
+#include <hstd_cpp_lib/stdlib/Ranges.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Variant.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/specializations/VariantFormatter.hpp>
+#include <hstd_cpp_lib/system/reflection.hpp>
 
 using namespace ir;
 using namespace hstd;

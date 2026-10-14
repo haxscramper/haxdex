@@ -80,3 +80,10 @@ conan_validate target editable:
     --profile "{{CONAN_PROFILE}}" \
     --python-config {{quote(CONAN_PYTHON_CONFIG)}} \
     --log-dir "{{HAXDEX_ROOT}}/build/logs/{{target}}"
+
+conan_workspace_install_monorepo:
+  conan workspace super-install \
+    --output-folder=build/conan_super \
+    --build=missing \
+    {{CONAN_PYTHON_CONFIG}} \
+    --profile:all={{CONAN_PROFILE}}

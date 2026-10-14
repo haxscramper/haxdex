@@ -1,9 +1,11 @@
+cmake_minimum_required(VERSION 4.4)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CXX_STANDARD 23)
 
-find_package(OpenSSL REQUIRED)
-find_package(ZLIB REQUIRED)
+find_package(OpenSSL CONFIG REQUIRED)
+find_package(ZLIB CONFIG REQUIRED)
 find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
 
 add_executable(code_forensics)
@@ -20,8 +22,9 @@ set_target_properties(
 )
 
 haxorg_glob_add_sources2(
-  TARGET code_forensics LS_REGEX "${BASE}/scripts/cxx_repository/.*"
-  SEARCH_BASE "${BASE}"
+  TARGET code_forensics LS_REGEX "${CMAKE_CURRENT_LIST_DIR}/src/haxdex_cpp_code_forensics/.*"
+  SEARCH_BASE "${CMAKE_CURRENT_LIST_DIR}"
+  RECURSE ON
 )
 
 target_link_libraries(

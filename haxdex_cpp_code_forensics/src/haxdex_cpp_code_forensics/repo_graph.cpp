@@ -1,8 +1,8 @@
 #include "repo_graph.hpp"
 
 #include <boost/graph/graphml.hpp>
-#include <hstd/ext/logger.hpp>
-#include <hstd/stdlib/Formatter.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/Formatter.hpp>
 
 using namespace hstd;
 
@@ -35,6 +35,9 @@ CommitGraph::CommitGraph(SPtr<git_repository> repo, Str const& branch_name) {
     }
 }
 
+// TODO: re-enable
+#warning TODO re-enable
+#if false
 hstd::SPtr<hstd::ext::graph::gv::GraphGroup> CommitGraph::toGraphviz() const {
     std::stringstream         os;
     boost::dynamic_properties dp;
@@ -72,6 +75,7 @@ hstd::SPtr<hstd::ext::graph::gv::GraphGroup> CommitGraph::toGraphviz() const {
 
     return result;
 }
+#endif
 
 CommitGraph::VDesc CommitGraph::get_desc(git_oid const& oid) {
     auto iter = rev_map.find(oid);

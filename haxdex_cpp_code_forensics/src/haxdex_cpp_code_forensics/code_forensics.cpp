@@ -13,18 +13,18 @@
 #include <absl/log/log_sink_registry.h>
 #include <absl/strings/str_format.h>
 #include <absl/strings/str_split.h>
-#include <hstd/ext/logger.hpp>
-#include <hstd/stdlib/Filesystem.hpp>
-#include <hstd/stdlib/Json.hpp>
-#include <hstd/stdlib/JsonCLIParser.hpp>
-#include <hstd/stdlib/Ranges.hpp>
-#include <hstd/stdlib/SetSerde.hpp>
-#include <hstd/stdlib/VecFormatter.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
+#include <hstd_cpp_lib/stdlib/Filesystem.hpp>
+#include <hstd_cpp_lib/stdlib/Ranges.hpp>
+#include <hstd_cpp_lib/stdlib/containers/SetSerde.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/specializations/VecFormatter.hpp>
+#include <hstd_cpp_lib/stdlib/serde/Json.hpp>
+#include <hstd_cpp_lib/stdlib/serde/JsonCLIParser.hpp>
 
 #include "repo_profile.hpp"
 
-#include <hstd/ext/perfetto_aux_impl_template.hpp>
-#include <hstd/stdlib/JsonSerde.hpp>
+#include <hstd_cpp_lib/logger/perfetto_aux_impl_template.hpp>
+#include <hstd_cpp_lib/stdlib/serde/JsonSerde.hpp>
 // #include <hstd/stdlib/
 
 using namespace hstd;

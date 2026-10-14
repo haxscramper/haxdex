@@ -11,13 +11,13 @@
 #include <boost/describe.hpp>
 #include <boost/mp11.hpp>
 #include <fstream>
-#include <hstd/ext/logger.hpp>
-#include <hstd/stdlib/Ranges.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
+#include <hstd_cpp_lib/stdlib/Ranges.hpp>
 
 #include "git_ir.hpp"
-#include "hstd/stdlib/Set.hpp"
-#include <hstd/stdlib/VecFormatter.hpp>
-#include <hstd/system/reflection.hpp>
+#include <hstd_cpp_lib/stdlib/containers/Set.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/specializations/VecFormatter.hpp>
+#include <hstd_cpp_lib/system/reflection.hpp>
 
 using Date         = boost::gregorian::date;
 using PTime        = boost::posix_time::ptime;
