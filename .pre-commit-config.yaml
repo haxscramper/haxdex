@@ -40,3 +40,8 @@ repos:
     rev: 3.0.0
     hooks:
       - id: forbid-binary
+  - repo: https://github.com/BlankSpruce/gersemi-pre-commit
+    rev: 0.29.1
+    hooks:
+    - id: gersemi
+    

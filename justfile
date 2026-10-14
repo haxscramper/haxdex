@@ -65,3 +65,18 @@ run_arango:
     docker run -d -e ARANGO_ROOT_PASSWORD="test" --network host arangodb/enterprise:3.12.9.1 \
         --server.session-timeout 360000 \
         --vector-index
+
+
+HAXDEX_ROOT := source_directory()
+CONAN_PROFILE := env("CONAN_PROFILE")
+CONAN_PYTHON_CONFIG := shell("uv run python -m hstd_py_lib.project_utils.get_python_config") \
+    + " -c " + quote("user.haxorg:uv_project=" + HAXDEX_ROOT)
+
+conan_validate target editable:
+  uv run --project "{{HAXDEX_ROOT}}" \
+    python -m "hstd_py_lib.project_utils.test_conan_install" \
+    "{{HAXDEX_ROOT}}/{{target}}" \
+    {{editable}} \
+    --profile "{{CONAN_PROFILE}}" \
+    --python-config {{quote(CONAN_PYTHON_CONFIG)}} \
+    --log-dir "{{HAXDEX_ROOT}}/build/logs/{{target}}"

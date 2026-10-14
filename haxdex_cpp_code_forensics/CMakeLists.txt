@@ -4,42 +4,47 @@ set(CXX_STANDARD 23)
 
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
 
 add_executable(code_forensics)
 
-set_common_files(code_forensics)
-set_target_output(code_forensics)
-set_target_flags(code_forensics)
+set_target_properties(
+    code_forensics
+    PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/bin"
+        LIBRARY_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/lib"
+        ARCHIVE_OUTPUT_DIRECTORY
+            "${CMAKE_BINARY_DIR}/lib"
+)
 
-glob_add_sources2(TARGET code_forensics LS_REGEX "${BASE}/scripts/cxx_repository/.*" SEARCH_BASE
-                  "${BASE}")
+haxorg_glob_add_sources2(
+  TARGET code_forensics LS_REGEX "${BASE}/scripts/cxx_repository/.*"
+  SEARCH_BASE "${BASE}"
+)
 
 target_link_libraries(
-  code_forensics
-  PUBLIC hstd
-         range-v3::range-v3
-         SQLiteCpp
-         sqlite3
-         pthread
-         dl
-         pcre
-         OpenSSL::SSL
-         OpenSSL::Crypto
-         absl::base
-         absl::flags
-         ${ZLIB_LIBRARIES}
-         ${PCRE_LIBRARIES})
+    code_forensics
+    PUBLIC
+        hstd::hstd_cpp_lib
+        range-v3::range-v3
+        SQLiteCpp
+        sqlite3
+        pthread
+        dl
+        pcre
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        absl::base
+        absl::flags
+        perfetto::perfetto
+        ${ZLIB_LIBRARIES}
+        ${PCRE_LIBRARIES}
+)
 
 if(TARGET Boost::process)
-  target_link_libraries(code_forensics PUBLIC Boost::process)
-endif()
-
-if(${ORG_BUILD_WITH_PERFETTO})
-  target_link_libraries(code_forensics PUBLIC Perfetto::perfetto)
-endif()
-
-if(${ORG_BUILD_WITH_TRACY})
-  target_link_libraries(code_forensics PUBLIC Tracy::TracyClient)
+    target_link_libraries(code_forensics PUBLIC Boost::process)
 endif()
 
 target_link_libraries(code_forensics PUBLIC "${LIBGIT2_LIBRARIES}")
@@ -48,5 +53,9 @@ target_link_directories(code_forensics PUBLIC ${LIBGIT2_LIBRARY_DIRS})
 target_link_options(code_forensics PUBLIC "-Wl,-rpath,${LIBGIT2_LIBRARY_DIRS}")
 
 target_include_directories(
-  code_forensics PUBLIC "${BASE}/thirdparty/immer" "${BASE}/thirdparty/lager"
-                        "${BASE}/thirdparty/libgit2/include")
+    code_forensics
+    PUBLIC
+        "${BASE}/thirdparty/immer"
+        "${BASE}/thirdparty/lager"
+        "${BASE}/thirdparty/libgit2/include"
+)

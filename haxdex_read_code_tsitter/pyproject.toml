@@ -1,0 +1,14 @@
+[project]
+name = "haxdex_read_code_tsitter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "haxscramper", email = "haxscramper@gmail.com" }
+]
+requires-python = ">=3.13"
+
+dependencies = [
+    "tree-sitter-cpp>=0.23.4",
+    "tree-sitter-python>=0.25.0",
+]
