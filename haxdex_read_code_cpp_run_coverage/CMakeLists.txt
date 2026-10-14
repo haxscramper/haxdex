@@ -25,7 +25,10 @@ find_package(TBB CONFIG REQUIRED QUIET)
 find_package(LLVM REQUIRED CONFIG QUIET)
 
 haxorg_add_executable(haxdex_read_code_cpp_run_coverage)
-add_executable(haxdex::haxdex_read_code_cpp_run_coverage ALIAS haxdex_read_code_cpp_run_coverage)
+add_executable(
+    haxdex::haxdex_read_code_cpp_run_coverage
+    ALIAS haxdex_read_code_cpp_run_coverage
+)
 
 haxorg_glob_add_sources2(
     TARGET haxdex_read_code_cpp_run_coverage

@@ -21,7 +21,10 @@ if(NOT TARGET haxdex::haxdex_read_code_cpp_common)
 endif()
 
 haxorg_add_executable(haxdex_read_code_cpp_build_coverage)
-add_executable(haxdex::haxdex_read_code_cpp_build_coverage ALIAS haxdex_read_code_cpp_build_coverage)
+add_executable(
+    haxdex::haxdex_read_code_cpp_build_coverage
+    ALIAS haxdex_read_code_cpp_build_coverage
+)
 
 haxorg_glob_add_sources2(
     TARGET haxdex_read_code_cpp_build_coverage

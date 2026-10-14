@@ -1,7 +1,5 @@
 void action() {}
 
 int main() {
-  if (true || false) {
-    action();
-  }
+    if (true || false) { action(); }
 }

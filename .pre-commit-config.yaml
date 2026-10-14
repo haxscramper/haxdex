@@ -44,4 +44,3 @@ repos:
     rev: 0.29.1
     hooks:
     - id: gersemi
-    
