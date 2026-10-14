@@ -6,7 +6,7 @@ from beartype import beartype
 from beartype.typing import Any
 from pydantic import BaseModel
 
-from haxdex.gui.agnostic.column_model import AbstractColumnItemModel, ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_handler import BaseAction, ActionHandler
 from haxdex.gui.file_tree.actions.action_move_file import MoveAction

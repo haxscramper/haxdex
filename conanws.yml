@@ -1,0 +1,14 @@
+name: haxdex_read_code
+packages:
+  - path: haxdex_read_code_cpp_common
+    ref: haxdex_read_code_cpp_common/0.1.0
+  - path: haxdex_read_code_cpp_includes
+    ref: haxdex_read_code_cpp_includes/0.1.0
+  - path: haxdex_read_code_cpp
+    ref: haxdex_read_code_cpp/0.1.0
+  - path: haxdex_read_code_cpp_symbol
+    ref: haxdex_read_code_cpp_symbol/0.1.0
+  - path: haxdex_read_code_cpp_build_coverage
+    ref: haxdex_read_code_cpp_build_coverage/0.1.0
+  - path: haxdex_read_code_cpp_run_coverage
+    ref: haxdex_read_code_cpp_run_coverage/0.1.0

@@ -6,8 +6,8 @@ from beartype import beartype
 from beartype.typing import Any, Sequence
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 
-from haxdex.gui.agnostic.column_model import AbstractColumnItemModel, ColumnSpec
-from haxdex.gui.agnostic.column_sort_filter_proxy import ColumnSortFilterProxyModel
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 

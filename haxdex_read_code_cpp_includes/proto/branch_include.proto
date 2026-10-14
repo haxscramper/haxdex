@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+message Include {
+    string RelativePath = 1;
+    string AbsolutePath = 2;
+}
+
+message IncludeVisit {
+    string RelativePath = 1;
+
+    // Normalized absolute path to the included file.
+    string AbsolutePath = 2;
+
+    uint32 FileLineCount = 3;
+
+    // Direct lines expanded from the included file,
+    // excluding all nested files.
+    uint32 UsedLineCount = 4;
+
+    // Line in the parent file where the include occurred.
+    uint32 IncludeLocationLine = 6;
+
+    repeated IncludeVisit Nested = 7;
+}
+
+message TU {
+    reserved 1, 2, 3, 4, 7;
+    reserved "records", "enums", "functions", "typedefs", "Doc";
+
+    repeated Include includes = 5;
+    string AbsolutePath = 6;
+    IncludeVisit MainFileIncludeTree = 8;
+}

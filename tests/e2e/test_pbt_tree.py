@@ -24,9 +24,9 @@ from sqlalchemy.orm import Session
 
 from haxdex.cli.cli import IndexService, main_impl
 from haxdex.cli.cli_config import AppConfig, IndexConfig, IndexPathConfig, DatabaseConfig, LoggingConfig
-from haxdex.gui.agnostic import model_dump
-from haxdex.gui.agnostic.model_dump import render_text, simple_dump, simple_dump_rows_json
-from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
+from hstd_py_qt.src.hstd_py_qt import model_dump
+from hstd_py_qt.src.hstd_py_qt.model_dump import render_text, simple_dump, simple_dump_rows_json
+from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_db import OperationRow

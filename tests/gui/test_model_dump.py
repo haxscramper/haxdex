@@ -9,7 +9,7 @@ from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
-from haxdex.gui.agnostic.model_dump import (
+from hstd_py_qt.src.hstd_py_qt.model_dump import (
     ItemFormatContext,
     ModelRichDumpConfig,
     ModelStructure,

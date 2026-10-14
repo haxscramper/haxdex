@@ -21,33 +21,12 @@ test_gui:
         --disable-warnings \
         > test_results.tmp.log 2>&1
 
-
-# "tests/test_search.py::test_full_text_search" 
-# "tests/test_search.py::test_full_text_search"
-
 index:
     uv run src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
 
 profile_index:
     uv run py-spy record --rate 50 --format chrometrace -o /tmp/haxdex-perf-index.json -- \
       python src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
-
-# --indexer file_summary \]
-# --resource text_summary \
-# --resource flm_server \
-
-# --indexer comfy_input \
-# --indexer exif_metadata \
-# --indexer safetensor \
-# --indexer generation_params \
-
-# --enable-cache exif_metadata \
-# --indexer exif_metadata \
-# --indexer comfy_input \
-# --limit-per-path 200 \
-# --indexer wd_tags \
-# --indexer ffprobe \
-# --indexer pdf_pages \
 
 schema:
     uv run src/haxdex/cli/cli.py schema "{{ CONFIG_FILE }}"

@@ -22,10 +22,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.gui.agnostic.column_sort_filter_proxy import ColumnSortFilterProxyModel
-from haxdex.gui.agnostic.filterable_table_view import FilterColumnConfig, FilterableTableView
-from haxdex.gui.agnostic.column_model import AbstractColumnItemModel
-from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
+from hstd_py_qt.src.hstd_py_qt.filterable_table_view import FilterColumnConfig, FilterableTableView
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
+from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_handler import ActionResult

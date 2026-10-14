@@ -13,8 +13,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.gui.agnostic.column_sort_filter_proxy import ColumnSortFilterProxyModel
-from haxdex.gui.agnostic.filterable_table_view import FilterableTableView, FilterColumnConfig
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
+from hstd_py_qt.src.hstd_py_qt.filterable_table_view import FilterableTableView, FilterColumnConfig
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
 from haxdex.gui.file_tree.actions.action_list_model import ActionListModel

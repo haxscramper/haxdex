@@ -12,7 +12,7 @@ from pytestqt.qtbot import QtBot
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtTest import QSignalSpy
 
-from haxdex.gui.agnostic.directory_view import MixedTreeTileView, BaseDirDelegate, TileDelegate, attr_label
+from hstd_py_qt.src.hstd_py_qt.directory_view import MixedTreeTileView, BaseDirDelegate, TileDelegate, attr_label
 
 
 class SynNode:

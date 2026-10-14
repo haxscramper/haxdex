@@ -4,7 +4,7 @@ from pathlib import Path
 from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
 
-from haxdex.gui.agnostic.column_model import ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.column_model import ColumnSpec
 from beartype.typing import Any, cast, Optional, ClassVar
 from pydantic import BaseModel, Field
 from abc import ABC, abstractmethod

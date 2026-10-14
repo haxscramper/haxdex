@@ -6,8 +6,8 @@ from PyQt6.QtCore import QCoreApplication, Qt, QSortFilterProxyModel
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
 from beartype.typing import List, Iterator, Tuple
 
-from haxdex.gui.agnostic.signal_logger import QtTrace
-from haxdex.gui.agnostic.tree_to_table_model import TreeToTableProxyModel
+from hstd_py_qt.src.hstd_py_qt.signal_logger import QtTrace
+from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 
 
 @pytest.fixture(scope="session", autouse=True)
