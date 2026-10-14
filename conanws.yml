@@ -10,3 +10,5 @@ packages:
     ref: haxdex_read_code_cpp_run_coverage/0.1.0
   - path: haxdex_cpp_code_forensics
     ref: haxdex_cpp_code_forensics/0.1.0
+  - path: haxdex_cpp_build_stats
+    ref: haxdex_cpp_build_stats/0.1.0

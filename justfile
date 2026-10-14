@@ -72,6 +72,8 @@ CONAN_PROFILE := env("CONAN_PROFILE")
 CONAN_PYTHON_CONFIG := shell("uv run python -m hstd_py_lib.project_utils.get_python_config") \
     + " -c " + quote("user.haxorg:uv_project=" + HAXDEX_ROOT)
 
+SUPPRESSION_FILE := HAXDEX_ROOT / "clang_suppressions.supp"
+
 conan_validate target editable:
   uv run --project "{{HAXDEX_ROOT}}" \
     python -m "hstd_py_lib.project_utils.test_conan_install" \
@@ -79,6 +81,7 @@ conan_validate target editable:
     {{editable}} \
     --profile "{{CONAN_PROFILE}}" \
     --python-config {{quote(CONAN_PYTHON_CONFIG)}} \
+    --warning-suppressions "{{SUPPRESSION_FILE}}" \
     --log-dir "{{HAXDEX_ROOT}}/build/logs/{{target}}"
 
 conan_workspace_install_monorepo:
