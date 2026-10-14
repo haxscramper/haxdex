@@ -45,8 +45,8 @@ add_executable(trace_event_bench bench/bSubsetCollection.cpp)
 target_include_directories(
     trace_events_lib
     PUBLIC
-        "${CMAKE_SOURCE_DIR}/cppdecl/include"
-        "${CMAKE_SOURCE_DIR}/src"
+        "${CMAKE_CURRENT_LIST_DIR}/cppdecl/include"
+        "${CMAKE_CURRENT_LIST_DIR}/src"
 )
 
 target_link_libraries(

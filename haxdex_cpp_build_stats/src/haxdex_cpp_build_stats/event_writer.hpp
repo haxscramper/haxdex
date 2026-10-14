@@ -1,6 +1,6 @@
 #pragma once
-#include "to_json.hpp"
-#include "to_json_normalized.hpp"
+#include <haxdex_cpp_build_stats/to_json.hpp>
+#include <haxdex_cpp_build_stats/to_json_normalized.hpp>
 
 
 #include <rapidjson/document.h>

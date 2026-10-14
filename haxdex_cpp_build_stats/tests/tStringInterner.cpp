@@ -1,4 +1,4 @@
-#include "string_interner.hpp"
+#include <haxdex_cpp_build_stats/string_interner.hpp>
 
 #include <gtest/gtest.h>
 #include <string>

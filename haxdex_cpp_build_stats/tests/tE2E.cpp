@@ -1,5 +1,5 @@
-#include <event_writer.hpp>
 #include <gtest/gtest.h>
+#include <haxdex_cpp_build_stats/event_writer.hpp>
 
 #include <chrono>
 #include <filesystem>

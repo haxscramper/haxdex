@@ -4,8 +4,8 @@
 #include <boost/describe.hpp>
 #include <execution>
 #include <fstream>
-#include <haxdex_read_code_cpp/reflection_demangler.hpp>
-#include <haxdex_read_code_cpp/reflection_perf.hpp>
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+#include <haxdex_read_code_cpp_symbol/reflection_demangler.hpp>
 #include <hstd_cpp_lib/logger/perfetto_aux.hpp>
 #include <hstd_cpp_lib/stdlib/Filesystem.hpp>
 #include <hstd_cpp_lib/stdlib/containers/Map.hpp>
@@ -15,6 +15,7 @@
 #include <hstd_cpp_lib/stdlib/formatting/specializations/OptFormatter.hpp>
 #include <hstd_cpp_lib/stdlib/serde/Json.hpp>
 #include <hstd_cpp_lib/stdlib/serde/JsonSerde.hpp>
+#include <hstd_cpp_lib/stdlib/serde/JsonUse.hpp>
 #include <hstd_cpp_lib/system/aux_utils.hpp>
 #include <hstd_cpp_lib/system/macros.hpp>
 #include <llvm/ADT/Hashing.h>
@@ -45,7 +46,9 @@ using namespace hstd;
 namespace hstd {
 template <>
 struct JsonSerde<std::monostate> {
-    static json to_json(std::monostate const& point) { return json::object(); }
+    static hstd::json to_json(std::monostate const& point) {
+        return hstd::json::object();
+    }
 
     static std::monostate from_json(json const& j) { return std::monostate{}; }
 };

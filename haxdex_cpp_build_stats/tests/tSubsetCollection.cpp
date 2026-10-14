@@ -1,4 +1,4 @@
-#include "set_collection.hpp"
+#include <haxdex_cpp_build_stats/set_collection.hpp>
 
 #include <algorithm>
 #include <gtest/gtest.h>
