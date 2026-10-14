@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import io
-from loguru import logger
 import subprocess
 import time
 from pathlib import Path
@@ -10,17 +9,17 @@ from typing import Literal
 
 import fitz
 import requests
+from docling_core.types.doc.document import (
+    ContentLayer,
+    DoclingDocument,
+    DocTagsDocument,
+    DocTagsPage,
+)
+from loguru import logger
 from PIL import Image as PILImage
 from pydantic import BaseModel
 
 from haxdex.services.resources.pdf.page_model import DocTag
-
-from docling_core.types.doc.document import (
-    DocTagsDocument,
-    DocTagsPage,
-    DoclingDocument,
-    ContentLayer,
-)
 
 
 class DoclingPage(BaseModel, extra="forbid"):
@@ -55,7 +54,9 @@ def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
     logger.info(f"Checking if model {model_name} is available...")
     result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
     if model_name not in result.stdout:
-        logger.info(f"Model {model_name} not found. Pulling (this might take a while)...")
+        logger.info(
+            f"Model {model_name} not found. Pulling (this might take a while)..."
+        )
         subprocess.run(["ollama", "pull", model_name], check=True)
         logger.info(f"Model {model_name} pulled successfully.")
 
@@ -82,10 +83,14 @@ def parse_spatial_tags(raw_xml: str, page_num: int) -> list[DocTag]:
     doc = DoclingDocument.load_from_doctags(doctag_document=doc_tags)
 
     tag_counter = 1
-    for item, level in doc.iterate_items(included_content_layers=set(ContentLayer),
-                                         with_groups=True):
-        tag_name = (str(item.label.value)
-                    if hasattr(item, "label") and item.label else type(item).__name__)
+    for item, level in doc.iterate_items(
+        included_content_layers=set(ContentLayer), with_groups=True
+    ):
+        tag_name = (
+            str(item.label.value)
+            if hasattr(item, "label") and item.label
+            else type(item).__name__
+        )
         text_content = getattr(item, "text", "")
 
         bbox = None
@@ -133,15 +138,15 @@ class DoclingExtractor:
 
         payload = {
             "model": self.model_name,
-            "messages": [{
-                "role": "user",
-                "content": "Convert this page to docling.",
-                "images": [base64_image],
-            }],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Convert this page to docling.",
+                    "images": [base64_image],
+                }
+            ],
             "stream": False,
-            "options": {
-                "temperature": 0
-            },
+            "options": {"temperature": 0},
         }
 
         response = requests.post(self.ollama_url, json=payload, timeout=self.timeout)
@@ -149,8 +154,9 @@ class DoclingExtractor:
 
         return response.json().get("message", {}).get("content", "")
 
-    def extract_page(self, pdf_path: Path, page_num: int,
-                     raster_dir: Path) -> DoclingPage:
+    def extract_page(
+        self, pdf_path: Path, page_num: int, raster_dir: Path
+    ) -> DoclingPage:
         logger.info(f"Docling extracting page {page_num} from {pdf_path.name}")
 
         image_path = _rasterize_page(pdf_path, page_num, raster_dir)

@@ -1,15 +1,14 @@
 # haxdex/services/indexers/media_transcription.py
-from loguru import logger
 import os
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import cast
 
-from sqlalchemy import Engine
-
 import magic
+from loguru import logger
 from pydantic import BaseModel, Field
+from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
@@ -34,7 +33,8 @@ class MediaTranscriptionIndexerResult(BaseModel, extra="forbid"):
     transcript_vtt: str = ""
     transcript: WhisperTranscribeResult | None = None
     analysis: MediaTranscriptionAnalysis = Field(
-        default_factory=MediaTranscriptionAnalysis)
+        default_factory=MediaTranscriptionAnalysis
+    )
 
 
 class MediaTranscriptionIndexer(BaseIndexer):
@@ -104,7 +104,9 @@ class MediaTranscriptionIndexer(BaseIndexer):
                 analysis.ffmpeg_stderr = ffmpeg_result.stderr
 
             if analysis.ffmpeg_ok:
-                whisper = cast(WhisperTranscribeResource, resources["whisper_transcribe"])
+                whisper = cast(
+                    WhisperTranscribeResource, resources["whisper_transcribe"]
+                )
                 transcript_result = whisper.handle(
                     ctx,
                     WhisperTranscribeRequest(wav_path=str(wav_path)),
@@ -126,8 +128,11 @@ class MediaTranscriptionIndexer(BaseIndexer):
 
         result = MediaTranscriptionIndexerResult(
             transcript_text=transcript_result.text
-            if transcript_result is not None else "",
-            transcript_vtt=transcript_result.vtt if transcript_result is not None else "",
+            if transcript_result is not None
+            else "",
+            transcript_vtt=transcript_result.vtt
+            if transcript_result is not None
+            else "",
             transcript=transcript_result,
             analysis=analysis,
         )

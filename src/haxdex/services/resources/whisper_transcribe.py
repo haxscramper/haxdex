@@ -1,15 +1,13 @@
 # haxdex/services/resources/whisper_transcribe.py
 import atexit
-from loguru import logger
-import os
 import subprocess
 import threading
 import time
 from pathlib import Path
-from typing import Any
 
-from beartype.typing import ClassVar
 import httpx
+from beartype.typing import ClassVar
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
@@ -60,9 +58,12 @@ class WhisperTranscribeResource(BaseResource):
 
     def __init__(self, config: WhisperServerConfig) -> None:
         super().__init__(config=config)
-        self._model_dir = Path(self.config.whisper_model_directory).expanduser().resolve()
+        self._model_dir = (
+            Path(self.config.whisper_model_directory).expanduser().resolve()
+        )
         self._model_file_name, self._download_model_name = self._resolve_model_names(
-            self.config.model_name)
+            self.config.model_name
+        )
         self._model_path = self._model_dir / self._model_file_name
         self._ggml_download_script = self._model_dir / "download-ggml-model.sh"
         self._base_url = self.config.base_url.rstrip("/")
@@ -93,9 +94,9 @@ class WhisperTranscribeResource(BaseResource):
     def _resolve_model_names(model_name: str) -> tuple[str, str]:
         normalized = model_name.strip()
         if normalized.startswith("ggml-"):
-            normalized = normalized[len("ggml-"):]
+            normalized = normalized[len("ggml-") :]
         if normalized.endswith(".bin"):
-            normalized = normalized[:-len(".bin")]
+            normalized = normalized[: -len(".bin")]
 
         if not normalized:
             raise ValueError("model_name must not be empty")
@@ -111,7 +112,8 @@ class WhisperTranscribeResource(BaseResource):
 
         if not self._ggml_download_script.exists():
             raise FileNotFoundError(
-                f"missing GGML download script: {self._ggml_download_script}")
+                f"missing GGML download script: {self._ggml_download_script}"
+            )
 
         logger.info(f"Input transcription model is missing {self._model_path}")
         result = subprocess.run(
@@ -125,11 +127,13 @@ class WhisperTranscribeResource(BaseResource):
                 "failed to download whisper model "
                 f"'{self._download_model_name}' via {self._ggml_download_script}\n"
                 f"stdout:\n{result.stdout}\n"
-                f"stderr:\n{result.stderr}")
+                f"stderr:\n{result.stderr}"
+            )
 
         if not self._model_path.exists():
             raise FileNotFoundError(
-                f"model download finished but file was not found: {self._model_path}")
+                f"model download finished but file was not found: {self._model_path}"
+            )
 
         logger.info("Model download OK")
 
@@ -227,8 +231,9 @@ class WhisperTranscribeResource(BaseResource):
             lines.append("")
         return "\n".join(lines).rstrip() + "\n"
 
-    def _transcribe_once(self,
-                         request: WhisperTranscribeRequest) -> WhisperTranscribeResult:
+    def _transcribe_once(
+        self, request: WhisperTranscribeRequest
+    ) -> WhisperTranscribeResult:
         wav_path = Path(request.wav_path)
         if not wav_path.exists():
             return WhisperTranscribeResult(

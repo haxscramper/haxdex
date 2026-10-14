@@ -1,15 +1,14 @@
 import hashlib
+import os
 import shutil
 from pathlib import Path
 from typing import ClassVar
 
 from beartype import beartype
+from loguru import logger
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
-
-from loguru import logger
-import os
 
 
 class TrashAction(BaseAction):
@@ -73,7 +72,7 @@ class TrashActionHandler(ActionHandler):
         for p in parent.iterdir():
             if not p.name.startswith(prefix):
                 continue
-            suffix = p.name[len(prefix):]
+            suffix = p.name[len(prefix) :]
             if not suffix.isdigit():
                 continue
             idx = int(suffix)

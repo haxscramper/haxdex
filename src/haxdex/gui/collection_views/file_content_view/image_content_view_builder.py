@@ -1,14 +1,15 @@
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QLabel, QWidget, QSizePolicy
 from beartype import beartype
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
 
-from haxdex.gui.collection_views.file_content_view.file_content_builder import FileContentViewBuilder
+from haxdex.gui.collection_views.file_content_view.file_content_builder import (
+    FileContentViewBuilder,
+)
 
 
 @beartype
 class ScaledImagePreview(QLabel):
-
     def __init__(self, absolute_path: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._source = QPixmap(absolute_path)
@@ -36,12 +37,12 @@ class ScaledImagePreview(QLabel):
                 self.size(),
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
-            ))
+            )
+        )
 
 
 @beartype
 class ImageFileContentViewBuilder(FileContentViewBuilder):
-
     def can_build(self, mime: str) -> bool:
         return mime.startswith("image/")
 

@@ -1,31 +1,36 @@
 from typing import Any, ClassVar, Union
 
+import glom
+from beartype.typing import Annotated, Optional
+from loguru import logger
+from pydantic import Field
 from sqlalchemy import Engine
 
-import glom
-from pydantic import Field
-from beartype.typing import Annotated, Optional
-
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import FullTextIndexConfig, IndexerOutput, IndexerRequest, MultiDocumentModel, VectorIndexConfig
+from haxdex.services.core.types import (
+    FullTextIndexConfig,
+    IndexerOutput,
+    IndexerRequest,
+    MultiDocumentModel,
+)
 from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkConfig,
-    ChunkUnit,
-    Chunker,
     ChunkDocument,
+    Chunker,
     ChunkFile,
     ChunkLink,
+    ChunkUnit,
     chunks_to_multidoc,
 )
 from haxdex.services.indexers.full_document.full_document import (
-    DocumentBlockIndexerResult,)
-
-from loguru import logger
+    DocumentBlockIndexerResult,
+)
 
 
 class FullTextChunk(ChunkDocument, extra="forbid"):
     full_text_index: ClassVar[Optional[FullTextIndexConfig]] = FullTextIndexConfig(
-        index_path="result.text",)
+        index_path="result.text",
+    )
 
 
 class FullTextIndexerResult(MultiDocumentModel, extra="forbid"):
@@ -63,8 +68,8 @@ class FullTextIndexer(BaseIndexer):
     ) -> IndexerOutput:
         full_document = glom.glom(assets, "document_block.result", default=None)
         assert full_document is None or isinstance(
-            full_document,
-            DocumentBlockIndexerResult), (f"Input document type is {type(full_document)}")
+            full_document, DocumentBlockIndexerResult
+        ), f"Input document type is {type(full_document)}"
 
         file_hash = request.get_hash_str()
 
@@ -74,8 +79,9 @@ class FullTextIndexer(BaseIndexer):
 
         if full_document:
             chunker = Chunker(self._config)
-            chunks = chunker.chunk_blocks(full_document.documents, full_document.edges,
-                                          file_hash)
+            chunks = chunker.chunk_blocks(
+                full_document.documents, full_document.edges, file_hash
+            )
             if 0 < ctx.get_path(request.file_ref).stat().st_size:
                 assert 0 < len(chunks)
         else:

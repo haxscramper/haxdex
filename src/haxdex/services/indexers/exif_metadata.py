@@ -1,26 +1,20 @@
-import base64
-import hashlib
 import json
-from loguru import logger
-import math
 import re
 from datetime import datetime
 from pathlib import Path
 from pprint import pformat
-from urllib import request
-
-import PIL
-from sqlalchemy import Engine
 
 import magic
+import PIL
 from beartype import beartype
-from beartype.typing import Any, Dict, List, Optional, Set, Tuple, Union
+from beartype.typing import Any, Dict, List, Optional, Tuple, Union
+from PIL import ExifTags, Image
+from pydantic import BaseModel, Field
+from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from haxdex.services.pydantic_utils import try_parse_json
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
-from PIL import Image, ExifTags
-from pydantic import BaseModel, ConfigDict, Field
 
 RX_DELETE = re.compile(r"[- _,()/\\:]")
 
@@ -77,9 +71,9 @@ def _collect_all_embedded_metadata(img: Image.Image) -> Dict[str, Any]:
 
     if hasattr(exif_obj, "get_ifd"):
         for ifd_name, ifd_id in {
-                "ExifIFD": 0x8769,
-                "GPSInfoIFD": 0x8825,
-                "InteropIFD": 0xA005,
+            "ExifIFD": 0x8769,
+            "GPSInfoIFD": 0x8825,
+            "InteropIFD": 0xA005,
         }.items():
             try:
                 ifd_data = exif_obj.get_ifd(ifd_id)
@@ -175,7 +169,8 @@ class ImageParams(BaseModel, extra="forbid"):
     def get_tag_formatted_negative_prompt(self) -> str:
         assert self.parsed_negative_prompt
         return ",".join(
-            it.text for it in self.parsed_negative_prompt if isinstance(it, Tag))
+            it.text for it in self.parsed_negative_prompt if isinstance(it, Tag)
+        )
 
     def get_tensor_art_prompt(self) -> dict:
         return dict(
@@ -199,30 +194,36 @@ Steps: {self.steps}, Model: {self.model}
 """
 
 
-PATTERN = re.compile("(" + "|".join(
-    re.escape(key) for key in [
-        "Prompt",
-        "Negative prompt",
-        "Seed",
-        "Size",
-        "VAE",
-        "Denoising strength",
-        "Steps",
-        "Sampler",
-        "KSampler",
-        "Schedule",
-        "CFG scale",
-        "Clip skip",
-        "Model",
-        "LoRA",
-        "Hires resize",
-        "Hires steps",
-        "Hires upscaler",
-        "ADetailer model",
-        "ADetailer negative prompt",
-        "ADetailer confidence",
-        "Guidance",
-    ]) + "):")
+PATTERN = re.compile(
+    "("
+    + "|".join(
+        re.escape(key)
+        for key in [
+            "Prompt",
+            "Negative prompt",
+            "Seed",
+            "Size",
+            "VAE",
+            "Denoising strength",
+            "Steps",
+            "Sampler",
+            "KSampler",
+            "Schedule",
+            "CFG scale",
+            "Clip skip",
+            "Model",
+            "LoRA",
+            "Hires resize",
+            "Hires steps",
+            "Hires upscaler",
+            "ADetailer model",
+            "ADetailer negative prompt",
+            "ADetailer confidence",
+            "Guidance",
+        ]
+    )
+    + "):"
+)
 
 
 class SDGenParams(BaseModel):
@@ -258,7 +259,7 @@ def parse_parameters(param_string: str) -> Optional[SDGenParams]:
         else:
             next_start = len(param_string)
 
-        key = param_string[start:end - 1].strip()
+        key = param_string[start : end - 1].strip()
         value = param_string[end:next_start].strip()
 
         results[key] = value
@@ -316,7 +317,6 @@ WARN_IDX = 0
 
 @beartype
 class PromptParser:
-
     def __init__(self):
         self.break_token = "BREAK"
 
@@ -328,7 +328,8 @@ class PromptParser:
         prompt = prompt.replace(r"\s+", " ")
         prompt = re.sub(r"(,\s*)+", ",", prompt)
         result = [
-            tok for tok in re.split(r"(\n+|,|BREAK|<[^>]+>|[\(\)])", prompt)
+            tok
+            for tok in re.split(r"(\n+|,|BREAK|<[^>]+>|[\(\)])", prompt)
             if (tok not in [","]) and len(tok.strip()) != 0
         ]
         # print(f"{prompt} -> {result}")
@@ -339,11 +340,13 @@ class PromptParser:
         current_level = 0
 
         def add_tag(text: str, amplifier: float = 1.0, level: int = 0):
-            result.append(Tag(
-                text=text.strip(),
-                amplifier=amplifier,
-                parens=level,
-            ))
+            result.append(
+                Tag(
+                    text=text.strip(),
+                    amplifier=amplifier,
+                    parens=level,
+                )
+            )
 
         for token in tokens:
             if token == "":
@@ -366,7 +369,8 @@ class PromptParser:
                             id2=parts[0],
                             id3=parts[1],
                             weight=try_float(parts[2]),
-                        ))
+                        )
+                    )
 
                 elif len(parts) == 2:
                     result.append(
@@ -374,7 +378,8 @@ class PromptParser:
                             id2=parts[0],
                             id3=None,
                             weight=try_float(parts[1]),
-                        ))
+                        )
+                    )
 
             elif ":" in token:
                 tag, amp, *other = token.split(":")
@@ -394,7 +399,9 @@ class PromptParser:
 
 
 @beartype
-def get_image_params(path: Path, reference_dir: Path, fast: bool = False) -> ImageParams:
+def get_image_params(
+    path: Path, reference_dir: Path, fast: bool = False
+) -> ImageParams:
     json_path = path.with_suffix(".json")
 
     res = ImageParams(
@@ -429,7 +436,8 @@ def get_image_params(path: Path, reference_dir: Path, fast: bool = False) -> Ima
             res.original_metadata_full["exif_metadata"] = metadata
         else:
             res.original_metadata_full["exif_metadata"] = res.original_metadata_full[
-                "embedded"]["info_parsed"]
+                "embedded"
+            ]["info_parsed"]
 
     if path.with_suffix(".txt").exists():
         text_gen_data = path.with_suffix(".txt").read_text()
@@ -455,10 +463,12 @@ def get_image_params(path: Path, reference_dir: Path, fast: bool = False) -> Ima
                             name = lora
                             weight = 1.0
 
-                        res.loras.append(ModelParam(
-                            name=name,
-                            weight=float(weight),
-                        ))
+                        res.loras.append(
+                            ModelParam(
+                                name=name,
+                                weight=float(weight),
+                            )
+                        )
 
     elif "generation_data" in metadata:
         if json_metadata:
@@ -487,10 +497,12 @@ def get_image_params(path: Path, reference_dir: Path, fast: bool = False) -> Ima
             res.sdVae = load.sdVae
             res.etaNoiseSeedDelta = load.etaNoiseSeedDelta
             for lora in load.models:
-                res.loras.append(ModelParam(
-                    name=lora.modelFileName,
-                    weight=lora.weight,
-                ))
+                res.loras.append(
+                    ModelParam(
+                        name=lora.modelFileName,
+                        weight=lora.weight,
+                    )
+                )
 
         except Exception as e:
             e.add_note(pformat(full_json, width=180))
@@ -508,8 +520,11 @@ def get_image_params(path: Path, reference_dir: Path, fast: bool = False) -> Ima
         for _, node in prompt.items():
             if node["class_type"] == "BNK_CLIPTextEncodeAdvanced":
                 text = node["inputs"]["text"]
-                if ("EasyNegative" in text or "bad anatomy" in text or
-                        "negative" in text):
+                if (
+                    "EasyNegative" in text
+                    or "bad anatomy" in text
+                    or "negative" in text
+                ):
                     res.negative_prompt = text
                 else:
                     res.prompt = text
@@ -564,13 +579,15 @@ class ExifMetadataIndexer(BaseIndexer):
             result = ExifMetadataIndexerResult(file=params, hash=request.get_hash_str())
 
         except PIL.UnidentifiedImageError as err:
-            result = ExifMetadataIndexerResult(error=str(err),
-                                               hash=request.get_hash_str())
+            result = ExifMetadataIndexerResult(
+                error=str(err), hash=request.get_hash_str()
+            )
 
         except OSError as err:
             if "image file is truncated" in str(err):
-                result = ExifMetadataIndexerResult(error=str(err),
-                                                   hash=request.get_hash_str())
+                result = ExifMetadataIndexerResult(
+                    error=str(err), hash=request.get_hash_str()
+                )
 
             else:
                 raise err from None

@@ -1,9 +1,9 @@
 from pprint import pformat
 
-from beartype import beartype
-from beartype.typing import Any, Optional, Dict
-
 from arango.database import StandardDatabase
+from beartype import beartype
+from beartype.typing import Any, Dict, Optional
+from loguru import logger
 
 from haxdex.services.core.db_impl.contracts import BaseIndexProtocol
 from haxdex.services.core.types import (
@@ -15,8 +15,6 @@ from haxdex.services.pydantic_arango_schema import (
     ArangoSchema,
     arango_schema_for_model,
 )
-
-from loguru import logger
 
 
 @beartype
@@ -35,7 +33,8 @@ class SchemaMixin:
                 self._db.aql.execute(  # type: ignore
                     "FOR document IN @@collection RETURN document._key",
                     bind_vars={"@collection": name},
-                ))
+                )
+            )
 
     def _arango_collection_schema_for_indexer(
         self,
@@ -46,9 +45,7 @@ class SchemaMixin:
             rule: dict[str, Any] = {
                 "type": "object",
                 "properties": {
-                    "indexer_id": {
-                        "type": "string"
-                    },
+                    "indexer_id": {"type": "string"},
                     "result": payload.schema,
                 },
                 "required": ["indexer_id", "result"],
@@ -65,7 +62,9 @@ class SchemaMixin:
             }
 
         if issubclass(indexer.result_model, MultiDocumentModel):
-            document_payload = arango_schema_for_model(indexer.result_model.document_type)
+            document_payload = arango_schema_for_model(
+                indexer.result_model.document_type
+            )
             document_schema = collection_schema(
                 document_payload,
                 f"invalid document shape for {indexer.result_model.__name__}",
@@ -123,7 +122,8 @@ class SchemaMixin:
                     schema=expected_schema,
                 )
                 logger.warning(
-                    f"DB schema changed for {name} collection has no items, dropping")
+                    f"DB schema changed for {name} collection has no items, dropping"
+                )
                 return
 
             else:
@@ -144,19 +144,25 @@ got
                 self._db.create_collection(name)
 
         files = self._db.collection("files")
-        if not any(index.get("name") == "idx_paths_suffix" for index in files.indexes()):
-            files.add_index({
-                "type": "persistent",
-                "fields": ["paths[*].suffix"],
-                "name": "idx_paths_suffix",
-            })
+        if not any(
+            index.get("name") == "idx_paths_suffix" for index in files.indexes()
+        ):
+            files.add_index(
+                {
+                    "type": "persistent",
+                    "fields": ["paths[*].suffix"],
+                    "name": "idx_paths_suffix",
+                }
+            )
 
         for indexer in indexers:
             document_schema, edge_schema = self._arango_collection_schema_for_indexer(
-                indexer)
+                indexer
+            )
 
             if indexer.reset_db_collection and self._db.has_collection(
-                    indexer.asset_name):
+                indexer.asset_name
+            ):
                 self._db.delete_collection(indexer.asset_name)
                 if edge_schema:
                     self._db.delete_collection(self.get_edge_name(indexer))
@@ -194,12 +200,14 @@ got
             if len(definitions) != 1:
                 raise RuntimeError(
                     f"graph {graph_name!r} must contain exactly one edge definition, "
-                    f"got {definitions!r}")
+                    f"got {definitions!r}"
+                )
 
             if definitions[0] != edge_definition:
                 raise RuntimeError(
                     f"graph edge definition mismatch for {graph_name!r}: "
-                    f"expected {edge_definition!r}, got {definitions[0]!r}")
+                    f"expected {edge_definition!r}, got {definitions[0]!r}"
+                )
 
     def truncate_all(self, names: list[str]) -> None:
         for name in ["roots", "files", "derivations", *names]:
@@ -207,25 +215,30 @@ got
 
     def enable_index(self, indexer: BaseIndexProtocol) -> None:
         for base in indexer.get_document_type_bases():
-            assert isinstance(base, type), (f"{base} for indexer {indexer.asset_name}")
-            assert issubclass(
-                base, IndexDocument), ("Cannot enable index, the type "
-                                       f"{base} is not derived from IndexDocument")
+            assert isinstance(base, type), f"{base} for indexer {indexer.asset_name}"
+            assert issubclass(base, IndexDocument), (
+                "Cannot enable index, the type "
+                f"{base} is not derived from IndexDocument"
+            )
 
             if base.vector_index is not None:
                 vector_index = base.vector_index
-                self._db.collection(indexer.asset_name).add_index({
-                    "name": (f"vector_{base.__name__}_"
-                             f"{vector_index.index_path.replace('.', '_')}"),
-                    "type": "vector",
-                    "fields": [vector_index.index_path],
-                    "params": {
-                        "dimension": vector_index.vector_dimensions,
-                        "metric": vector_index.vector_metric,
-                        "nLists": vector_index.n_lists,
-                    },
-                    "sparse": vector_index.sparse,
-                })
+                self._db.collection(indexer.asset_name).add_index(
+                    {
+                        "name": (
+                            f"vector_{base.__name__}_"
+                            f"{vector_index.index_path.replace('.', '_')}"
+                        ),
+                        "type": "vector",
+                        "fields": [vector_index.index_path],
+                        "params": {
+                            "dimension": vector_index.vector_dimensions,
+                            "metric": vector_index.vector_metric,
+                            "nLists": vector_index.n_lists,
+                        },
+                        "sparse": vector_index.sparse,
+                    }
+                )
 
             if base.full_text_index is not None:
                 full_text_index: FullTextIndexConfig = base.full_text_index

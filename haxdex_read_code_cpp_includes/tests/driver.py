@@ -8,7 +8,8 @@ def include_visit_to_rich_tree(
         return (
             f"{node.relative_path} ({node.absolute_path.removeprefix(absolute_prefix)}) "
             f"[dim](line {node.include_location_line}, "
-            f"used {node.used_line_count}/{node.file_line_count})[/dim]")
+            f"used {node.used_line_count}/{node.file_line_count})[/dim]"
+        )
 
     def add_children(tree: Tree, node: pb.IncludeVisit, depth: int) -> None:
         for child in node.nested:
@@ -45,5 +46,6 @@ def get_include_tree(
     assert len(matches) == 1, (
         f"Expected one include tree ending with {main_file_suffix!r}; "
         f"found {len(matches)}. Available paths: "
-        f"{[tu.main_file_include_tree.absolute_path for tu in result.tus]}")
+        f"{[tu.main_file_include_tree.absolute_path for tu in result.tus]}"
+    )
     return matches[0]

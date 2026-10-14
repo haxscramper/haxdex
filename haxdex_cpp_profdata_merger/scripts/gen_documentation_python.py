@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Dict, List, Optional, Tuple
+from beartype.typing import List, Tuple
 from py_repository.repo_tasks.command_execution import (
     get_uv_develop_env_flags,
     get_uv_develop_sync_flags,
@@ -15,15 +15,15 @@ from py_repository.repo_tasks.common import (
 )
 from py_repository.repo_tasks.workflow_utils import TaskContext
 from py_scriptutils.script_logging import log
-from pydantic import BaseModel, ConfigDict, Field
 
 CAT = __name__
 
 
 @beartype
 @dataclass
-class _DocsPythonSetup():
+class _DocsPythonSetup:
     "Sphinx documentation setup directories"
+
     root: Path
     "Root path for the source code to index"
     template_dir: Path
@@ -58,7 +58,9 @@ def _docs_python_setup(ctx: TaskContext) -> _DocsPythonSetup:
 
     config = tomllib.loads(pyproject.read_text())
 
-    members = config.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
+    members = (
+        config.get("tool", {}).get("uv", {}).get("workspace", {}).get("members", [])
+    )
     if not members:
         log(CAT).error("No workspace members found")
         raise ValueError("No workspace members found")
@@ -176,7 +178,9 @@ def _docs_python_generate_api(ctx: TaskContext, setup: _DocsPythonSetup) -> None
         )
 
 
-def _docs_python_build_html(ctx: TaskContext, source_dir: Path, build_dir: Path) -> Path:
+def _docs_python_build_html(
+    ctx: TaskContext, source_dir: Path, build_dir: Path
+) -> Path:
     """Build HTML documentation"""
     html_dir = build_dir / "html"
 
@@ -205,8 +209,9 @@ def _docs_python_build_html(ctx: TaskContext, source_dir: Path, build_dir: Path)
     return html_dir
 
 
-def _docs_python_build_json(ctx: TaskContext, source_dir: Path,
-                            build_dir: Path) -> List[Path]:
+def _docs_python_build_json(
+    ctx: TaskContext, source_dir: Path, build_dir: Path
+) -> List[Path]:
     """Build JSON documentation and return list of generated JSON file paths"""
     json_dir = build_dir / "structjson"
     json_dir.mkdir(parents=True, exist_ok=True)
@@ -248,8 +253,9 @@ def _docs_python_build_json(ctx: TaskContext, source_dir: Path,
 
 @beartype
 @dataclass
-class _GenDocsOut():
+class _GenDocsOut:
     "Python documentation generation result"
+
     html_path: Path
     "HTML documentation output"
     json_paths: List[Path]
@@ -258,7 +264,6 @@ class _GenDocsOut():
 
 def gen_docs(ctx: TaskContext) -> _GenDocsOut:
     "Build documentation for the Python workspace using Sphinx"
-    import json
 
     result = {}
     setup = _docs_python_setup(ctx)

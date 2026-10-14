@@ -1,12 +1,12 @@
 from pathlib import Path
 
+import imagehash
+from loguru import logger
+from PIL import Image
 from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-import imagehash
-from PIL import Image
-from loguru import logger
 
 
 class ImageHashIndexerResult(IndexDocument, extra="forbid"):

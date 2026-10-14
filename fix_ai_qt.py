@@ -130,7 +130,9 @@ def main():
 
     with open(args.target, "w", encoding="utf-8") as f:
         f.write(result)
-    print("rewrote {} ({} replacements)".format(args.target, len(edits)), file=sys.stderr)
+    print(
+        "rewrote {} ({} replacements)".format(args.target, len(edits)), file=sys.stderr
+    )
 
 
 if __name__ == "__main__":

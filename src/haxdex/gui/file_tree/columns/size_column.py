@@ -1,16 +1,15 @@
-from pathlib import Path
-
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
-
-from beartype.typing import Any, cast, Optional
+from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from haxdex.services.core.types import FileHash
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeIndexerResult, FFProbeInfoModel
-from haxdex.services.indexers.file_stats import FileStatsIndexerResult, FileStatsIndexer
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
 from haxdex.services.utils import format_size
 
 
@@ -68,7 +67,10 @@ class EntrySizeColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return rate
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return rate.size_bytes
 
             case _:

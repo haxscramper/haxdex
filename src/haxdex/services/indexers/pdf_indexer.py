@@ -1,16 +1,17 @@
 from pathlib import Path
 
 from beartype.typing import cast
+from pydantic import BaseModel
 from sqlalchemy import Engine
+
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from haxdex.services.resources.pdf.pdf_extractor import (
     PdfExtractor,
     PdfExtractorRequest,
     PdfExtractorResult,
     PdfPage,
 )
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
-from pydantic import BaseModel
 
 
 class PdfIndexerResult(BaseModel, extra="forbid"):
@@ -37,7 +38,8 @@ class PdfIndexer(BaseIndexer):
     ) -> IndexerOutput:
         extractor: PdfExtractor = cast(PdfExtractor, resources["pdf_extractor"])
         result: PdfExtractorResult = extractor.handle(
-            ctx, PdfExtractorRequest(path=str(request.file_ref.path)))
+            ctx, PdfExtractorRequest(path=str(request.file_ref.path))
+        )
         return IndexerOutput(
             indexer_id=self.asset_name,
             result=PdfIndexerResult(pages=result.pages),

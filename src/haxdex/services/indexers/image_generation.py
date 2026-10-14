@@ -1,11 +1,13 @@
-from collections import defaultdict, deque
 import json
-from loguru import logger
-from datetime import datetime
+from collections import defaultdict, deque
 from pathlib import Path
 
 from beartype.typing import Any, cast
+from pydantic import BaseModel
 from sqlalchemy import Engine
+
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from haxdex.services.indexers.comfy_input_indexer import (
     ComfyInput,
     ComfyInputIndexer,
@@ -15,10 +17,7 @@ from haxdex.services.indexers.exif_metadata import (
     ExifMetadataIndexer,
     ExifMetadataIndexerResult,
 )
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.pydantic_utils import to_json_safe
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
-from pydantic import BaseModel
 
 
 class LoraParams(BaseModel, extra="forbid"):
@@ -86,7 +85,7 @@ def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
     for suffix, value in scheduler_map.items():
         if key.endswith(suffix) and key != suffix:
             scheduler = value
-            key = key[:-len(suffix)]
+            key = key[: -len(suffix)]
             break
 
     if key in sampler_map:
@@ -96,8 +95,9 @@ def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
         return key, "normal"
 
 
-def _extract_generation_params(nodes: list[ComfyInput],
-                               request: IndexerRequest) -> GenerationParamsIndexerResult:
+def _extract_generation_params(
+    nodes: list[ComfyInput], request: IndexerRequest
+) -> GenerationParamsIndexerResult:
     by_id: dict[str, ComfyInput] = {n.node_id: n for n in nodes}
 
     # Build dependency graph. A link's origin_id is the dependee, so the
@@ -177,17 +177,22 @@ def _extract_generation_params(nodes: list[ComfyInput],
                     LoraParams(
                         model=get(node, "lora_name", 0),
                         weight=get(node, "strength_model", 1),
-                    ))
+                    )
+                )
 
             case ("Power Lora Loader (rgthree)", _):
                 for input in node.inputs:
-                    if isinstance(input, dict) and "lora" in input and ("on" not in input
-                                                                        or input["on"]):
+                    if (
+                        isinstance(input, dict)
+                        and "lora" in input
+                        and ("on" not in input or input["on"])
+                    ):
                         loras.append(
                             LoraParams(
                                 model=cast(str, input["lora"]),
                                 weight=cast(float, input["strength"]),
-                            ))
+                            )
+                        )
 
             case ("VAELoader", _):
                 vae = get(node, "vae_name", 0) or vae
@@ -259,7 +264,8 @@ class GenerationParamsIndexer(BaseIndexer):
                     cfg=exif.file.cfgScale,
                     scheduler=scheduler or "normal",
                     loras=[
-                        LoraParams(model=l.name, weight=l.weight) for l in exif.file.loras
+                        LoraParams(model=l.name, weight=l.weight)
+                        for l in exif.file.loras
                     ],
                     hash=request.get_hash_str(),
                 )
@@ -271,7 +277,9 @@ class GenerationParamsIndexer(BaseIndexer):
             result = run()
 
         except Exception as e:
-            Path("/tmp/debug.json").write_text(json.dumps(to_json_safe(comfy), indent=2))
+            Path("/tmp/debug.json").write_text(
+                json.dumps(to_json_safe(comfy), indent=2)
+            )
 
             raise e from None
 

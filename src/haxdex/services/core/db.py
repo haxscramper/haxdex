@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import event, create_engine, URL, Engine
+from sqlalchemy import URL, Engine, create_engine, event
 
 from haxdex.services.core.db_impl.base import DatabaseBase
 from haxdex.services.core.db_impl.contracts import (
@@ -34,12 +34,12 @@ def get_hash_cache_connection(database_path: Path) -> Engine:
 
 
 class IndexDatabase(
-        GraphvizMixin,
-        SearchMixin,
-        StorageMixin,
-        SchemaMixin,
-        FileReferenceMixin,
-        DatabaseBase,
+    GraphvizMixin,
+    SearchMixin,
+    StorageMixin,
+    SchemaMixin,
+    FileReferenceMixin,
+    DatabaseBase,
 ):
     FullTextSearchAccessParams = FullTextSearchAccessParams
 

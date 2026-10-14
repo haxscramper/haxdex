@@ -9,7 +9,13 @@ from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext, BaseResourceConfig, BaseIndexerConfig
+from haxdex.services.core.job_types import (
+    BaseIndexer,
+    BaseIndexerConfig,
+    BaseResource,
+    BaseResourceConfig,
+    RunContext,
+)
 from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
 
 
@@ -32,7 +38,9 @@ class NoopIndexer(BaseIndexer):
     result_model = SimpleResult
 
     def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
-        return IndexerOutput(indexer_id=self.asset_name, result=SimpleResult(value="ok"))
+        return IndexerOutput(
+            indexer_id=self.asset_name, result=SimpleResult(value="ok")
+        )
 
 
 def test_plan_structure_and_topological_batches(
@@ -65,8 +73,9 @@ def test_plan_structure_and_topological_batches(
     assert len(plan.batches[1].file_refs) == 3
 
 
-def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase, stable_test_dir: Path,
-                                                 index_cache_database: Engine) -> None:
+def test_plan_sub_batching_respects_max_parallel(
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+) -> None:
 
     class MP(NoopIndexer):
         asset_name = "mp"
@@ -86,9 +95,9 @@ def test_plan_sub_batching_respects_max_parallel(db: IndexDatabase, stable_test_
     assert all(len(chunk) <= 4 for chunk in plan.batches[0].sub_batches)
 
 
-def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase,
-                                                  stable_test_dir: Path,
-                                                  index_cache_database: Engine) -> None:
+def test_exclusive_direct_conflict_splits_windows(
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -130,7 +139,8 @@ def test_exclusive_direct_conflict_splits_windows(db: IndexDatabase,
 
 
 def test_exclusive_transitive_same_direct_consumer_same_window(
-        db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine) -> None:
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+) -> None:
 
     class Llama(BaseResource):
         resource_key = "llama"
@@ -217,7 +227,7 @@ def test_exclusive_transitive_different_direct_consumers_split(
         resource_types=[
             Llama(config=Llama.config_model()),
             Gemma(config=Gemma.config_model()),
-            Mistral(config=Mistral.config_model())
+            Mistral(config=Mistral.config_model()),
         ],
     )
 
@@ -256,8 +266,9 @@ def test_stateful_resource_model_load_not_churned(
                 if self.current_model != request.model:
                     self.current_model = request.model
                     self.load_count += 1
-            return LlamaResponse(text=f"{request.model}:{request.prompt}",
-                                 hash="1234" * 16)
+            return LlamaResponse(
+                text=f"{request.model}:{request.prompt}", hash="1234" * 16
+            )
 
     class Gemma(BaseResource):
         resource_key = "gemma"
@@ -293,8 +304,9 @@ def test_stateful_resource_model_load_not_churned(
         ctx=RunContext(db),
         db=db,
         indexer_types=[
-            SummaryIndexer(config=SummaryIndexer.config_model(),
-                           database=index_cache_database)
+            SummaryIndexer(
+                config=SummaryIndexer.config_model(), database=index_cache_database
+            )
         ],
         resource_types=[llama, Gemma(config=Gemma.config_model())],
     )
@@ -304,8 +316,9 @@ def test_stateful_resource_model_load_not_churned(
     assert llama.load_count == 1
 
 
-def test_max_parallel_execution_bound(db: IndexDatabase, stable_test_dir: Path,
-                                      index_cache_database: Engine) -> None:
+def test_max_parallel_execution_bound(
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+) -> None:
 
     class PResult(IndexDocument):
         value: str
@@ -328,8 +341,9 @@ def test_max_parallel_execution_bound(db: IndexDatabase, stable_test_dir: Path,
             time.sleep(0.05)
             with self.lock:
                 self.active -= 1
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=PResult(value="ok", hash="ABCD" * 16))
+            return IndexerOutput(
+                indexer_id=self.asset_name, result=PResult(value="ok", hash="ABCD" * 16)
+            )
 
     idx = ParallelIndexer(
         config=ParallelIndexer.config_model(),

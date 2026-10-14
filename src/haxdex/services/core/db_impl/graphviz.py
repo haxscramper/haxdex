@@ -8,7 +8,6 @@ from haxdex.services.core.db_impl.contracts import BaseIndexProtocol
 
 
 class GraphvizMixin:
-
     def _format_html_label(
         self,
         data: dict,
@@ -32,18 +31,24 @@ class GraphvizMixin:
                         subsequent_indent=" " * indent,
                         break_long_words=True,
                         break_on_hyphens=False,
-                    ) or [line])
+                    )
+                    or [line]
+                )
 
             return "\n".join(lines)
 
         def escape_html(text: str) -> str:
-            return (html.escape(wrap_text(text)).replace(" ", "&nbsp;").replace(
-                "\n", '<br align="left"/>'))
+            return (
+                html.escape(wrap_text(text))
+                .replace(" ", "&nbsp;")
+                .replace("\n", '<br align="left"/>')
+            )
 
         if json_labels:
             text = json.dumps(data, indent=2, default=str)
-            return (f'<<font face="monospace">'
-                    f'{escape_html(text)}<br align="left"/></font>>')
+            return (
+                f'<<font face="monospace">{escape_html(text)}<br align="left"/></font>>'
+            )
 
         rows = []
         for key, value in data.items():
@@ -51,10 +56,13 @@ class GraphvizMixin:
             rows.append(
                 f'<tr><td align="left" valign="top"><b>{html.escape(str(key))}</b></td>'
                 f'<td align="left" balign="left"><font face="monospace">'
-                f"{escape_html(value_text)}</font></td></tr>")
+                f"{escape_html(value_text)}</font></td></tr>"
+            )
 
-        return ('<<table border="0" cellborder="1" cellspacing="0">'
-                f'{"".join(rows)}</table>>')
+        return (
+            '<<table border="0" cellborder="1" cellspacing="0">'
+            f"{''.join(rows)}</table>>"
+        )
 
     def get_inbound(
         self,
@@ -64,14 +72,14 @@ class GraphvizMixin:
         result: list[str] = []
 
         for document in self.aql.execute(
-                """
+            """
             FOR v, e IN 1..1 INBOUND @doc_id @@edge_collection
                 RETURN v
             """,
-                bind_vars={
-                    "doc_id": f"{indexer.asset_name}/{doc_id}",
-                    "@edge_collection": self.get_edge_name(indexer.asset_name),
-                },
+            bind_vars={
+                "doc_id": f"{indexer.asset_name}/{doc_id}",
+                "@edge_collection": self.get_edge_name(indexer.asset_name),
+            },
         ):
             result.append(document["_key"])
 
@@ -109,7 +117,7 @@ class GraphvizMixin:
             added_nodes.add(node_id)
 
         def full_id(vertex_id: str) -> str:
-            return (vertex_id if "/" in vertex_id else f"{vertex_collection}/{vertex_id}")
+            return vertex_id if "/" in vertex_id else f"{vertex_collection}/{vertex_id}"
 
         query = """
         FOR v, e IN 1..1 OUTBOUND @start_id @@edge_collection
@@ -131,12 +139,12 @@ class GraphvizMixin:
                 continue
 
             for result in self._db.aql.execute(
-                    query,
-                    bind_vars={
-                        "start_id": current_id,
-                        "@edge_collection": edge_collection,
-                        "max_outgoing_edges": max_outgoing_edges,
-                    },
+                query,
+                bind_vars={
+                    "start_id": current_id,
+                    "@edge_collection": edge_collection,
+                    "max_outgoing_edges": max_outgoing_edges,
+                },
             ):
                 vertex = result["vertex"]
                 edge = result["edge"]

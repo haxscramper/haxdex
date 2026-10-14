@@ -2,7 +2,6 @@ import json
 import random
 import urllib.request
 
-from beartype.typing import Any, Callable
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -15,15 +14,18 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ...services.core.db import IndexDatabase
+from ...services.indexers.image_generation import GenerationParamsIndexer
+from ...services.indexers.safetensor_indexer import SafetensorIndexer
+from ...services.indexers.wd_indexer import WdTagIndexer
 from .constants import (
-    GenExplorerColumns,
     EDITOR_H,
     MIN_W_CHECKPOINT,
     MIN_W_LORAS,
     MIN_W_MD5,
     THUMB,
+    GenExplorerColumns,
 )
-
 from .delegates import (
     ButtonDelegate,
     ImageDelegate,
@@ -37,14 +39,9 @@ from .model_registry import ModelRegistry
 from .models import ExplorerSettings
 from .repository import ExplorerRepository
 from .table_model import GenerationTableModel, RunFriendlyTableView
-from ...services.core.db import IndexDatabase
-from ...services.indexers.image_generation import GenerationParamsIndexer
-from ...services.indexers.safetensor_indexer import SafetensorIndexer
-from ...services.indexers.wd_indexer import WdTagIndexer
 
 
 class GenerationExplorerWindow(QWidget):
-
     def __init__(
         self,
         settings: ExplorerSettings,
@@ -98,8 +95,9 @@ class GenerationExplorerWindow(QWidget):
         self.view = RunFriendlyTableView()
         self.view.setModel(self.proxy)
         self.view.setSortingEnabled(True)
-        self.view.setEditTriggers(QTableView.EditTrigger.DoubleClicked |
-                                  QTableView.EditTrigger.EditKeyPressed)
+        self.view.setEditTriggers(
+            QTableView.EditTrigger.DoubleClicked | QTableView.EditTrigger.EditKeyPressed
+        )
         self.view.setWordWrap(True)
         self.view.verticalHeader().setDefaultSectionSize(THUMB + 8)
         self.view.doubleClicked.connect(self.on_double_clicked)
@@ -115,26 +113,34 @@ class GenerationExplorerWindow(QWidget):
         self.view.setColumnWidth(GenExplorerColumns.COL_RUN.value, 64 + 16)
 
         for column in [
-                GenExplorerColumns.COL_WIDTH.value, GenExplorerColumns.COL_HEIGHT.value,
-                GenExplorerColumns.COL_STEPS.value, GenExplorerColumns.COL_CFG.value,
-                GenExplorerColumns.COL_CHECKPOINT.value,
-                GenExplorerColumns.COL_LORAS.value
+            GenExplorerColumns.COL_WIDTH.value,
+            GenExplorerColumns.COL_HEIGHT.value,
+            GenExplorerColumns.COL_STEPS.value,
+            GenExplorerColumns.COL_CFG.value,
+            GenExplorerColumns.COL_CHECKPOINT.value,
+            GenExplorerColumns.COL_LORAS.value,
         ]:
             self.view.resizeColumnToContents(column)
 
         self.view.setColumnWidth(
             GenExplorerColumns.COL_POSITIVE.value,
-            max(self.view.columnWidth(GenExplorerColumns.COL_POSITIVE.value), 320))
+            max(self.view.columnWidth(GenExplorerColumns.COL_POSITIVE.value), 320),
+        )
         self.view.setColumnWidth(
             GenExplorerColumns.COL_NEGATIVE.value,
-            max(self.view.columnWidth(GenExplorerColumns.COL_NEGATIVE.value), 320))
+            max(self.view.columnWidth(GenExplorerColumns.COL_NEGATIVE.value), 320),
+        )
         self.view.setColumnWidth(
             GenExplorerColumns.COL_CHECKPOINT.value,
-            max(self.view.columnWidth(GenExplorerColumns.COL_CHECKPOINT.value),
-                MIN_W_CHECKPOINT))
+            max(
+                self.view.columnWidth(GenExplorerColumns.COL_CHECKPOINT.value),
+                MIN_W_CHECKPOINT,
+            ),
+        )
         self.view.setColumnWidth(
             GenExplorerColumns.COL_LORAS.value,
-            max(self.view.columnWidth(GenExplorerColumns.COL_LORAS.value), MIN_W_LORAS))
+            max(self.view.columnWidth(GenExplorerColumns.COL_LORAS.value), MIN_W_LORAS),
+        )
         self.view.setColumnWidth(GenExplorerColumns.COL_MD5.value, MIN_W_MD5)
 
         self.resize(1400, 800)
@@ -144,8 +150,9 @@ class GenerationExplorerWindow(QWidget):
 
     def setup_delegates(self) -> None:
         image_delegate = ImageDelegate(self.view)
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_IMAGE.value,
-                                           image_delegate)
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_IMAGE.value, image_delegate
+        )
 
         checkpoint_delegate = ModelComboDelegate(
             self.registry.options("checkpoint"),
@@ -155,36 +162,47 @@ class GenerationExplorerWindow(QWidget):
             filter_by_type=True,
             parent=self,
         )
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_CHECKPOINT.value,
-                                           checkpoint_delegate)
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_CHECKPOINT.value, checkpoint_delegate
+        )
 
         lora_delegate = LoraDelegate(self.registry, self)
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_LORAS.value,
-                                           lora_delegate)
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_LORAS.value, lora_delegate
+        )
 
         run_delegate = ButtonDelegate(self.view, self)
         run_delegate.clicked.connect(self.on_run)
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_RUN.value, run_delegate)
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_RUN.value, run_delegate
+        )
 
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_WIDTH.value,
-                                           NumberDelegate(False, self))
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_HEIGHT.value,
-                                           NumberDelegate(False, self))
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_STEPS.value,
-                                           NumberDelegate(False, self))
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_CFG.value,
-                                           NumberDelegate(True, self))
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_POSITIVE.value,
-                                           PromptDelegate(self))
-        self.view.setItemDelegateForColumn(GenExplorerColumns.COL_NEGATIVE.value,
-                                           PromptDelegate(self))
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_WIDTH.value, NumberDelegate(False, self)
+        )
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_HEIGHT.value, NumberDelegate(False, self)
+        )
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_STEPS.value, NumberDelegate(False, self)
+        )
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_CFG.value, NumberDelegate(True, self)
+        )
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_POSITIVE.value, PromptDelegate(self)
+        )
+        self.view.setItemDelegateForColumn(
+            GenExplorerColumns.COL_NEGATIVE.value, PromptDelegate(self)
+        )
 
     def on_double_clicked(self, proxy_index: QModelIndex) -> None:
         if proxy_index.column() != GenExplorerColumns.COL_IMAGE.value:
             return
         source = self.proxy.mapToSource(proxy_index)
         path = self.model.index(source.row(), GenExplorerColumns.COL_IMAGE.value).data(
-            Qt.ItemDataRole.DisplayRole)
+            Qt.ItemDataRole.DisplayRole
+        )
         if not path:
             return
         dialog = ImagePreviewDialog(path, self)
@@ -196,42 +214,61 @@ class GenerationExplorerWindow(QWidget):
         row = self.model.rows[source.row()]
 
         payload, replaced = self.registry.resolve_with_replacement(
-            row.checkpoint, "checkpoint")
+            row.checkpoint, "checkpoint"
+        )
         if replaced and payload in self.registry.replacement_overrides:
             override = self.registry.replacement_overrides[payload]
             if "steps" in override:
-                index = self.model.index(source.row(), GenExplorerColumns.COL_STEPS.value)
-                self.model.setData(index, int(override["steps"]),
-                                   Qt.ItemDataRole.EditRole)
+                index = self.model.index(
+                    source.row(), GenExplorerColumns.COL_STEPS.value
+                )
+                self.model.setData(
+                    index, int(override["steps"]), Qt.ItemDataRole.EditRole
+                )
             if "cfg" in override:
                 index = self.model.index(source.row(), GenExplorerColumns.COL_CFG.value)
-                self.model.setData(index, float(override["cfg"]),
-                                   Qt.ItemDataRole.EditRole)
+                self.model.setData(
+                    index, float(override["cfg"]), Qt.ItemDataRole.EditRole
+                )
 
         self.send_to_comfy(source.row())
 
     def send_to_comfy(self, row_index: int) -> None:
         row = self.model.rows[row_index]
         checkpoint_payload, replaced = self.registry.resolve_with_replacement(
-            row.checkpoint, "checkpoint")
-        checkpoint_type = self.registry.type_for_payload(checkpoint_payload, "checkpoint")
+            row.checkpoint, "checkpoint"
+        )
+        checkpoint_type = self.registry.type_for_payload(
+            checkpoint_payload, "checkpoint"
+        )
 
         vae_payload, replaced = self.registry.resolve_with_replacement(
-            row.vae or "", "vae")
-        if vae_payload == "" and checkpoint_type is not None and checkpoint_type in self.registry.default_vae:
+            row.vae or "", "vae"
+        )
+        if (
+            vae_payload == ""
+            and checkpoint_type is not None
+            and checkpoint_type in self.registry.default_vae
+        ):
             vae_payload = self.registry.default_vae[checkpoint_type]
 
         clip_payload = ""
         clip_value = row.clip or ""
         if clip_value != "":
             clip_payload, replaced = self.registry.resolve_with_replacement(
-                clip_value, "clip")
-        if clip_payload == "" and checkpoint_type is not None and checkpoint_type in self.registry.default_clip:
+                clip_value, "clip"
+            )
+        if (
+            clip_payload == ""
+            and checkpoint_type is not None
+            and checkpoint_type in self.registry.default_clip
+        ):
             clip_payload = self.registry.default_clip[checkpoint_type]
 
         missing: list[str] = []
-        if checkpoint_payload != "" and not self.registry.has(row.checkpoint,
-                                                              "checkpoint"):
+        if checkpoint_payload != "" and not self.registry.has(
+            row.checkpoint, "checkpoint"
+        ):
             missing.append(f"checkpoint: {row.checkpoint}")
 
         normalized_loras: list[dict[str, float | str]] = []
@@ -239,26 +276,30 @@ class GenerationExplorerWindow(QWidget):
             if not lora.enabled:
                 continue
             payload_name, replaced = self.registry.resolve_with_replacement(
-                lora.model, "lora")
+                lora.model, "lora"
+            )
             if payload_name == "":
                 continue
             if not self.registry.has(lora.model, "lora"):
                 missing.append(f"lora: {lora.model}")
-            normalized_loras.append({"model": payload_name, "weight": float(lora.weight)})
+            normalized_loras.append(
+                {"model": payload_name, "weight": float(lora.weight)}
+            )
 
         if vae_payload != "" and not self.registry.is_known_payload(vae_payload, "vae"):
             missing.append(f"vae: {row.vae or vae_payload}")
 
         if clip_payload != "" and not self.registry.is_known_payload(
-                clip_payload, "clip"):
+            clip_payload, "clip"
+        ):
             missing.append(f"clip: {row.clip or clip_payload}")
 
         if missing != []:
             QMessageBox.critical(
                 self,
                 "Missing models",
-                "These models are not present in the ComfyUI directory:\n\n" +
-                "\n".join(missing),
+                "These models are not present in the ComfyUI directory:\n\n"
+                + "\n".join(missing),
             )
             return
 
@@ -302,9 +343,7 @@ class GenerationExplorerWindow(QWidget):
 
         request = urllib.request.Request(
             f"{self.settings.comfy_url}/prompt",
-            data=json.dumps({
-                "prompt": workflow
-            }).encode("utf-8"),
+            data=json.dumps({"prompt": workflow}).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )

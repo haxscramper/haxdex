@@ -3,7 +3,6 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any
 from PyQt6.QtGui import QColor
 
 from .constants import COLOR_BAD, COLOR_REPLACED, COLOR_WARN, KIND_SUBDIRS, MODEL_EXTS
@@ -69,23 +68,28 @@ class ModelRegistry:
             for subdir in subdirs:
                 for relative, payload, arch_key in scan_models(self.comfy_dir, subdir):
                     arch = self.arch_info.get(arch_key) or self.model_arch_map.get(
-                        payload)
-                    model_type = self.arch_type_map.get(
-                        arch) if arch is not None else None
+                        payload
+                    )
+                    model_type = (
+                        self.arch_type_map.get(arch) if arch is not None else None
+                    )
                     entries.append(
                         ModelEntry(
                             display=relative,
                             payload=payload,
                             arch=arch,
                             model_type=model_type,
-                        ))
+                        )
+                    )
             entries.sort(key=lambda item: item.display.casefold())
             self.entries_by_kind[kind] = entries
             self.payload_sets_by_kind[kind] = {item.payload for item in entries}
             self.display_to_payload_by_kind[kind] = {
                 item.display: item.payload for item in entries
             }
-            self.payload_to_entry_by_kind[kind] = {item.payload: item for item in entries}
+            self.payload_to_entry_by_kind[kind] = {
+                item.payload: item for item in entries
+            }
 
         self.default_vae = {
             key: self.resolve_payload(value, "vae")
@@ -126,10 +130,12 @@ class ModelRegistry:
         if payload != "" and payload in self.payload_sets_by_kind[kind]:
             return payload, False
         replacement = self.model_replacements.get(raw) or self.model_replacements.get(
-            payload)
+            payload
+        )
         if replacement is not None and replacement != "":
             replacement_payload = self.resolve_display_to_payload(
-                replacement, kind) or self.normalize_payload(replacement)
+                replacement, kind
+            ) or self.normalize_payload(replacement)
             return replacement_payload, True
         return payload, False
 
@@ -161,8 +167,10 @@ class ModelRegistry:
         if payload in self.payload_sets_by_kind[kind]:
             return None
         best = max(
-            (SequenceMatcher(None, payload, candidate).ratio()
-             for candidate in self.payload_sets_by_kind[kind]),
+            (
+                SequenceMatcher(None, payload, candidate).ratio()
+                for candidate in self.payload_sets_by_kind[kind]
+            ),
             default=0.0,
         )
         if 0.7 <= best:

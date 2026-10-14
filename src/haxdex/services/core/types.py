@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from beartype import beartype
 from beartype.typing import Annotated, Any, ClassVar, Literal, Optional, Union
 from pydantic import (
@@ -53,10 +51,10 @@ class IndexDocument(BaseModel, extra="forbid"):
 
 class IndexMultiDocument(IndexDocument, extra="forbid"):
     file_hash: str = Field(
-        description=
-        "Hash of the original file -- `.hash` field in all cases refers to *this* "
+        description="Hash of the original file -- `.hash` field in all cases refers to *this* "
         "specific document, but if the query needs to re-assemble the information "
-        "extracted from the file, grouping by `file_hash` is the way to go. ")
+        "extracted from the file, grouping by `file_hash` is the way to go. "
+    )
 
 
 class MultiDocumentModel(BaseModel, extra="forbid"):

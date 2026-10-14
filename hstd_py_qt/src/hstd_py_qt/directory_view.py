@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from beartype import beartype
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QItemSelection,
@@ -12,11 +13,10 @@ from PyQt6.QtCore import (
     QPoint,
     QRect,
     QSize,
-    QTimer,
     Qt,
+    QTimer,
     pyqtSignal,
 )
-
 from PyQt6.QtGui import (
     QColor,
     QPainter,
@@ -25,15 +25,10 @@ from PyQt6.QtGui import (
     QPolygon,
     QRegion,
 )
-
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
 )
-
-from loguru import logger
-
-from beartype import beartype
 
 IMAGE_EXTENSIONS = {
     ".bmp",
@@ -57,7 +52,6 @@ class RenderState:
 
 
 class TileDelegate:
-
     def __init__(self) -> None:
         self.request_update = lambda: None
 
@@ -80,31 +74,38 @@ class TileDelegate:
         raise NotImplementedError
 
 
-def _draw_triangle(painter: QPainter, box: QRect, expanded: bool, color: QColor) -> None:
+def _draw_triangle(
+    painter: QPainter, box: QRect, expanded: bool, color: QColor
+) -> None:
     painter.save()
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(color)
     cx, cy = box.center().x(), box.center().y()
     if expanded:
-        poly = QPolygon([
-            QPoint(cx - 4, cy - 2),
-            QPoint(cx + 4, cy - 2),
-            QPoint(cx, cy + 4),
-        ])
+        poly = QPolygon(
+            [
+                QPoint(cx - 4, cy - 2),
+                QPoint(cx + 4, cy - 2),
+                QPoint(cx, cy + 4),
+            ]
+        )
     else:
-        poly = QPolygon([
-            QPoint(cx - 2, cy - 4),
-            QPoint(cx - 2, cy + 4),
-            QPoint(cx + 4, cy),
-        ])
+        poly = QPolygon(
+            [
+                QPoint(cx - 2, cy - 4),
+                QPoint(cx - 2, cy + 4),
+                QPoint(cx + 4, cy),
+            ]
+        )
     painter.drawPolygon(poly)
     painter.restore()
 
 
 def attr_label(index: QModelIndex) -> str:
     model = index.model()
-    header = model.headerData(index.column(), Qt.Orientation.Horizontal,
-                              Qt.ItemDataRole.DisplayRole)
+    header = model.headerData(
+        index.column(), Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole
+    )
     value = index.data(Qt.ItemDataRole.DisplayRole)
     header = "" if header is None else str(header)
     value = "" if value is None else str(value)
@@ -112,7 +113,6 @@ def attr_label(index: QModelIndex) -> str:
 
 
 class BaseDirDelegate(TileDelegate):
-
     def paint(self, painter, primary, area, attributes, state):
         pal = QApplication.palette()
         rect = QRect(QPoint(0, 0), area)
@@ -126,8 +126,9 @@ class BaseDirDelegate(TileDelegate):
         painter.drawLine(rect.bottomLeft(), rect.bottomRight())
 
         toggle = QRect(2, (area.height() - 16) // 2, 16, 16)
-        _draw_triangle(painter, toggle, state.expanded,
-                       pal.color(QPalette.ColorRole.Text))
+        _draw_triangle(
+            painter, toggle, state.expanded, pal.color(QPalette.ColorRole.Text)
+        )
 
         painter.setPen(pal.color(QPalette.ColorRole.Text))
         font = painter.font()
@@ -136,10 +137,12 @@ class BaseDirDelegate(TileDelegate):
         name = str(primary.data(Qt.ItemDataRole.DisplayRole) or "")
         cols = "   ".join(attr_label(a) for a in attributes)
         text = f"{name}      {cols}" if cols else name
-        text_rect = QRect(toggle.right() + 6, 0,
-                          area.width() - toggle.right() - 10, area.height())
-        painter.drawText(text_rect,
-                         Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text)
+        text_rect = QRect(
+            toggle.right() + 6, 0, area.width() - toggle.right() - 10, area.height()
+        )
+        painter.drawText(
+            text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, text
+        )
         painter.restore()
 
     def getItemBoundingBoxes(self, primary, area, attributes):
@@ -201,8 +204,9 @@ class MixedTreeTileView(QAbstractItemView):
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.horizontalScrollBar().setRange(0, 0)
 
-    def set_delegates(self, dir_delegate: TileDelegate,
-                      file_delegate: TileDelegate) -> None:
+    def set_delegates(
+        self, dir_delegate: TileDelegate, file_delegate: TileDelegate
+    ) -> None:
         self._dir_delegate = dir_delegate
         self._file_delegate = file_delegate
         dir_delegate.request_update = self.viewport().update
@@ -210,8 +214,10 @@ class MixedTreeTileView(QAbstractItemView):
 
     @property
     def item_size(self) -> QSize:
-        return QSize(round(self.BASE_ITEM_W * self.zoom_factor),
-                     round(self.BASE_ITEM_H * self.zoom_factor))
+        return QSize(
+            round(self.BASE_ITEM_W * self.zoom_factor),
+            round(self.BASE_ITEM_H * self.zoom_factor),
+        )
 
     @property
     def dir_height(self) -> int:
@@ -234,8 +240,11 @@ class MixedTreeTileView(QAbstractItemView):
         model.layoutChanged.connect(self._on_structure_changed)
         model.dataChanged.connect(self._on_data_changed)
         self.selectionModel().selectionChanged.connect(
-            lambda *a: self.viewport().update())
-        self.selectionModel().currentChanged.connect(lambda *a: self.viewport().update())
+            lambda *a: self.viewport().update()
+        )
+        self.selectionModel().currentChanged.connect(
+            lambda *a: self.viewport().update()
+        )
         self._update_scrollbars()
 
     def _on_model_reset(self, *args) -> None:
@@ -293,7 +302,9 @@ class MixedTreeTileView(QAbstractItemView):
         model = self.model()
         parent = primary.parent()
         row = primary.row()
-        return [model.index(row, c, parent) for c in range(1, model.columnCount(parent))]
+        return [
+            model.index(row, c, parent) for c in range(1, model.columnCount(parent))
+        ]
 
     def _ensure_layout(self) -> None:
         if not self._layout_dirty or self.model() is None:
@@ -317,8 +328,9 @@ class MixedTreeTileView(QAbstractItemView):
             idx = model.index(r, 0, parent)
             (dirs if model.hasChildren(idx) else files).append(idx)
 
-        dir_w = max(100,
-                    self.visible_width() - 2 * self.CONTENT_MARGIN - depth * self.INDENT)
+        dir_w = max(
+            100, self.visible_width() - 2 * self.CONTENT_MARGIN - depth * self.INDENT
+        )
         for d in dirs:
             rect = QRect(x, y, dir_w, self.dir_height)
             self._dir_hits.append(Hit(d, rect, depth))
@@ -362,8 +374,9 @@ class MixedTreeTileView(QAbstractItemView):
         offset = self.verticalOffset()
         visible = QRect(0, offset, self.viewport().width(), self.viewport().height())
 
-        for hit, delegate in ([(h, self._dir_delegate) for h in self._dir_hits] +
-                              [(h, self._file_delegate) for h in self._item_hits]):
+        for hit, delegate in [(h, self._dir_delegate) for h in self._dir_hits] + [
+            (h, self._file_delegate) for h in self._item_hits
+        ]:
             if not hit.rect.intersects(visible):
                 continue
             state = RenderState(
@@ -375,8 +388,9 @@ class MixedTreeTileView(QAbstractItemView):
             vp_rect = hit.rect.translated(0, -offset)
             painter.save()
             painter.translate(vp_rect.topLeft())
-            delegate.paint(painter, hit.index, hit.rect.size(), self._attrs(hit.index),
-                           state)
+            delegate.paint(
+                painter, hit.index, hit.rect.size(), self._attrs(hit.index), state
+            )
             painter.restore()
 
     def scrollContentsBy(self, dx: int, dy: int) -> None:
@@ -399,11 +413,15 @@ class MixedTreeTileView(QAbstractItemView):
 
     def mousePressEvent(self, event) -> None:
         idx = self.indexAt(event.position().toPoint())
-        if (idx.isValid() and self.model().hasChildren(idx) and
-                event.button() == Qt.MouseButton.LeftButton):
+        if (
+            idx.isValid()
+            and self.model().hasChildren(idx)
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
             self._toggle_expand(idx)
             self.selectionModel().setCurrentIndex(
-                idx, QItemSelectionModel.SelectionFlag.NoUpdate)
+                idx, QItemSelectionModel.SelectionFlag.NoUpdate
+            )
             return
         super().mousePressEvent(event)
 

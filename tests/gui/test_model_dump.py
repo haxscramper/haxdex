@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from beartype import beartype
 from beartype.typing import Callable
-
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
 
@@ -21,8 +19,9 @@ from hstd_py_qt.src.hstd_py_qt.model_dump import (
 
 
 @beartype
-def _structure(model: QStandardItemModel,
-               config: ModelRichDumpConfig | None = None) -> ModelStructure:
+def _structure(
+    model: QStandardItemModel, config: ModelRichDumpConfig | None = None
+) -> ModelStructure:
     if config is None:
         config = ModelRichDumpConfig()
     snapshot = extract_snapshot(model=model, config=config)
@@ -35,7 +34,8 @@ def _structure(model: QStandardItemModel,
             column_count=root.column_count,
             nested_columns=root.nested_columns,
             tree_columns=root.tree_columns,
-        ))
+        )
+    )
 
 
 @beartype
@@ -151,7 +151,8 @@ def test_table_tree_renders_tree_with_aligned_columns() -> None:
     assert "├── " in text or "└── " in text
 
     root_lines = [
-        line for line in text.splitlines()
+        line
+        for line in text.splitlines()
         if "root-a" in line or "root-b" in line or "root-c" in line
     ]
     value_offsets = {line.index("value-") for line in root_lines if "value-" in line}
@@ -211,13 +212,15 @@ def test_nested_table_cell_structure_with_limit() -> None:
     assert _structure(model) == ModelStructure.TABLE
 
     with_nested = render_text(
-        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=1)))
+        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=1))
+    )
     assert "nested-list-0" in with_nested
     assert "nested-list-1" in with_nested
     assert "cell-other" in with_nested
 
     without_nested = render_text(
-        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=0)))
+        dump(model=model, config=ModelRichDumpConfig(max_nested_in_cells=0))
+    )
     assert "nested-list-0" not in without_nested
     assert "nested-list-1" not in without_nested
     assert "cell-main" in without_nested
@@ -250,7 +253,6 @@ def test_role_acceptance_override() -> None:
     model.setData(model.index(0, 0), "custom-value", int(Qt.ItemDataRole.UserRole) + 1)
 
     class OnlyDisplayConfig(ModelRichDumpConfig):
-
         @beartype
         def accept_role(self, role: int, role_name: str) -> bool:
             return role == int(Qt.ItemDataRole.DisplayRole)
@@ -266,7 +268,6 @@ def test_item_formatting_override() -> None:
     model = _flat_table_model()
 
     class OverrideItemConfig(ModelRichDumpConfig):
-
         @beartype
         def format_item(self, context: ItemFormatContext):
             return Text(f"OVERRIDE:{context.row}:{context.column}")
@@ -279,8 +280,9 @@ def test_item_formatting_override() -> None:
 @beartype
 def test_to_string_callback_is_used() -> None:
     model = _table_tree_model()
-    to_string: Callable[[QModelIndex],
-                        str] = lambda index: f"S{index.row()}{index.column()}"
+    to_string: Callable[[QModelIndex], str] = lambda index: (
+        f"S{index.row()}{index.column()}"
+    )
     text = render_text(dump(model=model, to_string=to_string), width=400)
     assert "S00" in text
     assert "S12" in text

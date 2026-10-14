@@ -14,7 +14,7 @@ def make_parser(language: Language) -> Parser:
 
 
 def node_text(node: Node, source: bytes, normalize: bool = True) -> str:
-    text = source[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+    text = source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
     if normalize:
         text = re.sub(r"\r\n?|\n", "", text)
         text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)

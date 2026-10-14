@@ -1,6 +1,7 @@
 from abc import abstractmethod
-from beartype.typing import Any, Generic, Sequence, TypeVar, cast
+
 from beartype import beartype
+from beartype.typing import Generic, Sequence, TypeVar, cast
 from PyQt6.QtCore import QModelIndex, QObject
 
 from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
@@ -10,7 +11,6 @@ T = TypeVar("T")
 
 @beartype
 class AbstractTreeColumnModel(AbstractColumnItemModel, Generic[T]):
-
     def __init__(
         self,
         columns: Sequence[ColumnSpec],
@@ -53,16 +53,17 @@ class AbstractTreeColumnModel(AbstractColumnItemModel, Generic[T]):
         return cast(T, index.internalPointer())
 
     def index(
-            self,
-            row: int,
-            column: int,
-            parent: QModelIndex = QModelIndex(),
+        self,
+        row: int,
+        column: int,
+        parent: QModelIndex = QModelIndex(),
     ) -> QModelIndex:
         if parent.isValid() and parent.column() != 0:
             return QModelIndex()
 
-        nodes = (self.getNestedNodes(self.node(parent))
-                 if parent.isValid() else self.nodes)
+        nodes = (
+            self.getNestedNodes(self.node(parent)) if parent.isValid() else self.nodes
+        )
 
         if not (0 <= row < len(nodes) and 0 <= column < len(self.columns)):
             return QModelIndex()

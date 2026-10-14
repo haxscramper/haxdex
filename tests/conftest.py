@@ -1,32 +1,37 @@
-from dataclasses import dataclass
-from pathlib import Path
+import logging
 import re
 import shutil
+from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication
+import pytest
 from beartype import beartype
+from beartype.typing import Any, Generator
+from PyQt6.QtCore import QCoreApplication
 from sqlalchemy import Engine, create_engine
 
-from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import AppConfig, IndexConfig
-from haxdex.services.core.hash_cache import HashCache
-import pytest
-from beartype.typing import Any, Generator
-
-from haxdex.gui.common.directory_view_utils import TEMPLATE_DIR, _populate_template_directory
+from haxdex.gui.common.directory_view_utils import (
+    TEMPLATE_DIR,
+    _populate_template_directory,
+)
 from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
-from haxdex.services.resources.flm_server import FlmRequest, FlmResponse, FlmServerResource, FlmServerResourceConfig
+from haxdex.services.core.job_types import BaseResource, RunContext
+from haxdex.services.resources.flm_server import (
+    FlmRequest,
+    FlmResponse,
+    FlmServerResource,
+    FlmServerResourceConfig,
+)
 from haxdex.services.utils import get_custom_traceback_handler, stfu_logs
-from loguru import logger
-import logging
 
 ARANGO_HOST = "http://localhost:8529"
 ARANGO_USER = "root"
 ARANGO_PASSWORD = "test"
 
-handler = get_custom_traceback_handler(show_args=False,)
+handler = get_custom_traceback_handler(
+    show_args=False,
+)
 
 
 def pytest_configure(config: Any) -> None:
@@ -57,12 +62,12 @@ def _safe_name(raw: str) -> str:
 
 
 class MockFlmServerResource(FlmServerResource):
-
     def __init__(self, config: FlmServerResourceConfig) -> None:
         super().__init__(config=config)
 
-    def handle(self, ctx: RunContext, request: FlmRequest,
-               resources: dict[str, BaseResource]) -> FlmResponse:
+    def handle(
+        self, ctx: RunContext, request: FlmRequest, resources: dict[str, BaseResource]
+    ) -> FlmResponse:
         return FlmResponse(
             model=f"flm-response-to",
             content=f"flm-content:({request.messages[-1].content})",
@@ -72,8 +77,9 @@ class MockFlmServerResource(FlmServerResource):
 
 
 @pytest.fixture
-def runtime(db, stable_test_dir: Path,
-            index_cache_database: Engine) -> Generator[IndexRuntime, None, None]:
+def runtime(
+    db, stable_test_dir: Path, index_cache_database: Engine
+) -> Generator[IndexRuntime, None, None]:
     from haxdex.services.default_job_types import (
         DEFAULT_INDEXER_TYPES,
         DEFAULT_RESOURCE_TYPES,
@@ -84,8 +90,8 @@ def runtime(db, stable_test_dir: Path,
     rt = IndexRuntime(
         ctx=ctx,
         db=db,
-        resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES] +
-        [MockFlmServerResource(config=MockFlmServerResource.config_model())],
+        resource_types=[t(config=t.config_model()) for t in DEFAULT_RESOURCE_TYPES]
+        + [MockFlmServerResource(config=MockFlmServerResource.config_model())],
         indexer_types=[
             t(config=t.config_model(), database=index_cache_database)
             for t in DEFAULT_INDEXER_TYPES
@@ -96,8 +102,8 @@ def runtime(db, stable_test_dir: Path,
 
 
 def get_test_dir(
-        request: pytest.FixtureRequest,
-        test_dir_root: Path = Path("/tmp/haxdex_tests/test_out"),
+    request: pytest.FixtureRequest,
+    test_dir_root: Path = Path("/tmp/haxdex_tests/test_out"),
 ) -> Path:
     import hashlib
     from pathlib import Path

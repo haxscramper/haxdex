@@ -2,20 +2,22 @@ import heapq
 from pathlib import Path
 from typing import Optional
 
-from beartype.typing import Any, cast
-
 import pybktree
+from beartype import beartype
+from beartype.typing import Any, cast
+from pydantic import BaseModel
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QBrush, QColor
-from beartype import beartype
-from pydantic import BaseModel
-
-from testing.python.haxdex.src.haxdex.gui.file_tree.model.tree_model_build import FileTreeNode
+from testing.python.haxdex.src.haxdex.gui.file_tree.model.tree_model_build import (
+    FileTreeNode,
+)
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs
-from haxdex.services.core.types import FileHash
-from haxdex.services.indexers.image_hash import ImageHashIndexerResult, ImageHashIndexer
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+)
+from haxdex.services.indexers.image_hash import ImageHashIndexer, ImageHashIndexerResult
 
 
 class ImageHashData(BaseModel, extra="forbid"):
@@ -79,8 +81,10 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
         if args.is_directory:
-            nested_data = (cast(Optional[ImageHashData],
-                                node.columns.get(self.column_name)) for node in nested)
+            nested_data = (
+                cast(Optional[ImageHashData], node.columns.get(self.column_name))
+                for node in nested
+            )
 
             duplicate_count = 0
             total_count = 0
@@ -113,8 +117,11 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
             matches=matches,
             duplicate_count=1 if matches else 0,
             total_count=1,
-            foreground=(self._foreground(closest_distance)
-                        if closest_distance is not None else None),
+            foreground=(
+                self._foreground(closest_distance)
+                if closest_distance is not None
+                else None
+            ),
         )
 
     @staticmethod
@@ -139,9 +146,11 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
 
         matches = heapq.nsmallest(
             self.maximum_tooltip_matches,
-            ((distance, path)
-             for distance, matched_hash in hash_matches
-             for path in self._paths_by_hash[matched_hash]),
+            (
+                (distance, path)
+                for distance, matched_hash in hash_matches
+                for path in self._paths_by_hash[matched_hash]
+            ),
             key=lambda match: (match[0], str(match[1])),
         )
 
@@ -171,8 +180,8 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
 
         if image_hash.hash is None:
             if role in (
-                    Qt.ItemDataRole.DisplayRole,
-                    Qt.ItemDataRole.EditRole,
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.EditRole,
             ):
                 return f"{image_hash.duplicate_count}/{image_hash.total_count}"
 
@@ -198,7 +207,10 @@ class ImageHashColumnSpec(FileTreeColumnSpec):
                 else:
                     return None
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return image_hash.hash
 
             case _:

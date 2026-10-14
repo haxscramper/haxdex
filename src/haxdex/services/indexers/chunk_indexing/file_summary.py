@@ -1,19 +1,16 @@
 from pathlib import Path
 
-from sqlalchemy import Engine
-
 import magic
 from beartype.typing import cast
-from pydantic import BaseModel
+from sqlalchemy import Engine
 
-from haxdex.services.core.job_types import (BaseIndexer, BaseIndexerConfig, RunContext)
-from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from haxdex.services.resources.text_summary import (
     SummarizeRequest,
     TextSummaryResource,
     TextSummaryResult,
 )
-from loguru import logger
 
 
 class FileSummaryIndexerResult(TextSummaryResult, extra="forbid"):

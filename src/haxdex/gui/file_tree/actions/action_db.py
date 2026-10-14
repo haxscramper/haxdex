@@ -1,7 +1,8 @@
-from sqlalchemy import Integer, String, JSON, DateTime
-from sqlalchemy.orm import DeclarativeBase, mapped_column, Mapped
 from datetime import datetime
-from beartype.typing import Optional, Any
+
+from beartype.typing import Any, Optional
+from sqlalchemy import JSON, DateTime, Integer, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -16,7 +17,9 @@ class OperationRow(Base):
     action_data: Mapped[Any] = mapped_column(JSON, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False)
     execution_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
-    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),
-                                                           nullable=True)
-    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True),
-                                                            nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

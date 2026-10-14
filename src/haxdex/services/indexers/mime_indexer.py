@@ -1,10 +1,8 @@
 import ctypes
-from pathlib import Path
-
-from sqlalchemy import Engine
 
 import magic
 from magic import Magic, libmagic
+from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
@@ -15,8 +13,9 @@ MAGIC_PARAM_NAME_MAX = 5
 
 def _set_name_max(magic_instance: Magic, value: int) -> None:
     val = ctypes.c_size_t(value)
-    libmagic.magic_setparam(magic_instance.cookie, MAGIC_PARAM_NAME_MAX,
-                            ctypes.byref(val))
+    libmagic.magic_setparam(
+        magic_instance.cookie, MAGIC_PARAM_NAME_MAX, ctypes.byref(val)
+    )
 
 
 class FileMimeIndexerResult(IndexDocument, extra="forbid"):
@@ -40,11 +39,11 @@ class FileMimeIndexer(BaseIndexer):
         self._magic_extensions = Magic(extension=True)
 
         for instance in (
-                self._magic_mime,
-                self._magic_encoding,
-                self._magic_description,
-                self._magic_all,
-                self._magic_extensions,
+            self._magic_mime,
+            self._magic_encoding,
+            self._magic_description,
+            self._magic_all,
+            self._magic_extensions,
         ):
             _set_name_max(instance, 256)
 

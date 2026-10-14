@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from beartype import beartype
 
 from haxdex.services.core.types import FileHash, FileRef, RootRef
@@ -6,7 +7,6 @@ from haxdex.services.core.types import FileHash, FileRef, RootRef
 
 @beartype
 class FileReferenceMixin:
-
     def _load_roots_from_db(self) -> None:
         for row in self._db.aql.execute("FOR doc IN roots RETURN doc"):
             self.roots[row["_key"]] = Path(row["path"])
@@ -15,11 +15,14 @@ class FileReferenceMixin:
         for document in self._db.aql.execute("FOR doc IN files RETURN doc"):
             for path in document["paths"]:
                 self.file_refs.add(
-                    FileRef.model_validate({
-                        "hash": path["hash"],
-                        "relative": path["relative"],
-                        "root": path["root"],
-                    }))
+                    FileRef.model_validate(
+                        {
+                            "hash": path["hash"],
+                            "relative": path["relative"],
+                            "root": path["root"],
+                        }
+                    )
+                )
 
     def _hash(self, path: Path) -> FileHash:
         return self.hash_cache.hash(path)
@@ -27,13 +30,15 @@ class FileReferenceMixin:
     def add_root(self, name: str, root: Path) -> RootRef:
         assert name not in self.roots or self.roots[name] == root, (
             f"Duplicate root name {name} with a different path, "
-            f"stored {self.roots[name]}, trying to set {root}")
+            f"stored {self.roots[name]}, trying to set {root}"
+        )
 
         db_roots = self._db.collection("roots")
         if name in self.roots:
             assert db_roots.has(name), (
                 "logical error, roots cache is populated, but the DB does not "
-                f"have the value for {name}")
+                f"have the value for {name}"
+            )
         else:
             self.roots[name] = root
             db_roots.insert({"_key": name, "path": str(root)})
@@ -55,13 +60,15 @@ class FileReferenceMixin:
                 hash=FileHash.model_validate(path["hash"]),
                 relative=path["relative"],
                 root=RootRef.model_validate(path["root"]),
-            ) for path in path_refs
+            )
+            for path in path_refs
         ]
 
     def as_ref(self, root: RootRef, path: Path) -> FileRef:
         assert root.name in self.roots, (
             f"Unknown root for file ref: '{root}', register root with "
-            "`add_root()` first")
+            "`add_root()` first"
+        )
 
         relative = str(path.relative_to(self.get_root(root)))
         full_path = self.get_root(root).joinpath(relative)
@@ -87,9 +94,11 @@ class FileReferenceMixin:
             files.insert({"_key": file_hash.hash, "paths": [result_json]})
         else:
             known_paths = document["paths"]
-            already_known = any(entry["relative"] == result_json["relative"] and
-                                entry["root"] == result_json["root"]
-                                for entry in known_paths)
+            already_known = any(
+                entry["relative"] == result_json["relative"]
+                and entry["root"] == result_json["root"]
+                for entry in known_paths
+            )
 
             if not already_known:
                 known_paths.append(result_json)

@@ -1,15 +1,12 @@
-from datetime import datetime
 from pathlib import Path
 
 from beartype.typing import cast
-from sqlalchemy import Engine
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.resources.wd_tagger import WdTag, WdTagger
-from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from PIL import Image
-from pydantic import BaseModel
-
 from loguru import logger
+from sqlalchemy import Engine
+
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
+from haxdex.services.resources.wd_tagger import WdTag, WdTagger
 
 
 class WdTagIndexerResult(IndexDocument, extra="forbid"):

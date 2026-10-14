@@ -52,8 +52,9 @@ def clean_cpp_comment_text(raw: str) -> list[str]:
     return result
 
 
-def extract_leading_cpp_doc(parent: Node, target_index: int,
-                            source: bytes) -> DocInfo | None:
+def extract_leading_cpp_doc(
+    parent: Node, target_index: int, source: bytes
+) -> DocInfo | None:
     lines: list[str] = []
     idx = target_index - 1
     saw_comment = False
@@ -88,7 +89,8 @@ def cpp_extract_declarator_name(node: Node, source: bytes) -> str | None:
 
 
 def cpp_parse_arguments_from_declarator(
-        declarator: Node, source: bytes) -> tuple[list[ParsedArgument], str | None]:
+    declarator: Node, source: bytes
+) -> tuple[list[ParsedArgument], str | None]:
     parameter_list = find_first_descendant(declarator, {"parameter_list"})
     if parameter_list is None:
         return [], None
@@ -96,8 +98,8 @@ def cpp_parse_arguments_from_declarator(
     args: list[ParsedArgument] = []
     for child in parameter_list.named_children:
         if child.type not in {
-                "parameter_declaration",
-                "optional_parameter_declaration",
+            "parameter_declaration",
+            "optional_parameter_declaration",
         }:
             continue
 
@@ -105,12 +107,19 @@ def cpp_parse_arguments_from_declarator(
         declarator_node = child.child_by_field_name("declarator")
         default_node = child.child_by_field_name("default_value")
 
-        arg_name = (cpp_extract_declarator_name(declarator_node, source)
-                    if declarator_node is not None else None)
-        arg_type = (node_text(type_node, source).strip()
-                    if type_node is not None else None)
-        arg_default = (node_text(default_node, source).strip()
-                       if default_node is not None else None)
+        arg_name = (
+            cpp_extract_declarator_name(declarator_node, source)
+            if declarator_node is not None
+            else None
+        )
+        arg_type = (
+            node_text(type_node, source).strip() if type_node is not None else None
+        )
+        arg_default = (
+            node_text(default_node, source).strip()
+            if default_node is not None
+            else None
+        )
 
         args.append(
             ParsedArgument(
@@ -118,14 +127,15 @@ def cpp_parse_arguments_from_declarator(
                 type_text=arg_type,
                 default_value=arg_default,
                 kind=None,
-            ))
+            )
+        )
 
     declarator_text = node_text(declarator, source)
     params_text = node_text(parameter_list, source)
     suffix = params_text
     idx = declarator_text.find(params_text)
     if idx != -1:
-        trailing = declarator_text[idx + len(params_text):].strip()
+        trailing = declarator_text[idx + len(params_text) :].strip()
         if trailing:
             suffix = f"{params_text} {trailing}"
 
@@ -149,8 +159,9 @@ def cpp_parse_function_entry(
         return None
 
     type_node = node.child_by_field_name("type")
-    return_type = (node_text(type_node, source).strip()
-                   if type_node is not None else None)
+    return_type = (
+        node_text(type_node, source).strip() if type_node is not None else None
+    )
     args, signature_suffix = cpp_parse_arguments_from_declarator(declarator, source)
     start_line, end_line = source_lines(node)
     qn = "::".join(qualified_prefix + [name])
@@ -239,8 +250,9 @@ def cpp_parse_class(
         if child.type == "declaration":
             declarator = child.child_by_field_name("declarator")
             if declarator is not None:
-                has_params = (find_first_descendant(declarator, {"parameter_list"})
-                              is not None)
+                has_params = (
+                    find_first_descendant(declarator, {"parameter_list"}) is not None
+                )
                 if has_params:
                     method = cpp_parse_function_entry(
                         child,
@@ -255,8 +267,9 @@ def cpp_parse_class(
                     continue
 
             type_node = child.child_by_field_name("type")
-            field_type = (node_text(type_node, source).strip()
-                          if type_node is not None else None)
+            field_type = (
+                node_text(type_node, source).strip() if type_node is not None else None
+            )
             field_names = cpp_collect_field_names(child, source)
             for fname in field_names:
                 fstart, fend = source_lines(child)
@@ -265,19 +278,23 @@ def cpp_parse_class(
                         kind="field",
                         name=fname,
                         language="cpp",
-                        qualified_name="::".join(qualified_prefix + [class_name, fname]),
+                        qualified_name="::".join(
+                            qualified_prefix + [class_name, fname]
+                        ),
                         start_line=fstart,
                         end_line=fend,
                         doc=child_doc,
                         type_text=field_type,
                         path=rel_path,
-                    ))
+                    )
+                )
             continue
 
         if child.type == "field_declaration":
             type_node = child.child_by_field_name("type")
-            field_type = (node_text(type_node, source).strip()
-                          if type_node is not None else None)
+            field_type = (
+                node_text(type_node, source).strip() if type_node is not None else None
+            )
             field_names = cpp_collect_field_names(child, source)
             for fname in field_names:
                 fstart, fend = source_lines(child)
@@ -286,13 +303,16 @@ def cpp_parse_class(
                         kind="field",
                         name=fname,
                         language="cpp",
-                        qualified_name="::".join(qualified_prefix + [class_name, fname]),
+                        qualified_name="::".join(
+                            qualified_prefix + [class_name, fname]
+                        ),
                         start_line=fstart,
                         end_line=fend,
                         doc=child_doc,
                         type_text=field_type,
                         path=rel_path,
-                    ))
+                    )
+                )
 
     return entry
 
@@ -320,7 +340,9 @@ def cpp_parse_enum(
         start_line=start_line,
         end_line=end_line,
         doc=doc,
-        type_text=node_text(base_node, source).strip() if base_node is not None else None,
+        type_text=node_text(base_node, source).strip()
+        if base_node is not None
+        else None,
         path=rel_path,
     )
 
@@ -347,9 +369,11 @@ def cpp_parse_enum(
                 end_line=eend,
                 doc=extract_leading_cpp_doc(body, eidx, source),
                 type_text=node_text(value_node, source).strip()
-                if value_node is not None else None,
+                if value_node is not None
+                else None,
                 path=rel_path,
-            ))
+            )
+        )
 
     return entry
 
@@ -413,13 +437,14 @@ def cpp_parse_scope_child(
         case "template_declaration":
             for sub in child.named_children:
                 if sub.type in {
-                        "template_parameter_list",
-                        "requires_clause",
-                        "comment",
+                    "template_parameter_list",
+                    "requires_clause",
+                    "comment",
                 }:
                     continue
-                cpp_parse_scope_child(sub, child_doc, source, out, qualified_prefix,
-                                      rel_path)
+                cpp_parse_scope_child(
+                    sub, child_doc, source, out, qualified_prefix, rel_path
+                )
 
         case "linkage_specification":
             body = child.child_by_field_name("body")
@@ -428,8 +453,9 @@ def cpp_parse_scope_child(
             if body.type == "declaration_list":
                 cpp_parse_scope(body, source, out, qualified_prefix, rel_path=rel_path)
             else:
-                cpp_parse_scope_child(body, child_doc, source, out, qualified_prefix,
-                                      rel_path)
+                cpp_parse_scope_child(
+                    body, child_doc, source, out, qualified_prefix, rel_path
+                )
 
         case "namespace_definition":
             name_node = child.child_by_field_name("name")
@@ -501,15 +527,18 @@ def cpp_parse_scope_child(
                     end_line=end_line,
                     doc=child_doc,
                     type_text=node_text(type_node, source).strip()
-                    if type_node is not None else None,
+                    if type_node is not None
+                    else None,
                     signature_source=node_text(child, source).strip(),
                     path=rel_path,
-                ))
+                )
+            )
 
         case "type_definition":
             type_node = child.child_by_field_name("type")
-            type_text = (node_text(type_node, source).strip()
-                         if type_node is not None else None)
+            type_text = (
+                node_text(type_node, source).strip() if type_node is not None else None
+            )
             start_line, end_line = source_lines(child)
             for decl in child.children_by_field_name("declarator"):
                 alias_name = cpp_extract_declarator_name(decl, source)
@@ -527,7 +556,8 @@ def cpp_parse_scope_child(
                         type_text=type_text,
                         signature_source=node_text(child, source).strip(),
                         path=rel_path,
-                    ))
+                    )
+                )
 
         case "function_definition":
             fn = cpp_parse_function_entry(
@@ -545,8 +575,9 @@ def cpp_parse_scope_child(
             declarator = child.child_by_field_name("declarator")
             if declarator is None:
                 return
-            has_params = (find_first_descendant(declarator, {"parameter_list"})
-                          is not None)
+            has_params = (
+                find_first_descendant(declarator, {"parameter_list"}) is not None
+            )
             if not has_params:
                 return
             fn = cpp_parse_function_entry(

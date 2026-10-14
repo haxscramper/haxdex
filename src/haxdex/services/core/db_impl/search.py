@@ -1,8 +1,5 @@
-from loguru import logger
-from beartype.typing import Any
-from beartype import beartype
-
 import glom
+from beartype import beartype
 
 from haxdex.services.core.db_impl.contracts import (
     BaseIndexProtocol,
@@ -17,19 +14,22 @@ from haxdex.services.core.types import (
 
 @beartype
 class SearchMixin:
-
     def get_full_text_search_path(
         self,
         indexer: BaseIndexProtocol,
     ) -> FullTextSearchAccessParams:
         base = next(
-            (document_base for document_base in indexer.get_document_type_bases()
-             if document_base.full_text_index is not None),
+            (
+                document_base
+                for document_base in indexer.get_document_type_bases()
+                if document_base.full_text_index is not None
+            ),
             None,
         )
 
         assert base is not None, (
-            f"No full text index configured for indexer {indexer.asset_name}")
+            f"No full text index configured for indexer {indexer.asset_name}"
+        )
 
         index: FullTextIndexConfig = base.full_text_index
         view_name = self._view_name(indexer.asset_name, base, index)
@@ -82,8 +82,8 @@ class SearchMixin:
 
         result: list[tuple[IndexDocument, float]] = []
         for document, score in self.execute_query_with_conversion(
-                aql,
-                indexer,
+            aql,
+            indexer,
             ("doc.result", "score"),
             {
                 "query": query,
@@ -103,13 +103,17 @@ class SearchMixin:
         limit: int = 20,
     ) -> list[tuple[IndexDocument, float]]:
         base = next(
-            (document_base for document_base in indexer.get_document_type_bases()
-             if document_base.vector_index is not None),
+            (
+                document_base
+                for document_base in indexer.get_document_type_bases()
+                if document_base.vector_index is not None
+            ),
             None,
         )
 
         assert base is not None, (
-            f"No vector index configured for indexer {indexer.asset_name}")
+            f"No vector index configured for indexer {indexer.asset_name}"
+        )
 
         vector_index: VectorIndexConfig = base.vector_index
         assert len(vector) == vector_index.vector_dimensions
@@ -130,8 +134,8 @@ class SearchMixin:
 
         result: list[tuple[IndexDocument, float]] = []
         for document, score in self.execute_query_with_conversion(
-                query,
-                indexer,
+            query,
+            indexer,
             ("doc.result", "score"),
             {
                 "query_vector": vector,

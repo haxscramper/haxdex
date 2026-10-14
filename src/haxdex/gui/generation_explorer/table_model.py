@@ -3,19 +3,18 @@ from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PyQt6.QtWidgets import QAbstractItemDelegate, QApplication, QTableView, QWidget
 
 from .constants import (
-    GenExplorerColumns,
     COLOR_BAD,
     COLOR_REPLACED,
     COLOR_WARN,
     EDITABLE_COLS,
     HEADERS,
+    GenExplorerColumns,
 )
 from .model_registry import ModelRegistry
 from .models import GenerationRowState, LoraState
 
 
 class GenerationTableModel(QAbstractTableModel):
-
     def __init__(self, rows: list[GenerationRowState], registry: ModelRegistry):
         super().__init__()
         self.rows = rows
@@ -40,7 +39,10 @@ class GenerationTableModel(QAbstractTableModel):
         orientation: Qt.Orientation,
         role: int = Qt.ItemDataRole.DisplayRole,
     ) -> Any:
-        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+        if (
+            role == Qt.ItemDataRole.DisplayRole
+            and orientation == Qt.Orientation.Horizontal
+        ):
             return HEADERS[section]
         return None
 
@@ -54,7 +56,10 @@ class GenerationTableModel(QAbstractTableModel):
         row = self.rows[index.row()]
         col = index.column()
 
-        if role == Qt.ItemDataRole.UserRole and col == GenExplorerColumns.COL_LORAS.value:
+        if (
+            role == Qt.ItemDataRole.UserRole
+            and col == GenExplorerColumns.COL_LORAS.value
+        ):
             return [
                 dict(enabled=item.enabled, model=item.model, weight=item.weight)
                 for item in row.loras
@@ -118,10 +123,9 @@ class GenerationTableModel(QAbstractTableModel):
 
         return None
 
-    def setData(self,
-                index: QModelIndex,
-                value: Any,
-                role: int = Qt.ItemDataRole.EditRole) -> bool:
+    def setData(
+        self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole
+    ) -> bool:
         if role != Qt.ItemDataRole.EditRole:
             return False
         row = self.rows[index.row()]
@@ -147,7 +151,8 @@ class GenerationTableModel(QAbstractTableModel):
                         enabled=bool(item.get("enabled", True)),
                         model=str(item.get("model", "")),
                         weight=float(item.get("weight", 1.0)),
-                    ) for item in value
+                    )
+                    for item in value
                 ]
             case _:
                 return False
@@ -156,7 +161,6 @@ class GenerationTableModel(QAbstractTableModel):
 
 
 class RunFriendlyTableView(QTableView):
-
     def active_delegate_editor(self) -> QWidget | None:
         viewport = self.viewport()
         widget = QApplication.focusWidget()

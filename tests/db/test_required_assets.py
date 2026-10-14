@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
-from typing import Any
 
-from beartype.typing import cast
 from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
-from haxdex.services.core.types import FileHash, FileRef, IndexDocument, IndexerOutput
 from haxdex.services.core.job_runtime import IndexRuntime
-from tests.conftest import index_cache_database
+from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput
 
 
 def _touch(path: Path) -> None:
@@ -79,7 +75,9 @@ def test_chain_two_indexers(
         ctx=ctx,
         db=db,
         indexer_types=[
-            RootIndexer(config=RootIndexer.config_model(), database=index_cache_database),
+            RootIndexer(
+                config=RootIndexer.config_model(), database=index_cache_database
+            ),
             NestedIndexer(
                 config=NestedIndexer.config_model(),
                 database=index_cache_database,
@@ -124,8 +122,9 @@ def test_branching_indexers(
 
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
             call_logger.append("A")
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelA(value="A", hash="345E" * 16))
+            return IndexerOutput(
+                indexer_id=self.asset_name, result=ModelA(value="A", hash="345E" * 16)
+            )
 
     class IndexerB(BaseIndexer):
         asset_name = "indexer_b"
@@ -135,8 +134,9 @@ def test_branching_indexers(
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
             call_logger.append("B")
             assert "indexer_a" in assets
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelB(value="B", hash="7890" * 16))
+            return IndexerOutput(
+                indexer_id=self.asset_name, result=ModelB(value="B", hash="7890" * 16)
+            )
 
     class IndexerC(BaseIndexer):
         asset_name = "indexer_c"
@@ -146,8 +146,9 @@ def test_branching_indexers(
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
             call_logger.append("C")
             assert "indexer_b" in assets
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelC(value="C", hash="7666" * 16))
+            return IndexerOutput(
+                indexer_id=self.asset_name, result=ModelC(value="C", hash="7666" * 16)
+            )
 
     class IndexerD(BaseIndexer):
         asset_name = "indexer_d"
@@ -157,8 +158,9 @@ def test_branching_indexers(
         def run(self, ctx: RunContext, request, resources, assets) -> IndexerOutput:
             call_logger.append("D")
             assert "indexer_b" in assets
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=ModelD(value="D", hash="345F" * 16))
+            return IndexerOutput(
+                indexer_id=self.asset_name, result=ModelD(value="D", hash="345F" * 16)
+            )
 
     path = stable_test_dir / "branch.txt"
     _touch(path)
@@ -179,12 +181,14 @@ def test_branching_indexers(
     root = db.add_root("root", stable_test_dir)
     runtime.run_indexer(
         runtime.db.as_ref(root, path),
-        runtime.get_indexers([
-            "indexer_a",
-            "indexer_b",
-            "indexer_c",
-            "indexer_d",
-        ]),
+        runtime.get_indexers(
+            [
+                "indexer_a",
+                "indexer_b",
+                "indexer_c",
+                "indexer_d",
+            ]
+        ),
     )
 
     assert call_logger[0] == "A"
@@ -238,7 +242,9 @@ def test_indexer_receives_resource(
         db=db,
         resource_types=[EchoResource(config=EchoResource.config_model())],
         indexer_types=[
-            EchoIndexer(config=EchoIndexer.config_model(), database=index_cache_database)
+            EchoIndexer(
+                config=EchoIndexer.config_model(), database=index_cache_database
+            )
         ],
     )
 

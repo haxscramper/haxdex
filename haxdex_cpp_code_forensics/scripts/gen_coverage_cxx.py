@@ -3,21 +3,23 @@
 ## @brief  Parse merged profile data and generate annotated files for CXX coverage
 ##
 ## Coverage generator uses database structure produced in the `profdata_merger.cpp`
-from collections import defaultdict
-from dataclasses import dataclass, field
 import functools
 import itertools
 import json
+from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Type
 
+import dominate.tags as tags
+import py_haxorg.pyhaxorg_wrap as org
+import py_repository.repo_docgen.gen_coverage_data as docdata
 from beartype import beartype
 from beartype.typing import (
     Any,
     Callable,
     Dict,
     Iterable,
-    Iterator,
     List,
     Mapping,
     Optional,
@@ -26,29 +28,26 @@ from beartype.typing import (
     Union,
 )
 from dominate import document
-import dominate.tags as tags
-import py_haxorg.pyhaxorg_wrap as org
 from py_repository.code_analysis.gen_coverage_cookies import *
-import py_repository.repo_docgen.gen_coverage_data as docdata
 from py_repository.repo_docgen.gen_coverage_utils import abbreviate_token_name
 from py_scriptutils.repo_files import get_haxorg_repo_root_path
-from py_scriptutils.script_logging import ExceptionContextNote, log
+from py_scriptutils.script_logging import ExceptionContextNote
 from py_scriptutils.sqlalchemy_utils import (
     BoolColumn,
     ForeignId,
     IdColumn,
     IntColumn,
     NumericEnum,
-    open_sqlite_session,
     StrColumn,
+    open_sqlite_session,
 )
 from py_scriptutils.tracer import GlobCompleteEvent
 from pydantic import BaseModel, Field
 from pygments import lex
 from pygments.lexers import CppLexer
-from pygments.token import _TokenType, Token, Whitespace
-from sqlalchemy import Column, create_engine, Select, select
-from sqlalchemy.orm import declarative_base, Session
+from pygments.token import _TokenType
+from sqlalchemy import Column, Select, create_engine, select
+from sqlalchemy.orm import Session, declarative_base
 from sqlalchemy.schema import CreateTable
 from sqlalchemy.types import JSON
 
@@ -61,6 +60,7 @@ class CovFunction(CoverageSchema):
     """
     Naming information for the covered function
     """
+
     __tablename__ = "CovFunction"
     Id = IdColumn()
     "Original symbol for the function"
@@ -83,6 +83,7 @@ class CovContext(CoverageSchema):
     Profile data merger aggregates several coverage runs into a single database, this table
     helps to differentiate between various sources of the data
     """
+
     __tablename__ = "CovContext"
     Id = IdColumn()
     Name = StrColumn()
@@ -125,7 +126,7 @@ class CovContext(CoverageSchema):
     def getContextRunFile(self) -> Optional[str]:
         "@brief see `getContextRunLine` but for path"
         if self.Params and "loc" in self.Params:
-            return self.Params["loc"]["path"]  #type: ignore
+            return self.Params["loc"]["path"]  # type: ignore
 
         else:
             return None
@@ -164,6 +165,7 @@ class CovFileRegion(CoverageSchema):
     - Region is not 100% guaranteed to correspond to the physical location in file, IME macros and includes
       can sometimes mess things up.
     """
+
     __tablename__ = "CovFileRegion"
     Id = IdColumn()
     Context = ForeignId(CovContext.Id)
@@ -194,6 +196,7 @@ class CovFileRegion(CoverageSchema):
 
 class GenCovSegmentFlat(BaseModel, extra="forbid"):
     "@brief Grouping of the DB coverage segments that apply to a specified `First`, `Last` range"
+
     ## List of coverage segments for the `First, Last` range. The coverage database
     ## stores multiple identically-located segments (one for each run), so each run
     ## for a given segment is stored as one ID.
@@ -232,13 +235,14 @@ class AnnotatedLine(BaseModel, extra="forbid"):
 
 @beartype
 @dataclass
-class GenCovSegmentContext():
+class GenCovSegmentContext:
     """
     Coverage context entry can be associated with multiple segments in the database.
     This class bundles together information to identify the context *when* the segment
     might've been executed together with the segment itself to check *if* it has
     actually been executed (execution count)
     """
+
     ## @brief Context 1:1 mapping of context for each segment
     Context: CovContext
     ## @brief Segment Individual instantiation of the coverage for the location in file
@@ -247,14 +251,14 @@ class GenCovSegmentContext():
 
 @beartype
 @dataclass
-class CovSegmentInstantiation():
+class CovSegmentInstantiation:
     Segment: CovFileRegion
     Function: Optional[CovFunction] = None
 
 
 @beartype
 @dataclass
-class CovSegmentFunctionGroup():
+class CovSegmentFunctionGroup:
     # Parent coverage context for all individual file region executions
     Context: CovContext
 
@@ -264,15 +268,16 @@ class CovSegmentFunctionGroup():
 
 @beartype
 @dataclass
-class CovSegmentContextGroup():
+class CovSegmentContextGroup:
     # Segment executions grouped by the coverage context. All coverage contexts related to a specific region in the code file
     Grouped: List[CovSegmentFunctionGroup] = field(default_factory=list)
 
 
 class CovContextModel(BaseModel, extra="forbid"):
     Name: str = Field(description="Direct name of the execution context")
-    Parent: Optional[str] = Field(description="Parent name for the execution context",
-                                  default=None)
+    Parent: Optional[str] = Field(
+        description="Parent name for the execution context", default=None
+    )
     RunLine: Optional[int] = Field(
         description="Where the test is executed. Set for tests that are generated "
         "from external configuration files, mainly the org parse corpus",
@@ -313,29 +318,30 @@ class CovSegmentModel(BaseModel, extra="forbid"):
     ExecutionCount: int = Field(
         description="Number of execution times for this segment under a parent context "
         "(full number of execution counts over all segments can be computed by "
-        "summing up all the coverage context groups)")
+        "summing up all the coverage context groups)"
+    )
 
     ExpandedFrom: Optional[CovLocationModel] = Field(
         default=None,
-        description=
-        "For macro-expanded segments, where was the original macro call location?",
+        description="For macro-expanded segments, where was the original macro call location?",
     )
 
 
 class CovSegmentFunctionModel(BaseModel, extra="forbid"):
     Mangled: str = Field(description="Full mangled name of the function")
     Demangled: str = Field(
-        description=
-        "Full demangled name of the function, if demangle failed, then is set to the same value as mangled"
+        description="Full demangled name of the function, if demangle failed, then is set to the same value as mangled"
     )
     SimplifiedDemangled: str = Field(
-        description="Simplified representation of the demangled function name")
+        description="Simplified representation of the demangled function name"
+    )
 
 
 class CovSegmentFunctionGroupModel(BaseModel, extra="forbid"):
     """
     Grouping of segments under a coverage context. Each function group model stores information
     """
+
     Context: int
     FunctionSegments: List[CovSegmentModel] = Field(
         default_factory=list,
@@ -352,6 +358,7 @@ class CovSegmentContextGroupModel(BaseModel, extra="forbid"):
     and give the answer in form of "here are the contexts (tests) that run this piece of code, and here is a more
     detailed breakdown on which specific instantiations of a function were in this run".
     """
+
     Grouped: List[CovSegmentFunctionGroupModel]
 
 
@@ -359,27 +366,30 @@ class CovFileContextModel(BaseModel, extra="forbid"):
     """
     Full information on executing each individual segment in an annotated file
     """
+
     SegmentContexts: Dict[int, CovSegmentContextGroupModel] = Field(
         description="Segment ID to a coverage information for this segment",
         default_factory=dict,
     )
     Functions: Dict[int, CovSegmentFunctionModel] = Field(
-        default_factory=dict, description="Function ID to the function description data")
+        default_factory=dict, description="Function ID to the function description data"
+    )
 
     Contexts: Dict[int, CovContextModel] = Field(
         default_factory=dict,
-        description="Segment ID to the coverage segment information")
+        description="Segment ID to the coverage segment information",
+    )
 
 
 class AnnotatedFile(BaseModel):
     "Source code file and associated test run segments"
+
     Lines: List[AnnotatedLine] = Field(default_factory=list)
     "Full set of file lines"
     SegmentRunContexts: Dict[int, GenCovSegmentContext] = Field(
         default_factory=dict,
         exclude=True,
-        description=
-        "Mapping from execution segment ID to the coverage context for the execution",
+        description="Mapping from execution segment ID to the coverage context for the execution",
     )
 
     SegmentFunctions: Dict[int, CovFunction] = Field(
@@ -471,8 +481,8 @@ class AnnotatedFile(BaseModel):
 
             result = CovSegmentContextGroup(Grouped=[])
             for _, _context_group in itertools.groupby(
-                    sorted(contexts, key=key_func),
-                    key=key_func,
+                sorted(contexts, key=key_func),
+                key=key_func,
             ):
                 context_group = list(_context_group)
 
@@ -489,8 +499,10 @@ class AnnotatedFile(BaseModel):
                         CovSegmentInstantiation(
                             Segment=seg.Segment,
                             Function=self.SegmentFunctions[seg.Segment.Function]
-                            if seg.Segment.Function else None,
-                        ))
+                            if seg.Segment.Function
+                            else None,
+                        )
+                    )
 
                 result.Grouped.append(group)
 
@@ -499,8 +511,9 @@ class AnnotatedFile(BaseModel):
         return self.SegmentCoverageCache[segment_idx]
 
     @beartype
-    def getExecutionsModelForSegment(self,
-                                     segment_idx: int) -> CovSegmentContextGroupModel:
+    def getExecutionsModelForSegment(
+        self, segment_idx: int
+    ) -> CovSegmentContextGroupModel:
         """
         Wrapper around `getExecutionsForSegment` that returns coverage model dump directly.
         """
@@ -520,7 +533,8 @@ class AnnotatedFile(BaseModel):
                 # [[file:profdata_merger.cpp::<<expanded_from>>]]
                 if seg.Segment.ExpandedFrom in self.SegmentRunContexts:
                     Original: CovFileRegion = self.SegmentRunContexts[
-                        seg.Segment.ExpandedFrom].Segment
+                        seg.Segment.ExpandedFrom
+                    ].Segment
                     model.ExpandedFrom = CovLocationModel(
                         LineStart=Original.LineStart,
                         LineEnd=Original.LineEnd,
@@ -532,7 +546,8 @@ class AnnotatedFile(BaseModel):
 
             @beartype
             def conv_group(
-                    group: CovSegmentFunctionGroup) -> CovSegmentFunctionGroupModel:
+                group: CovSegmentFunctionGroup,
+            ) -> CovSegmentFunctionGroupModel:
                 return CovSegmentFunctionGroupModel(
                     Context=group.Context.Id,
                     FunctionSegments=[
@@ -543,11 +558,13 @@ class AnnotatedFile(BaseModel):
                 )
 
             return CovSegmentContextGroupModel(
-                Grouped=[conv_group(it) for it in group.Grouped],)
+                Grouped=[conv_group(it) for it in group.Grouped],
+            )
 
     @beartype
-    def getExecutionsModelForAllSegments(self,
-                                         segments: Iterable[int]) -> CovFileContextModel:
+    def getExecutionsModelForAllSegments(
+        self, segments: Iterable[int]
+    ) -> CovFileContextModel:
         """
         Get pydantic model dump for the code coverage information on all segment indices.
 
@@ -586,9 +603,13 @@ class AnnotatedFile(BaseModel):
 
                 for it in contexts.Grouped:
                     for segment in it.FunctionSegments:
-                        if segment.Function and segment.Function not in result.Functions:
+                        if (
+                            segment.Function
+                            and segment.Function not in result.Functions
+                        ):
                             result.Functions[segment.Function] = conv_function(
-                                self.SegmentFunctions[segment.Function])
+                                self.SegmentFunctions[segment.Function]
+                            )
 
             return result
 
@@ -601,7 +622,8 @@ def open_coverage(path: Path) -> Session:
 @beartype
 def get_file_coverage_id(session: Session, path: Path) -> Optional[int]:
     target_id = session.execute(
-        select(CovFile).where(CovFile.Path == str(path))).fetchall()
+        select(CovFile).where(CovFile.Path == str(path))
+    ).fetchall()
 
     match len(target_id):
         case 0:
@@ -617,8 +639,9 @@ def get_file_coverage_id(session: Session, path: Path) -> Optional[int]:
 
 
 @beartype
-def get_coverage_of(session: Session,
-                    path: Path) -> Optional[Select[Tuple[CovFileRegion]]]:
+def get_coverage_of(
+    session: Session, path: Path
+) -> Optional[Select[Tuple[CovFileRegion]]]:
 
     target_id = get_file_coverage_id(session, path)
     if target_id == None:
@@ -665,7 +688,7 @@ def extract_text(
                 return line.Text
 
     if start_line == end_line:
-        return line_at(start_line - 1)[start_column - 1:end_column - 1]  # type: ignore
+        return line_at(start_line - 1)[start_column - 1 : end_column - 1]  # type: ignore
 
     else:
         first_line = line_at(start_line - 1)
@@ -675,9 +698,9 @@ def extract_text(
         last_line = line_at(end_line - 1)
         assert isinstance(last_line, str)
         extracted_lines = [
-            first_line[start_column - 1:],
+            first_line[start_column - 1 :],
             *middle_lines,
-            last_line[:end_column - 1],
+            last_line[: end_column - 1],
         ]
 
         return "\n".join(extracted_lines)
@@ -686,9 +709,10 @@ def extract_text(
 def pivot_strings(strings: List[str]) -> List[str]:
     max_len = max(len(s) for s in strings)
     padded_strings = [s.ljust(max_len) for s in strings]
-    pivoted = [[padded_strings[row][col]
-                for row in range(len(padded_strings))]
-               for col in range(max_len)]
+    pivoted = [
+        [padded_strings[row][col] for row in range(len(padded_strings))]
+        for col in range(max_len)
+    ]
     return ["".join(it) for it in pivoted]
 
 
@@ -725,7 +749,8 @@ def format_sequence_segments(
     for group in groups:
 
         def add_segment_group_lane(
-                segments: List[org.SequenceSegment]) -> List[org.SequenceSegment]:
+            segments: List[org.SequenceSegment],
+        ) -> List[org.SequenceSegment]:
             covered_range: Set[int] = set()
             overlapping: List[org.SequenceSegment] = []
 
@@ -824,11 +849,13 @@ def get_flat_coverage(
     current_position = 0
     for line in Lines:
         line_starts.append(current_position)
-        current_position += len(
-            line.Text) + 1  # +1 to account for removed newline character
+        current_position += (
+            len(line.Text) + 1
+        )  # +1 to account for removed newline character
 
     SegmentRuns: Dict[  #
-        Tuple[int, int], List[Tuple[int, Optional[str]]]] = defaultdict(lambda: list())
+        Tuple[int, int], List[Tuple[int, Optional[str]]]
+    ] = defaultdict(lambda: list())
 
     segment: CovFileRegion
     for (segment,) in session.execute(segments):
@@ -856,11 +883,12 @@ def get_flat_coverage(
                     Lines,
                     start=(segment.LineStart, segment.ColumnStart),
                     end=(segment.LineEnd, segment.ColumnEnd),
-                ))
+                )
+            )
 
             # DbgFlatText = FlatLines[First:Last + 1]
 
-            DbgAnnotations = (f"{DbgLines} {DbgRange}")
+            DbgAnnotations = f"{DbgLines} {DbgRange}"
 
         else:
             DbgAnnotations = None
@@ -884,8 +912,9 @@ def get_flat_coverage(
 
 
 @beartype
-def get_line_group(lines: List[DocCodeCxxLine],
-                   kind: int = 12) -> org.SequenceSegmentGroup:
+def get_line_group(
+    lines: List[DocCodeCxxLine], kind: int = 12
+) -> org.SequenceSegmentGroup:
     group = org.SequenceSegmentGroup()
     group.kind = kind
 
@@ -920,7 +949,8 @@ def get_coverage_group(
                 kind=idx,
                 first=segment.First,
                 last=segment.Last,
-            ))
+            )
+        )
 
     return group
 
@@ -936,19 +966,21 @@ def get_token_group(
     position = 0
 
     for idx, (token_type, token_text) in enumerate(
-            lex(
-                text,
-                CppLexer(
-                    stripnl=False,  # Don't drop newlines in the input
-                    ensurenl=False,  # Don't introduce arbitrary trailing whitespaces
-                ))):
+        lex(
+            text,
+            CppLexer(
+                stripnl=False,  # Don't drop newlines in the input
+                ensurenl=False,  # Don't introduce arbitrary trailing whitespaces
+            ),
+        )
+    ):
         kind = token_to_int(token_type)
 
         assert type(kind) is int, f"{token_type} -> {kind}, {type(kind)}"
         last = position + len(token_text) - 1
-        desc = f"[{idx:<2}] {kind:<3} {str(token_type):<40} '{esc(token_text)}' [{position}:{last}] -> '{esc(text[position:last+1])}'"
+        desc = f"[{idx:<2}] {kind:<3} {str(token_type):<40} '{esc(token_text)}' [{position}:{last}] -> '{esc(text[position : last + 1])}'"
 
-        assert token_text == text[position:last + 1], desc
+        assert token_text == text[position : last + 1], desc
 
         group.segments.append(org.SequenceSegment(kind=kind, first=position, last=last))
 
@@ -981,7 +1013,8 @@ def get_annotated_files(
         if last_segment_finish and item.first != last_segment_finish + 1:
             assert line_idx
             file.Lines[line_idx].Segments.append(
-                AnnotationSegment(Text=text[last_segment_finish + 1:item.first]))
+                AnnotationSegment(Text=text[last_segment_finish + 1 : item.first])
+            )
 
         line_idx: Optional[int] = None
         annotation: org.SequenceAnnotationTag
@@ -994,12 +1027,13 @@ def get_annotated_files(
         assert line_idx is not None
 
         if line_idx != current_line:
-            assert line_idx == len(
-                file.Lines), f"current line:{line_idx} full line count: {len(file.Lines)}"
+            assert line_idx == len(file.Lines), (
+                f"current line:{line_idx} full line count: {len(file.Lines)}"
+            )
             file.Lines.append(AnnotatedLine(Index=line_idx))
             current_line = line_idx
 
-        segment = AnnotationSegment(Text=text[item.first:item.last + 1])
+        segment = AnnotationSegment(Text=text[item.first : item.last + 1])
 
         for annotation in item.annotations:
             if annotation.groupKind == line_group_kind:
@@ -1063,13 +1097,14 @@ def get_annotated_file_for_session(
             with GlobCompleteEvent("Find original segments", "cov"):
                 # Find contexts and segments associated with this specific file
                 target_id = get_file_coverage_id(cxx_session, abs_path)
-                for (original_seg, context) in cxx_session.execute(
-                        select(CovFileRegion,
-                               CovContext).where(CovFileRegion.File == target_id).join(
-                                   CovContext,
-                                   CovFileRegion.Context == CovContext.Id,
-                               )):
-
+                for original_seg, context in cxx_session.execute(
+                    select(CovFileRegion, CovContext)
+                    .where(CovFileRegion.File == target_id)
+                    .join(
+                        CovContext,
+                        CovFileRegion.Context == CovContext.Id,
+                    )
+                ):
                     assert isinstance(context, CovContext)
                     assert isinstance(original_seg, CovFileRegion)
                     # Turn 1:N relation between (1 context)->(N segments) into a flattened
@@ -1080,12 +1115,18 @@ def get_annotated_file_for_session(
                         Segment=original_seg,
                     )
 
-                    if original_seg.Function is not None and original_seg.Function not in run_functions:
+                    if (
+                        original_seg.Function is not None
+                        and original_seg.Function not in run_functions
+                    ):
                         executed_in = cxx_session.execute(
                             select(CovFunction).where(
-                                CovFunction.Id == original_seg.Function)).fetchall()[0][0]
-                        assert isinstance(executed_in,
-                                          CovFunction), f"{type(executed_in)}"
+                                CovFunction.Id == original_seg.Function
+                            )
+                        ).fetchall()[0][0]
+                        assert isinstance(executed_in, CovFunction), (
+                            f"{type(executed_in)}"
+                        )
                         run_functions[original_seg.Function] = executed_in
 
     else:
@@ -1101,8 +1142,9 @@ def get_annotated_file_for_session(
     if use_highlight:
         with GlobCompleteEvent("Get token group", "cov"):
             token_dict: Dict[str, int] = defaultdict(lambda: len(token_dict))
-            token_group = get_token_group(file_full_content,
-                                          token_to_int=lambda it: token_dict[it])
+            token_group = get_token_group(
+                file_full_content, token_to_int=lambda it: token_dict[it]
+            )
 
     else:
         token_dict = dict()
@@ -1148,7 +1190,8 @@ def get_annotated_file_for_session(
                 groups,
                 get_group_name=get_group_name,
                 get_segment_name=get_segment_name,
-            ))
+            )
+        )
 
     with GlobCompleteEvent("Annotate sequence", "cov"):
         token_segmented = org.annotateSequence(
@@ -1302,7 +1345,7 @@ def get_simple_function_name(func: CovFunction) -> str:
 
 @beartype
 @dataclass
-class FileAnnotationData():
+class FileAnnotationData:
     body: tags.div
     coverage_indices: Set[int]
 
@@ -1318,8 +1361,10 @@ def get_file_annotation_html(file: AnnotatedFile) -> FileAnnotationData:
         tokens = tags.span(_class="code-line-text")
 
         hline.add(
-            tags.span(str(line.Index), _class="code-line-number",
-                      id=f"line-{line.Index}"),)
+            tags.span(
+                str(line.Index), _class="code-line-number", id=f"line-{line.Index}"
+            ),
+        )
 
         for segment in line.Segments:
             if segment.Text == "\n":
@@ -1333,15 +1378,18 @@ def get_file_annotation_html(file: AnnotatedFile) -> FileAnnotationData:
             if 0 < len(segment.CoverageSegmentIdx):
                 # Pick index of the closest segment
                 closest_segment: int = file.getSortedSegmentIndices(
-                    segment.CoverageSegmentIdx)[-1]
+                    segment.CoverageSegmentIdx
+                )[-1]
                 executions = file.getExecutionsForSegment(closest_segment)
                 triggered_executions = [
-                    it for it in executions.Grouped
+                    it
+                    for it in executions.Grouped
                     if any(0 < gr.Segment.ExecutionCount for gr in it.FunctionSegments)
                 ]
 
                 kind = file.SegmentRunContexts[
-                    file.SegmentList[closest_segment].OriginalId[0]].Segment.RegionKind
+                    file.SegmentList[closest_segment].OriginalId[0]
+                ].Segment.RegionKind
 
                 if kind in [CovRegionKind.CodeRegion, CovRegionKind.ExpansionRegion]:
                     if 0 < len(triggered_executions):
@@ -1373,10 +1421,12 @@ def get_file_annotation_html(file: AnnotatedFile) -> FileAnnotationData:
 
 
 css_path = get_haxorg_repo_root_path().joinpath(
-    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css")
+    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css"
+)
 
 js_path = get_haxorg_repo_root_path().joinpath(
-    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.js")
+    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.js"
+)
 
 
 @beartype
@@ -1405,8 +1455,10 @@ def get_file_annotation_document(
     )
 
     json_dump.add_raw_string(
-        file.getExecutionsModelForAllSegments(
-            html.coverage_indices).model_dump_json(indent=2))
+        file.getExecutionsModelForAllSegments(html.coverage_indices).model_dump_json(
+            indent=2
+        )
+    )
     doc.head.add(json_dump)
 
     doc.add(html.body)
@@ -1421,13 +1473,14 @@ if __name__ == "__main__":
     full_code = []
 
     for table in [
-            CovFunction,
-            CovContext,
-            CovFile,
-            CovFileRegion,
+        CovFunction,
+        CovContext,
+        CovFile,
+        CovFileRegion,
     ]:
         assert hasattr(table, "__table__")
         full_code.append(str(CreateTable(table.__table__).compile(db_engine)) + ";")
 
     get_haxorg_repo_root_path().joinpath(
-        "scripts/cxx_codegen/profdata_merger.sql").write_text("\n".join(full_code))
+        "scripts/cxx_codegen/profdata_merger.sql"
+    ).write_text("\n".join(full_code))

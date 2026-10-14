@@ -1,26 +1,25 @@
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Callable
+from beartype.typing import Any
 
 from haxdex.gui.file_tree.model.tree_model_fetch import AQL_FILE_PATHS, FilePathRow
 
+from ...services.core.types import FileHash
 from .constants import IMAGE_EXTS
 from .models import (
     GenerationParamsIndexerResult,
     GenerationRowState,
+    ImageSearchRecord,
     IndexedFileRecord,
     LoraState,
     SafetensorIndexerResult,
     WdTagIndexerResult,
-    ImageSearchRecord,
 )
-from ...services.core.types import FileHash
 
 
 @beartype
 class ExplorerRepository:
-
     def __init__(
         self,
         index_database: Any,
@@ -41,11 +40,13 @@ class ExplorerRepository:
                 hash=item["hash"],
                 root=item["root"],
                 relative=item["relative"],
-            ) for item in cursor
+            )
+            for item in cursor
         ]
 
     def parse_generation_params(
-            self, value: Any | None) -> GenerationParamsIndexerResult | None:
+        self, value: Any | None
+    ) -> GenerationParamsIndexerResult | None:
         if value is None:
             return None
         return GenerationParamsIndexerResult.model_validate(value)
@@ -72,7 +73,8 @@ class ExplorerRepository:
         return output
 
     def build_image_search_records(
-            self, records: list[IndexedFileRecord]) -> list[ImageSearchRecord]:
+        self, records: list[IndexedFileRecord]
+    ) -> list[ImageSearchRecord]:
         output: list[ImageSearchRecord] = []
 
         for record in records:
@@ -118,7 +120,8 @@ class ExplorerRepository:
                     generation_params=generation,
                     wd_tags=wd,
                     searchable_tags=tags,
-                ))
+                )
+            )
 
         return output
 
@@ -143,8 +146,8 @@ class ExplorerRepository:
 
         records: list[IndexedFileRecord] = []
         for item, generation_value, safetensor_value, wd_tag_value in zip(
-                file_paths, generation_values, safetensor_values, wd_tag_values,
-                strict=True):
+            file_paths, generation_values, safetensor_values, wd_tag_values, strict=True
+        ):
             records.append(
                 IndexedFileRecord(
                     path=item.path,
@@ -154,12 +157,14 @@ class ExplorerRepository:
                     generation_params=self.parse_generation_params(generation_value),
                     safetensor=self.parse_safetensor(safetensor_value),
                     wd_tags=self.parse_wd_tags(wd_tag_value),
-                ))
+                )
+            )
 
         return records
 
     def build_generation_rows(
-            self, records: list[IndexedFileRecord]) -> list[GenerationRowState]:
+        self, records: list[IndexedFileRecord]
+    ) -> list[GenerationRowState]:
         output: list[GenerationRowState] = []
         indexer_id = str(self.generation_params_indexer.asset_name)
         for record in records:
@@ -195,10 +200,13 @@ class ExplorerRepository:
                     loras=lora_values,
                     vae=generation.vae,
                     clip=generation.clip,
-                ))
+                )
+            )
         return output
 
-    def build_arch_info(self, records: list[IndexedFileRecord]) -> dict[str, str | None]:
+    def build_arch_info(
+        self, records: list[IndexedFileRecord]
+    ) -> dict[str, str | None]:
         output: dict[str, str | None] = {}
         for record in records:
             safetensor = record.safetensor

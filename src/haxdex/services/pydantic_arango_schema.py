@@ -1,10 +1,15 @@
+import types as py_types
 from dataclasses import dataclass, field
-from beartype.typing import Annotated, Literal, Any, Union, get_args, get_origin
+
+from beartype.typing import Annotated, Any, Literal, Union, get_args, get_origin
 from pydantic import BaseModel
 
-from haxdex.services.pydantic_utils import _DUMPERS, _TYPE_TAG, _RegisteredType, _PYDANTIC_TYPE_TAG
-import types as py_types
-from loguru import logger
+from haxdex.services.pydantic_utils import (
+    _DUMPERS,
+    _PYDANTIC_TYPE_TAG,
+    _TYPE_TAG,
+    _RegisteredType,
+)
 
 
 @dataclass
@@ -14,7 +19,6 @@ class ArangoSchema:
 
 
 class _SchemaContext:
-
     def __init__(self) -> None:
         self.definitions: dict[str, Any] = {}
 
@@ -56,19 +60,19 @@ def _model_import_path(annotation: type[BaseModel]) -> str | None:
         return f"{annotation.__module__}:{qualname}"
 
 
-def _pydantic_model_payload_schema(annotation: type[BaseModel],
-                                   ctx: _SchemaContext) -> dict[str, Any]:
+def _pydantic_model_payload_schema(
+    annotation: type[BaseModel], ctx: _SchemaContext
+) -> dict[str, Any]:
     if annotation is BaseModel:
         path_schema: dict[str, Any] = {"type": "string"}
         data_schema: dict[str, Any] = {"type": "object"}
     else:
         path = _model_import_path(annotation)
-        path_schema = ({
-            "type": "string",
-            "enum": [path]
-        } if path is not None else {
-            "type": "string"
-        })
+        path_schema = (
+            {"type": "string", "enum": [path]}
+            if path is not None
+            else {"type": "string"}
+        )
         data_schema = _model_ref(annotation, ctx)
 
     return {
@@ -96,7 +100,9 @@ def _model_ref(annotation: type[BaseModel], ctx: _SchemaContext) -> dict[str, An
     required: list[str] = []
 
     for field_name, model_field in annotation.model_fields.items():
-        properties[field_name] = _annotation_to_arango_schema(model_field.annotation, ctx)
+        properties[field_name] = _annotation_to_arango_schema(
+            model_field.annotation, ctx
+        )
         if model_field.is_required():
             required.append(field_name)
 
@@ -114,7 +120,9 @@ def _model_ref(annotation: type[BaseModel], ctx: _SchemaContext) -> dict[str, An
     return ref
 
 
-def _annotation_to_arango_schema(annotation: Any, ctx: _SchemaContext) -> dict[str, Any]:
+def _annotation_to_arango_schema(
+    annotation: Any, ctx: _SchemaContext
+) -> dict[str, Any]:
     if annotation is Any:
         return {}
 
@@ -197,9 +205,7 @@ def _annotation_to_arango_schema(annotation: Any, ctx: _SchemaContext) -> dict[s
         return {
             "type": "object",
             "properties": {
-                _PYDANTIC_TYPE_TAG: {
-                    "type": "string"
-                },
+                _PYDANTIC_TYPE_TAG: {"type": "string"},
             },
             "required": [_PYDANTIC_TYPE_TAG],
             "additionalProperties": True,

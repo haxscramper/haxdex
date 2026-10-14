@@ -1,6 +1,6 @@
 import argparse
 import json
-from loguru import logger
+import logging
 import sys
 import traceback
 import warnings
@@ -8,16 +8,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import commentjson
 from beartype import beartype
+from loguru import logger
 from PyQt6.QtWidgets import QApplication
-from sqlalchemy import event, create_engine, URL
 
-from haxdex.cli.cli_config import _INDEXER_TYPES, _RESOURCE_TYPES, AppConfig, LoggingConfig
+from haxdex.cli.cli_config import (
+    _INDEXER_TYPES,
+    _RESOURCE_TYPES,
+    AppConfig,
+    LoggingConfig,
+)
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.comfy_input_builder import (
-    ComfyInputWidgetBuilder,)
+    ComfyInputWidgetBuilder,
+)
 from haxdex.gui.collection_views.exif_preview_builder import (
-    ExifPreviewrWidgetBuilder,)
+    ExifPreviewrWidgetBuilder,
+)
 from haxdex.gui.collection_views.wd_tagger_builder import WdTaggerWidgetBuilder
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_model import load_actions
@@ -30,24 +38,19 @@ from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext
-import commentjson
-
 from haxdex.services.indexers.comfy_input_indexer import ComfyInputIndexer
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.image_generation import GenerationParamsIndexer
 from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
 from haxdex.services.indexers.wd_indexer import WdTagIndexer
-from haxdex.services.log_config import JsonlFormatter, keep_last_files
+from haxdex.services.log_config import keep_last_files
 from haxdex.services.pydantic_utils import model_to_json_data
-
 from haxdex.services.utils import (
-    dump_with_type,
     get_custom_traceback_handler,
     get_xdg_cache_dir,
     stfu_logs,
 )
 from haxdex.visual.trash_action_visual import visualize_trash_actions
-import logging
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -64,8 +67,7 @@ warnings.showwarning = showwarning
 
 
 @beartype
-class IndexService():
-
+class IndexService:
     @staticmethod
     def reset_for_config(cfg: AppConfig):
         IndexDatabase.reset_database(
@@ -96,7 +98,8 @@ class IndexService():
             for dep in t.required_resources:
                 if dep not in self.cfg.resources:
                     raise ValueError(
-                        f"Resource '{key}' requires resource '{dep}' to be enabled")
+                        f"Resource '{key}' requires resource '{dep}' to be enabled"
+                    )
 
             resource_cfg = self.cfg.resources[key]
             self.resource_instances.append(t(config=resource_cfg))
@@ -111,12 +114,14 @@ class IndexService():
             for dep in t.required_resources:
                 if dep not in self.cfg.resources:
                     raise ValueError(
-                        f"Indexer '{key}' requires resource '{dep}' to be enabled")
+                        f"Indexer '{key}' requires resource '{dep}' to be enabled"
+                    )
 
             for dep in t.required_assets:
                 if dep not in self.cfg.indexers:
                     raise ValueError(
-                        f"Indexer '{key}' requires indexer '{dep}' to be enabled")
+                        f"Indexer '{key}' requires indexer '{dep}' to be enabled"
+                    )
 
             cfg = self.cfg.indexers[key]
             instance = t(
@@ -228,7 +233,8 @@ class IndexService():
         self.ctx.start_trace()
 
         assert set(t.asset_name for t in self.indexer_instances) == set(
-            self.cfg.indexers.keys())
+            self.cfg.indexers.keys()
+        )
 
         with self.ctx.trace_scope("create runner"):
             runner = IndexRuntime(
@@ -241,7 +247,9 @@ class IndexService():
         for idx in self.indexer_instances:
             self.db.enable_index(idx)
 
-        logger.info(f"Enabled indexers {[t.asset_name for t in self.indexer_instances]}")
+        logger.info(
+            f"Enabled indexers {[t.asset_name for t in self.indexer_instances]}"
+        )
 
         run_indexing_per_root_plan(
             db=self.db,
@@ -326,8 +334,9 @@ def main_impl(command: str, cfg: AppConfig):
                 if cfg.act:
                     executor = ActionExecutor(cfg.act.execution)
                     if cfg.action_file.exists():
-                        actions = load_actions(cfg.action_file,
-                                               list(executor.handlers.values()))
+                        actions = load_actions(
+                            cfg.action_file, list(executor.handlers.values())
+                        )
                         executor.init_db()
                         executor.register_actions(actions)
 
@@ -339,10 +348,13 @@ def main_impl(command: str, cfg: AppConfig):
                 win = GenerationExplorerWindow(
                     settings=cfg.generation_explorer,
                     index_database=service.db,
-                    safetensor_indexer=service.get_indexer(SafetensorIndexer.asset_name),
+                    safetensor_indexer=service.get_indexer(
+                        SafetensorIndexer.asset_name
+                    ),
                     wd_tag_indexer=service.get_indexer(WdTagIndexer.asset_name),
                     generation_params_indexer=service.get_indexer(
-                        GenerationParamsIndexer.asset_name),
+                        GenerationParamsIndexer.asset_name
+                    ),
                 )
 
                 win.show()
@@ -354,10 +366,13 @@ def main_impl(command: str, cfg: AppConfig):
                 win = ImageSearchWindow(
                     settings=cfg.generation_explorer,
                     index_database=service.db,
-                    safetensor_indexer=service.get_indexer(SafetensorIndexer.asset_name),
+                    safetensor_indexer=service.get_indexer(
+                        SafetensorIndexer.asset_name
+                    ),
                     wd_tag_indexer=service.get_indexer(WdTagIndexer.asset_name),
                     generation_params_indexer=service.get_indexer(
-                        GenerationParamsIndexer.asset_name),
+                        GenerationParamsIndexer.asset_name
+                    ),
                 )
 
                 win.show()
@@ -376,7 +391,9 @@ def main_impl(command: str, cfg: AppConfig):
             case "undo_act":
                 assert cfg.act
                 executor = ActionExecutor(cfg.act.execution)
-                actions = load_actions(cfg.action_file, list(executor.handlers.values()))
+                actions = load_actions(
+                    cfg.action_file, list(executor.handlers.values())
+                )
                 executor.init_db()
                 executor.register_actions(actions)
                 executor.revert_done()
@@ -413,7 +430,8 @@ def main() -> None:
 
     if args.command == "schema":
         cfg_path.with_stem(cfg_path.stem + "_schema").with_suffix(".json").write_text(
-            json.dumps(AppConfig.model_json_schema(), indent=2))
+            json.dumps(AppConfig.model_json_schema(), indent=2)
+        )
         return
 
     else:

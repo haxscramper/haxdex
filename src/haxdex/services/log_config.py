@@ -1,11 +1,10 @@
 import json
-from loguru import logger
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
-import logging
 
 
 @beartype
@@ -17,7 +16,6 @@ def configure_logging() -> None:
 
 
 class JsonlFormatter(logging.Formatter):
-
     def format(self, record: logging.LogRecord) -> str:
         message = record.getMessage()
         payload: dict[str, Any] = {

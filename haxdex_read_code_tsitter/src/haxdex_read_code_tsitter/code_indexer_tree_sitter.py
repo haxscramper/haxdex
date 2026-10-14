@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import re
 import subprocess
 import time
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
-from tree_sitter import Node, Parser
+from tree_sitter import Parser
 
 from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.code_model import (
     Base,
@@ -31,8 +30,9 @@ from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.extract_python import
 from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.utils import make_parser
 
 
-def index_file(path: Path, rel_path: str, cpp_parser: Parser,
-               python_parser: Parser) -> ParsedEntry:
+def index_file(
+    path: Path, rel_path: str, cpp_parser: Parser, python_parser: Parser
+) -> ParsedEntry:
     suffix = path.suffix.lower()
     if suffix in CPP_SUFFIXES:
         return index_cpp_file(path, rel_path, cpp_parser)
@@ -85,7 +85,8 @@ def persist_entry(session: Session, parent_id: int | None, entry: ParsedEntry) -
                 type_text=arg.type_text,
                 default_value=arg.default_value,
                 kind=arg.kind,
-            ))
+            )
+        )
 
     for child in entry.children:
         persist_entry(session, row.id, child)
@@ -127,7 +128,8 @@ def create_flat_view(session: Session) -> None:
                 e.doc_full AS doc_full,
                 e.start_line AS start_line
             FROM entries e
-            """))
+            """)
+    )
 
 
 def main() -> None:
@@ -137,8 +139,11 @@ def main() -> None:
     args = argp.parse_args()
 
     root = args.root.resolve()
-    output = (args.output.resolve() if args.output is not None else root /
-              ".haxscramper-code-index.sqlite")
+    output = (
+        args.output.resolve()
+        if args.output is not None
+        else root / ".haxscramper-code-index.sqlite"
+    )
     output.unlink(missing_ok=True)
 
     files = gather_git_files(root)

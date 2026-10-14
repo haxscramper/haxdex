@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import contextlib
-import io
 import json
-from loguru import logger
 import os
 import re
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 from typing import Any, Literal
 
 import fitz
 import pymupdf4llm
+from loguru import logger
 from pydantic import BaseModel
 
 from haxdex.services.resources.pdf.page_model import BoundingBox, DocTag
@@ -44,7 +43,8 @@ def _extract_block_text(block: dict) -> str:
                     span_text = "".join(
                         str(span.get("text", ""))
                         for span in spans
-                        if isinstance(span, dict)).strip()
+                        if isinstance(span, dict)
+                    ).strip()
                     if span_text:
                         line_texts.append(span_text)
                         continue
@@ -346,20 +346,30 @@ def _infer_tag_name_from_page_box(box: dict, page_text: str) -> str:
 # --- Page dimension extraction ---
 
 
-def _extract_page_dimensions(page_chunk: dict,) -> tuple[float | None, float | None]:
+def _extract_page_dimensions(
+    page_chunk: dict,
+) -> tuple[float | None, float | None]:
     width = page_chunk.get("width")
     height = page_chunk.get("height")
 
-    if (isinstance(width, (int, float)) and isinstance(height, (int, float)) and
-            width > 0 and height > 0):
+    if (
+        isinstance(width, (int, float))
+        and isinstance(height, (int, float))
+        and width > 0
+        and height > 0
+    ):
         return float(width), float(height)
 
     metadata = page_chunk.get("metadata", {})
     if isinstance(metadata, dict):
         width = metadata.get("width")
         height = metadata.get("height")
-        if (isinstance(width, (int, float)) and isinstance(height, (int, float)) and
-                width > 0 and height > 0):
+        if (
+            isinstance(width, (int, float))
+            and isinstance(height, (int, float))
+            and width > 0
+            and height > 0
+        ):
             return float(width), float(height)
 
     file_path = metadata.get("file_path") if isinstance(metadata, dict) else None
@@ -377,8 +387,9 @@ def _extract_page_dimensions(page_chunk: dict,) -> tuple[float | None, float | N
 # --- Page chunk → DocTag tree ---
 
 
-def _populate_tags_from_page_chunk(root_tag: DocTag, page_chunk: dict,
-                                   page_num: int) -> None:
+def _populate_tags_from_page_chunk(
+    root_tag: DocTag, page_chunk: dict, page_num: int
+) -> None:
     tag_counter = 1
     page_width, page_height = _extract_page_dimensions(page_chunk)
 
@@ -498,7 +509,8 @@ def _populate_tags_from_page_chunk(root_tag: DocTag, page_chunk: dict,
                 tag_name="text",
                 text=text,
                 bbox=None,
-            ))
+            )
+        )
 
 
 @contextlib.contextmanager
@@ -510,8 +522,10 @@ def _silence_pymupdf4llm():
     saved_out_fd = os.dup(1)
     saved_err_fd = os.dup(2)
 
-    with tempfile.TemporaryFile(mode="w+b") as out_tmp, \
-            tempfile.TemporaryFile(mode="w+b") as err_tmp:
+    with (
+        tempfile.TemporaryFile(mode="w+b") as out_tmp,
+        tempfile.TemporaryFile(mode="w+b") as err_tmp,
+    ):
         os.dup2(out_tmp.fileno(), 1)
         os.dup2(err_tmp.fileno(), 2)
         try:
@@ -548,8 +562,10 @@ class MyPDFExtractor:
                 )
             except Exception as e:
                 captured = (out.getvalue() + err.getvalue()).strip()
-                raise RuntimeError(f"pymupdf4llm failed on page {page_num}: {e}" + (
-                    f"\n--- captured output ---\n{captured}" if captured else "")) from e
+                raise RuntimeError(
+                    f"pymupdf4llm failed on page {page_num}: {e}"
+                    + (f"\n--- captured output ---\n{captured}" if captured else "")
+                ) from e
 
         if not chunks:
             return MyPDFPage(

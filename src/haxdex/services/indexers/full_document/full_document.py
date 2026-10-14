@@ -1,30 +1,24 @@
-from argparse import ArgumentError
-import hashlib
-import json
-from loguru import logger
 from pathlib import Path
-from typing import Annotated, Literal, Union
+from typing import Annotated, Union
 
+import magic
+import plumbum
+from beartype.typing import Annotated, Any, ClassVar, Union
+from loguru import logger
+from pydantic import Field
 from sqlalchemy import Engine
 
-from haxdex.services.utils import ExceptionContextNote
-import magic
-from beartype.typing import ClassVar, Sequence, cast, Annotated, Union, Any
-from pydantic import BaseModel, Field
-import plumbum
-
+import haxdex.services.indexers.full_document.full_document_types as doc_types
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import (
     IndexDocument,
+    IndexEdge,
     IndexerOutput,
     IndexerRequest,
-    IndexEdge,
     MultiDocumentModel,
 )
 from haxdex.services.indexers.full_document.from_pandoc import pandoc_to_document
 from haxdex.services.indexers.full_document.full_document_types import _flatten
-
-import haxdex.services.indexers.full_document.full_document_types as doc_types
 
 
 class DocumentBlockIndexerResult(MultiDocumentModel, extra="forbid"):
@@ -62,8 +56,9 @@ class DocumentBlockIndexer(BaseIndexer):
     def __init__(self, config: BaseIndexerConfig, database: Engine) -> None:
         super().__init__(config=config, database=database)
         self._magic = magic.Magic(mime=True)
-        self.supported_readers: set[str] = set(plumbum.local["pandoc"].run(
-            ["--list-input-formats"])[1].splitlines())
+        self.supported_readers: set[str] = set(
+            plumbum.local["pandoc"].run(["--list-input-formats"])[1].splitlines()
+        )
 
         self.extension_to_reader: dict[str, str] = {
             ".md": "markdown",

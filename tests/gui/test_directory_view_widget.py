@@ -1,18 +1,26 @@
-from PyQt6.QtCore import QAbstractItemModel, QModelIndex, QSortFilterProxyModel, Qt, QRect, QPoint
+import pytest
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QModelIndex,
+    QPoint,
+    QRect,
+    QSortFilterProxyModel,
+    Qt,
+)
 from PyQt6.QtGui import QColor, QPalette, QPen
+from PyQt6.QtTest import QSignalSpy
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
 )
-
-from pathlib import Path
-
-import pytest
 from pytestqt.qtbot import QtBot
-from PyQt6.QtCore import QModelIndex, Qt
-from PyQt6.QtTest import QSignalSpy
 
-from hstd_py_qt.src.hstd_py_qt.directory_view import MixedTreeTileView, BaseDirDelegate, TileDelegate, attr_label
+from hstd_py_qt.src.hstd_py_qt.directory_view import (
+    BaseDirDelegate,
+    MixedTreeTileView,
+    TileDelegate,
+    attr_label,
+)
 
 
 class SynNode:
@@ -78,8 +86,10 @@ class SynModel(QAbstractItemModel):
         return node.props[index.column() - 1]
 
     def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
-        if (orientation == Qt.Orientation.Horizontal and
-                role == Qt.ItemDataRole.DisplayRole):
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+        ):
             return self.HEADERS[section]
         return None
 
@@ -108,7 +118,6 @@ class SynDirDelegate(BaseDirDelegate):
 
 
 class SynFileDelegate(TileDelegate):
-
     def paint(self, painter, primary, area, attributes, state):
         pal = QApplication.palette()
         rect = QRect(QPoint(0, 0), area)
@@ -128,23 +137,26 @@ class SynFileDelegate(TileDelegate):
         margin = 6
         side = area.height() - 2 * margin
         preview = QRect(margin, margin, side, side)
-        h = (hash(name) % 360)
+        h = hash(name) % 360
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor.fromHsv(h, 160, 220))
         painter.drawEllipse(preview.adjusted(6, 6, -6, -6))
 
         text_x = preview.right() + 8
         painter.setPen(pal.color(QPalette.ColorRole.Text))
-        painter.drawText(QRect(text_x, 6,
-                               area.width() - text_x - 6, 18),
-                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, name)
+        painter.drawText(
+            QRect(text_x, 6, area.width() - text_x - 6, 18),
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            name,
+        )
 
         y = 26
         for a in attributes:
-            painter.drawText(QRect(text_x, y,
-                                   area.width() - text_x - 6, 16),
-                             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                             attr_label(a))
+            painter.drawText(
+                QRect(text_x, y, area.width() - text_x - 6, 16),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                attr_label(a),
+            )
             y += 16
         painter.restore()
 
@@ -162,7 +174,6 @@ class SynFileDelegate(TileDelegate):
 
 
 class MainWindow(QMainWindow):
-
     def __init__(self, root: SynNode, parent=None):
         super().__init__(parent)
         self.setWindowTitle("MixedTreeTileView demo")
@@ -220,9 +231,9 @@ def gui_app_instance(
 
 
 def find_index(
-        window: MainWindow,
-        name: str,
-        parent: QModelIndex = QModelIndex(),
+    window: MainWindow,
+    name: str,
+    parent: QModelIndex = QModelIndex(),
 ) -> QModelIndex:
     model = window.proxy_model
 
@@ -255,7 +266,9 @@ def click_index(
     )
 
 
-def test_root_directories_are_visible(gui_app_instance: MainWindow,) -> None:
+def test_root_directories_are_visible(
+    gui_app_instance: MainWindow,
+) -> None:
     window = gui_app_instance
     view = window.directory_view
 
@@ -316,7 +329,9 @@ def test_file_click_updates_current_index_and_selection(
     assert view.selectionModel().isSelected(first_file)
 
 
-def test_setting_tree_resets_model_and_view(gui_app_instance: MainWindow,) -> None:
+def test_setting_tree_resets_model_and_view(
+    gui_app_instance: MainWindow,
+) -> None:
     window = gui_app_instance
     reset_spy = QSignalSpy(window.synthetic_model.modelReset)
 

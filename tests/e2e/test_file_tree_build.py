@@ -5,8 +5,12 @@ from PyQt6.QtCore import QModelIndex
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
-from haxdex.services.indexers.file_size import FileSizeIndexer
-from tests.utils import init_index_service, init_file_tree_config, sub_row_by_name, init_file_tree_columns
+from tests.utils import (
+    init_file_tree_columns,
+    init_file_tree_config,
+    init_index_service,
+    sub_row_by_name,
+)
 
 
 def test_e2e_tree_build(stable_test_dir: Path):

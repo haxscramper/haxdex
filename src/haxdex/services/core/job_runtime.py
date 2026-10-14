@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from loguru import logger
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from time import monotonic, perf_counter
 from beartype import beartype
 from beartype.typing import Optional, Sequence
 from graphviz import Digraph
+from loguru import logger
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_cache import (
@@ -100,14 +100,31 @@ class ExecutionPlan:
 
         lines.append("  batches: " + str(len(self.batches)))
         for batch_idx, batch in enumerate(self.batches, start=1):
-            lines.append("    - batch " + str(batch_idx) + "/" + str(len(self.batches)) +
-                         ": indexer=" + batch.indexer_name + ", kind=" +
-                         batch.kind.value + ", window=" + str(batch.window_id) +
-                         ", files=" + str(len(batch.file_refs)) + ", sub_batches=" +
-                         str(len(batch.sub_batches)))
+            lines.append(
+                "    - batch "
+                + str(batch_idx)
+                + "/"
+                + str(len(self.batches))
+                + ": indexer="
+                + batch.indexer_name
+                + ", kind="
+                + batch.kind.value
+                + ", window="
+                + str(batch.window_id)
+                + ", files="
+                + str(len(batch.file_refs))
+                + ", sub_batches="
+                + str(len(batch.sub_batches))
+            )
             for sub_idx, sub in enumerate(batch.sub_batches, start=1):
-                lines.append("      - sub_batch " + str(sub_idx) + "/" +
-                             str(len(batch.sub_batches)) + ": size=" + str(len(sub)))
+                lines.append(
+                    "      - sub_batch "
+                    + str(sub_idx)
+                    + "/"
+                    + str(len(batch.sub_batches))
+                    + ": size="
+                    + str(len(sub))
+                )
 
         return "\n".join(lines)
 
@@ -135,13 +152,12 @@ class ExecutionPlan:
 
 @beartype
 class IndexRuntime:
-
     def __init__(
-            self,
-            ctx: RunContext,
-            db: IndexDatabase,
-            indexer_types: Sequence[BaseIndexer] = list(),
-            resource_types: Sequence[BaseResource] = list(),
+        self,
+        ctx: RunContext,
+        db: IndexDatabase,
+        indexer_types: Sequence[BaseIndexer] = list(),
+        resource_types: Sequence[BaseResource] = list(),
     ) -> None:
         self.db = db
         self.ctx = ctx
@@ -296,9 +312,9 @@ class IndexRuntime:
                 if not indexer.can_run(path):
                     continue
 
-                if self.db.has_indexer_result(ref,
-                                              indexer.asset_name,
-                                              short_circuit_this_check=True):
+                if self.db.has_indexer_result(
+                    ref, indexer.asset_name, short_circuit_this_check=True
+                ):
                     arango.add(name)
                 elif has_cached_result(indexer, ref.hash.hash):
                     cached.add(name)
@@ -312,7 +328,8 @@ class IndexRuntime:
                     arango_indexers=frozenset(arango),
                     cached_indexers=frozenset(cached),
                     missing_indexers=frozenset(missing),
-                ))
+                )
+            )
 
         return prepared
 
@@ -337,24 +354,29 @@ class IndexRuntime:
                     continue
 
                 actions.append(
-                    IndexerAction(file_ref=pf.ref, indexer_name=name, kind=kind))
+                    IndexerAction(file_ref=pf.ref, indexer_name=name, kind=kind)
+                )
 
         return actions
 
-    def prepare_and_create_plan(self, files: list[FileRef],
-                                indexers: Sequence[BaseIndexer]) -> ExecutionPlan:
+    def prepare_and_create_plan(
+        self, files: list[FileRef], indexers: Sequence[BaseIndexer]
+    ) -> ExecutionPlan:
         return self.create_plan(self.prepare_files(files, indexers), indexers)
 
-    def create_plan(self, prepared: list[PreparedFile],
-                    indexers: Sequence[BaseIndexer]) -> ExecutionPlan:
+    def create_plan(
+        self, prepared: list[PreparedFile], indexers: Sequence[BaseIndexer]
+    ) -> ExecutionPlan:
         names = [i.asset_name for i in indexers]
         windows = self.build_windows(names)
         requested = {name for window in windows for name in window}
         dependencies = {
-            name:
-                tuple(dep
-                      for dep in self._indexer_instances[name].required_assets
-                      if dep in requested) for name in sorted(requested)
+            name: tuple(
+                dep
+                for dep in self._indexer_instances[name].required_assets
+                if dep in requested
+            )
+            for name in sorted(requested)
         }
 
         actions = self.build_actions(prepared, indexers)
@@ -362,10 +384,13 @@ class IndexRuntime:
         for action in actions:
             if action.kind == ActionKind.skip:
                 continue
-            by_kind = actions_by_indexer.setdefault(action.indexer_name, {
-                ActionKind.copy_cache: [],
-                ActionKind.run_indexer: [],
-            })
+            by_kind = actions_by_indexer.setdefault(
+                action.indexer_name,
+                {
+                    ActionKind.copy_cache: [],
+                    ActionKind.run_indexer: [],
+                },
+            )
             by_kind[action.kind].append(action.file_ref)
 
         planned: list[PlannedIndexerBatch] = []
@@ -387,13 +412,14 @@ class IndexRuntime:
                             file_refs=copy_refs,
                             sub_batches=[copy_refs],
                             window_id=window_id,
-                        ))
+                        )
+                    )
 
                 run_refs = by_kind[ActionKind.run_indexer]
                 if run_refs:
                     chunk_size = max(1, indexer.max_parallel)
                     sub_batches = [
-                        run_refs[i:i + chunk_size]
+                        run_refs[i : i + chunk_size]
                         for i in range(0, len(run_refs), chunk_size)
                     ]
                     planned.append(
@@ -403,7 +429,8 @@ class IndexRuntime:
                             file_refs=run_refs,
                             sub_batches=sub_batches,
                             window_id=window_id,
-                        ))
+                        )
+                    )
 
         return ExecutionPlan(
             batches=planned,
@@ -421,9 +448,11 @@ class IndexRuntime:
 
             if completed_batches > 0 and elapsed > 0:
                 batches_per_min = (completed_batches / elapsed) * 60.0
-                eta_plan_sec = ((total_batches - completed_batches) /
-                                (batches_per_min / 60.0)
-                                if batches_per_min > 0 else float("inf"))
+                eta_plan_sec = (
+                    (total_batches - completed_batches) / (batches_per_min / 60.0)
+                    if batches_per_min > 0
+                    else float("inf")
+                )
                 batches_per_min_str = f"{batches_per_min:.2f}"
                 eta_plan_str = f"{eta_plan_sec:.1f}s"
             else:
@@ -431,8 +460,7 @@ class IndexRuntime:
                 eta_plan_str = "unknown"
 
             logger.debug(
-                "batch {}/{}: indexer={} kind={} window={} files={} sub_batches={} batches_per_min={} eta_plan={}"
-                .format(
+                "batch {}/{}: indexer={} kind={} window={} files={} sub_batches={} batches_per_min={} eta_plan={}".format(
                     batch_idx,
                     total_batches,
                     batch.indexer_name,
@@ -442,17 +470,18 @@ class IndexRuntime:
                     len(batch.sub_batches),
                     batches_per_min_str,
                     eta_plan_str,
-                ),)
+                ),
+            )
 
             with self.ctx.trace_scope(
-                    "execute batch",
-                    batch=batch_idx,
-                    total_batches=total_batches,
-                    indexer=batch.indexer_name,
-                    kind=batch.kind.value,
-                    window=batch.window_id,
-                    files=len(batch.file_refs),
-                    sub_batches=len(batch.sub_batches),
+                "execute batch",
+                batch=batch_idx,
+                total_batches=total_batches,
+                indexer=batch.indexer_name,
+                kind=batch.kind.value,
+                window=batch.window_id,
+                files=len(batch.file_refs),
+                sub_batches=len(batch.sub_batches),
             ):
                 if batch.kind == ActionKind.copy_cache:
                     self._run_copy_cache_batch(batch)
@@ -468,23 +497,23 @@ class IndexRuntime:
         indexers: Sequence[BaseIndexer],
     ) -> None:
         with self.ctx.trace_scope(
-                "file preparation",
-                files=len(files),
-                indexers=len(indexers),
+            "file preparation",
+            files=len(files),
+            indexers=len(indexers),
         ):
             prepared = self.prepare_files(files, indexers)
 
         with self.ctx.trace_scope(
-                "plan construction",
-                files=len(files),
-                indexers=len(indexers),
+            "plan construction",
+            files=len(files),
+            indexers=len(indexers),
         ):
             plan = self.create_plan(prepared, indexers)
 
         with self.ctx.trace_scope(
-                "plan execution",
-                batches=len(plan.batches),
-                total_runs=plan.total_runs(),
+            "plan execution",
+            batches=len(plan.batches),
+            total_runs=plan.total_runs(),
         ):
             self.execute_plan(plan)
 
@@ -505,7 +534,9 @@ class IndexRuntime:
     def run_indexer(self, file: FileRef, indexers: Sequence[BaseIndexer]):
         self.run_indexers([file], indexers)
 
-    def _read_meta_output(self, indexer: BaseIndexer, path: Path) -> IndexerOutput | None:
+    def _read_meta_output(
+        self, indexer: BaseIndexer, path: Path
+    ) -> IndexerOutput | None:
         """Read this indexer's cached output from the sidecar meta file, if
         present. Missing entries do NOT produce an error output -- the
         indexer is run normally instead."""
@@ -525,9 +556,11 @@ class IndexRuntime:
     def _run_copy_cache_batch(self, batch: PlannedIndexerBatch) -> None:
         indexer = self._indexer_instances[batch.indexer_name]
 
-        with self.ctx.trace_scope("copy cache to arango",
-                                  indexer=indexer.asset_name,
-                                  files=len(batch.file_refs)):
+        with self.ctx.trace_scope(
+            "copy cache to arango",
+            indexer=indexer.asset_name,
+            files=len(batch.file_refs),
+        ):
             for ref in batch.file_refs:
                 out = load_cached_output(self.ctx, indexer, ref.hash.hash)
                 if out is None:
@@ -536,9 +569,12 @@ class IndexRuntime:
                 if not is_processed_result(out.result):
                     continue
 
-                with ExceptionContextNote(
+                with (
+                    ExceptionContextNote(
                         f"copy cached indexer asset: {indexer.asset_name}"
-                ), self.ctx.trace_scope("do cache copy"):
+                    ),
+                    self.ctx.trace_scope("do cache copy"),
+                ):
                     self.db.store_indexer_output(ref, out)
 
     def _run_indexer_batch(self, batch: PlannedIndexerBatch) -> None:
@@ -565,11 +601,11 @@ class IndexRuntime:
             execution_started = perf_counter()
 
             with (
-                    ExceptionContextNote(
-                        f"running indexer '{indexer.asset_name}' for '{path} {ref.hash}'"
-                    ),
-                    ExceptionContextNote(f"request {request}"),
-                    self.ctx.trace_scope("index", file=str(path)),
+                ExceptionContextNote(
+                    f"running indexer '{indexer.asset_name}' for '{path} {ref.hash}'"
+                ),
+                ExceptionContextNote(f"request {request}"),
+                self.ctx.trace_scope("index", file=str(path)),
             ):
                 out = indexer.run(
                     ctx=self.ctx,
@@ -596,8 +632,9 @@ class IndexRuntime:
             remaining_sub_batches = total_sub_batches - sub_idx + 1
 
             if recent_sub_batch_times:
-                average_sub_batch_sec = (sum(recent_sub_batch_times) /
-                                         len(recent_sub_batch_times))
+                average_sub_batch_sec = sum(recent_sub_batch_times) / len(
+                    recent_sub_batch_times
+                )
                 sub_batches_per_sec = 1 / average_sub_batch_sec
                 eta_batch_sec = remaining_sub_batches * average_sub_batch_sec
                 sub_batches_per_sec_str = f"{sub_batches_per_sec:.2f}"
@@ -607,24 +644,24 @@ class IndexRuntime:
                 eta_batch_str = "unknown"
 
             logger.debug(
-                "sub-batch {}/{}: indexer={} size={} sub_batches_per_sec={} eta_batch={}".
-                format(
+                "sub-batch {}/{}: indexer={} size={} sub_batches_per_sec={} eta_batch={}".format(
                     sub_idx,
                     total_sub_batches,
                     batch.indexer_name,
                     len(chunk),
                     sub_batches_per_sec_str,
                     eta_batch_str,
-                ),)
+                ),
+            )
 
             sub_batch_started_at = monotonic()
 
             with self.ctx.trace_scope(
-                    "execute sub-batch",
-                    indexer=batch.indexer_name,
-                    sub_batch=sub_idx,
-                    total_sub_batches=total_sub_batches,
-                    size=len(chunk),
+                "execute sub-batch",
+                indexer=batch.indexer_name,
+                sub_batch=sub_idx,
+                total_sub_batches=total_sub_batches,
+                size=len(chunk),
             ):
                 if len(chunk) > 1 and indexer.max_parallel > 1:
                     with ThreadPoolExecutor(max_workers=indexer.max_parallel) as ex:
@@ -634,13 +671,16 @@ class IndexRuntime:
 
                 completed = [c for c in completed_1 if c is not None]
 
-                with self.ctx.trace_scope("store all indexer results",
-                                          indexer=indexer.asset_name):
+                with self.ctx.trace_scope(
+                    "store all indexer results", indexer=indexer.asset_name
+                ):
                     for ref, out in completed:
                         if not is_processed_result(out.result):
                             continue
 
-                        with ExceptionContextNote(f"indexer asset: {indexer.asset_name}"):
+                        with ExceptionContextNote(
+                            f"indexer asset: {indexer.asset_name}"
+                        ):
                             self.db.store_indexer_output(ref, out)
 
             recent_sub_batch_times.append(monotonic() - sub_batch_started_at)

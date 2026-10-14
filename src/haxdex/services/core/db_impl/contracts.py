@@ -14,8 +14,7 @@ class BaseIndexProtocol(Protocol):
     edge_collection_name: Optional[str]
     reset_db_collection: bool
 
-    def get_document_type_bases(self) -> list[Any]:
-        ...
+    def get_document_type_bases(self) -> list[Any]: ...
 
 
 @beartype

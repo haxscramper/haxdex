@@ -1,5 +1,5 @@
 from __future__ import annotations
-from loguru import logger
+
 from typing import Any, Dict, List, Optional
 
 from beartype import beartype
@@ -17,11 +17,9 @@ from haxdex.services.core.types import FileHash
 
 @beartype
 class QueryResultModel(QAbstractListModel):
-
-    def __init__(self,
-                 db: IndexDatabase,
-                 batch_size: int,
-                 parent: Optional[QObject] = None) -> None:
+    def __init__(
+        self, db: IndexDatabase, batch_size: int, parent: Optional[QObject] = None
+    ) -> None:
         super().__init__(parent)
         self._db = db
         self._cursor: Any = None

@@ -1,16 +1,15 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
-
-from hstd_py_qt.src.hstd_py_qt.column_model import ColumnSpec
-from beartype.typing import Any, cast, Optional, ClassVar
+from beartype.typing import Any, ClassVar, Optional, cast
 from pydantic import BaseModel, Field
-from abc import ABC, abstractmethod
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.core.types import AnyModel, FileHash
+from hstd_py_qt.src.hstd_py_qt.column_model import ColumnSpec
 
 
 class FilePathResult(BaseModel):
@@ -30,7 +29,7 @@ class FileTreeNode(BaseModel):
 
 @beartype
 @dataclass
-class FileTreeInitArgs():
+class FileTreeInitArgs:
     is_directory: bool
     path: Path
     root: str
@@ -40,7 +39,6 @@ class FileTreeInitArgs():
 
 @beartype
 class FileTreeColumnSpec(ColumnSpec, ABC):
-
     def __init__(self, title: str) -> None:
         self.title = title
 
@@ -58,7 +56,9 @@ class FileTreeColumnSpec(ColumnSpec, ABC):
         raise NotImplementedError()
 
     def getColumnData(self, index: QModelIndex) -> Optional[BaseModel]:
-        result = cast(FileTreeNode, index.internalPointer()).columns.get(self.column_name)
+        result = cast(FileTreeNode, index.internalPointer()).columns.get(
+            self.column_name
+        )
         assert result is None or isinstance(result, self.column_type), f"{type(result)}"
         return result
 
@@ -87,7 +87,10 @@ class FileTreeColumnSpec(ColumnSpec, ABC):
             case Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole:
                 return self.title
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return self.title
 
             case _:

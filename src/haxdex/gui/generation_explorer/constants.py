@@ -1,5 +1,6 @@
-from PyQt6.QtGui import QColor
 import enum
+
+from PyQt6.QtGui import QColor
 
 RUN_BTN_W = 64
 RUN_BTN_H = 26

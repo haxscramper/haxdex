@@ -1,7 +1,13 @@
 import json
 
 from beartype.typing import Any
-from PyQt6.QtCore import QAbstractListModel, QModelIndex, QSortFilterProxyModel, Qt, QSize
+from PyQt6.QtCore import (
+    QAbstractListModel,
+    QModelIndex,
+    QSize,
+    QSortFilterProxyModel,
+    Qt,
+)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
@@ -14,12 +20,12 @@ from PyQt6.QtWidgets import (
     QListView,
     QListWidget,
     QListWidgetItem,
+    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSplitter,
     QVBoxLayout,
     QWidget,
-    QPlainTextEdit,
 )
 
 from haxdex.services.core.db import IndexDatabase
@@ -37,7 +43,6 @@ ROLE_TAGS = ROLE_RECORD + 1
 
 
 class ImageSearchListModel(QAbstractListModel):
-
     def __init__(self, rows: list[ImageSearchRecord]):
         super().__init__()
         self.rows = rows
@@ -64,7 +69,6 @@ class ImageSearchListModel(QAbstractListModel):
 
 
 class ImageTagFilterProxy(QSortFilterProxyModel):
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.exact_tags: set[str] = set()
@@ -100,7 +104,6 @@ class ImageTagFilterProxy(QSortFilterProxyModel):
 
 
 class TagInputBlock(QFrame):
-
     def __init__(self, title: str, suggestions: list[str], parent=None):
         super().__init__(parent)
 
@@ -169,7 +172,6 @@ class TagInputBlock(QFrame):
 
 
 class ImageOverlayDialog(QDialog):
-
     def __init__(self, record: ImageSearchRecord, parent=None):
         super().__init__(parent)
         self.record = record
@@ -245,8 +247,9 @@ class ImageOverlayDialog(QDialog):
         return {
             "path": self.record.path,
             "md5": self.record.md5,
-            "generation_params":
-                (generation.model_dump() if generation is not None else None),
+            "generation_params": (
+                generation.model_dump() if generation is not None else None
+            ),
             "wd_tags": (wd_tags.model_dump() if wd_tags is not None else None),
         }
 
@@ -265,7 +268,6 @@ class ImageOverlayDialog(QDialog):
 
 
 class ImageSearchWindow(QWidget):
-
     def __init__(
         self,
         settings: ExplorerSettings,

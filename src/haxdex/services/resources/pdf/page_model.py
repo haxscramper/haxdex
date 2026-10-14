@@ -1,5 +1,6 @@
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
 
 
 class BoundingBox(BaseModel):
@@ -17,7 +18,7 @@ class DocTag(BaseModel):
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
     # Tree Structure
-    nested: List['DocTag'] = Field(default_factory=list)
+    nested: List["DocTag"] = Field(default_factory=list)
 
     # User Annotations (GUI overrides)
     user_removed: bool = False

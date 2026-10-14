@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import pandas as pd
 from beartype import beartype
 from beartype.typing import Any, Mapping, Sequence
-import pandas as pd
-
 from PyQt6.QtCore import (
+    QAbstractItemModel,
     QModelIndex,
     QSettings,
-    QAbstractItemModel,
     Qt,
 )
 
@@ -57,7 +56,8 @@ def qt_model_to_dataframe(
         unresolved_display = [format_role(r) for r in unresolved]
         raise ValueError(
             f"Could not resolve role names for roles: {unresolved_display}. "
-            "Provide them via `role_names` or ensure `model.roleNames()` contains them.")
+            "Provide them via `role_names` or ensure `model.roleNames()` contains them."
+        )
 
     root_column_count = model.columnCount()
     column_names = [
@@ -82,12 +82,15 @@ def qt_model_to_dataframe(
                 row_dict["_tree_depth"] = len(path)
 
             if with_tree_path:
-                row_dict["_tree_path"] = path + (row,),
+                row_dict["_tree_path"] = (path + (row,),)
 
             for column in range(column_count):
                 index = model.index(row, column, parent)
-                column_name = (column_names[column]
-                               if column < len(column_names) else f"column_{column}")
+                column_name = (
+                    column_names[column]
+                    if column < len(column_names)
+                    else f"column_{column}"
+                )
                 if multi_role:
                     row_dict[column_name] = {
                         resolved_role_names[r]: model.data(index, r) for r in roles

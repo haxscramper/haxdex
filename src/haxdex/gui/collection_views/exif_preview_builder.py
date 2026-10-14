@@ -5,7 +5,6 @@ from beartype.typing import Optional, cast
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
     QApplication,
     QHBoxLayout,
     QHeaderView,
@@ -22,13 +21,13 @@ from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.types import FileHash
 from haxdex.services.indexers.exif_metadata import (
     ExifMetadataIndexer,
     ExifMetadataIndexerResult,
     ImageParams,
 )
 from haxdex.services.pydantic_utils import model_to_json_data
-from haxdex.services.core.types import FileHash
 
 
 class ExifPreviewrWidgetBuilder(WidgetBuilder):
@@ -70,33 +69,43 @@ class ExifPreviewrWidgetBuilder(WidgetBuilder):
         pixmap = QPixmap(str(path.resolve()))
         if not pixmap.isNull():
             img_label.setPixmap(
-                pixmap.scaledToWidth(300, Qt.TransformationMode.SmoothTransformation))
+                pixmap.scaledToWidth(300, Qt.TransformationMode.SmoothTransformation)
+            )
 
         img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         outer.addWidget(img_label)
 
         outer.addWidget(
-            QLabel("{}x{} {} on {}".format(
-                *params.size,
-                path.name,
-                params.image_time,
-            )))
+            QLabel(
+                "{}x{} {} on {}".format(
+                    *params.size,
+                    path.name,
+                    params.image_time,
+                )
+            )
+        )
 
         # --- table with data ---
         data_table = QTableWidget(4, 1)
         data_table.setHorizontalHeaderLabels(["value"])
         data_table.setVerticalHeaderLabels(
-            ["PROMPT TEXT", "NEGATIVE PROMPT", "TAGS", "MODEL"])
-        data_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            ["PROMPT TEXT", "NEGATIVE PROMPT", "TAGS", "MODEL"]
+        )
+        data_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         data_table.verticalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents)
+            QHeaderView.ResizeMode.ResizeToContents
+        )
 
-        for row, value in enumerate([
+        for row, value in enumerate(
+            [
                 params.prompt,
                 params.negative_prompt,
                 str(params.tags),
                 params.model,
-        ]):
+            ]
+        ):
             item = QTableWidgetItem(value)
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             data_table.setItem(row, 0, item)
@@ -126,9 +135,11 @@ class ExifPreviewrWidgetBuilder(WidgetBuilder):
             lora_table = QTableWidget(len(params.loras), 2)
             lora_table.setHorizontalHeaderLabels(["name", "weight"])
             lora_table.horizontalHeader().setSectionResizeMode(
-                0, QHeaderView.ResizeMode.Stretch)
+                0, QHeaderView.ResizeMode.Stretch
+            )
             lora_table.horizontalHeader().setSectionResizeMode(
-                1, QHeaderView.ResizeMode.ResizeToContents)
+                1, QHeaderView.ResizeMode.ResizeToContents
+            )
             lora_table.verticalHeader().setVisible(False)
             for row, lora in enumerate(params.loras):
                 name_item = QTableWidgetItem(lora.name)

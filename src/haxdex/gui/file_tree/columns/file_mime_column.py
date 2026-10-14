@@ -1,13 +1,14 @@
-from pathlib import Path
-
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from haxdex.services.core.types import FileHash
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer, FileMimeIndexerResult
 
 
@@ -49,7 +50,10 @@ class FileMimeColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return mime
 
-            case CustomModelRole.FilterDataRole.value | CustomModelRole.SortDataRole.value:
+            case (
+                CustomModelRole.FilterDataRole.value
+                | CustomModelRole.SortDataRole.value
+            ):
                 return mime.mime_type
 
             case _:

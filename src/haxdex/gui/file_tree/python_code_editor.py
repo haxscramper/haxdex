@@ -1,13 +1,14 @@
+import traceback
+from dataclasses import dataclass
+from typing import Callable, Mapping
+
+import jedi
+from beartype import beartype
+from loguru import logger
 from PyQt6.Qsci import QsciLexerPython, QsciScintilla
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFontDatabase, QKeyEvent, QColor
+from PyQt6.QtGui import QColor, QFontDatabase, QKeyEvent
 from PyQt6.QtWidgets import QWidget
-from beartype import beartype
-from dataclasses import dataclass
-import traceback
-from loguru import logger
-import jedi
-from typing import Callable, Mapping
 
 QUERY_FILENAME = "<glom-query>"
 QUERY_ERROR_INDICATOR = 8
@@ -21,7 +22,6 @@ class QueryLocation:
 
 
 class QueryError(Exception):
-
     def __init__(self, message: str, location: QueryLocation | None = None) -> None:
         super().__init__(message)
         self.location = location
@@ -75,11 +75,14 @@ class PythonQueryEditor(QsciScintilla):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._jedi_runtime_namespaces: list[dict[str, object]] = []
-        self._jedi_runtime_namespace_provider: Callable[[], Mapping[str,
-                                                                    object]] | None = None
+        self._jedi_runtime_namespace_provider: (
+            Callable[[], Mapping[str, object]] | None
+        ) = None
         self._configure_editor()
 
-    def set_jedi_runtime_namespaces(self, namespaces: list[Mapping[str, object]]) -> None:
+    def set_jedi_runtime_namespaces(
+        self, namespaces: list[Mapping[str, object]]
+    ) -> None:
         self._jedi_runtime_namespaces = [dict(namespace) for namespace in namespaces]
 
     def set_jedi_runtime_namespace_provider(
@@ -89,7 +92,9 @@ class PythonQueryEditor(QsciScintilla):
         self._jedi_runtime_namespace_provider = provider
 
     def _configure_editor(self) -> None:
-        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont,)
+        font = QFontDatabase.systemFont(
+            QFontDatabase.SystemFont.FixedFont,
+        )
         font.setFixedPitch(True)
 
         self.python_lexer = QsciLexerPython(self)
@@ -108,7 +113,9 @@ class PythonQueryEditor(QsciScintilla):
         self.setTabWidth(4)
         self.setIndentationGuides(True)
 
-        self.setBraceMatching(QsciScintilla.BraceMatch.SloppyBraceMatch,)
+        self.setBraceMatching(
+            QsciScintilla.BraceMatch.SloppyBraceMatch,
+        )
         self.setCaretLineVisible(True)
 
         self.setMarginType(
@@ -183,10 +190,16 @@ class PythonQueryEditor(QsciScintilla):
                 return
 
         opening = event.text()
-        if (self.hasSelectedText() and opening in self._DELIMITER_PAIRS and
-                not modifiers &
-            (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier |
-             Qt.KeyboardModifier.MetaModifier)):
+        if (
+            self.hasSelectedText()
+            and opening in self._DELIMITER_PAIRS
+            and not modifiers
+            & (
+                Qt.KeyboardModifier.ControlModifier
+                | Qt.KeyboardModifier.AltModifier
+                | Qt.KeyboardModifier.MetaModifier
+            )
+        ):
             selected = self.selectedText()
             closing = self._DELIMITER_PAIRS[opening]
             self.replaceSelectedText(f"{opening}{selected}{closing}")
@@ -244,7 +257,9 @@ class PythonQueryEditor(QsciScintilla):
 
         line, column = self.getCursorPosition()
         source = self.text()
-        interpreter = jedi.Interpreter(source, namespaces=self._collect_jedi_namespaces())
+        interpreter = jedi.Interpreter(
+            source, namespaces=self._collect_jedi_namespaces()
+        )
         completions = interpreter.complete(line + 1, column)
 
         names = sorted(
@@ -287,19 +302,23 @@ class PythonQueryEditor(QsciScintilla):
         if remainder.startswith("# "):
             marker_length = 2
             updated = content[:indentation_length] + remainder[marker_length:]
-            updated_column = (column -
-                              marker_length if column > indentation_length else column)
+            updated_column = (
+                column - marker_length if column > indentation_length else column
+            )
         elif remainder.startswith("#"):
             marker_length = 1
             updated = content[:indentation_length] + remainder[marker_length:]
-            updated_column = (column -
-                              marker_length if column > indentation_length else column)
+            updated_column = (
+                column - marker_length if column > indentation_length else column
+            )
         else:
             marker = "# "
-            updated = (content[:indentation_length] + marker +
-                       content[indentation_length:])
-            updated_column = (column +
-                              len(marker) if column >= indentation_length else column)
+            updated = (
+                content[:indentation_length] + marker + content[indentation_length:]
+            )
+            updated_column = (
+                column + len(marker) if column >= indentation_length else column
+            )
 
         self.setSelection(line, 0, line, len(content))
         self.replaceSelectedText(updated)

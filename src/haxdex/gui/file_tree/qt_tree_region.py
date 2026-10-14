@@ -4,7 +4,7 @@ from pathlib import Path
 from beartype import beartype
 from beartype.typing import Any
 from loguru import logger
-from PyQt6.QtCore import QPoint, QModelIndex, Qt, pyqtSignal
+from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -22,19 +22,36 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
-from hstd_py_qt.src.hstd_py_qt.filterable_table_view import FilterColumnConfig, FilterableTableView
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
-from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
-from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction, VideoConvertActionHandler
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
-from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec, KnownActionData
+from haxdex.gui.file_tree.actions.action_video_convert import (
+    VideoConvertAction,
+    VideoConvertActionHandler,
+)
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
+from haxdex.gui.file_tree.columns.known_actions_column import (
+    KnownActionColumnSpec,
+    KnownActionData,
+)
 from haxdex.gui.file_tree.python_code_editor import PythonQueryEditor
-from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryResult, QueryResultModel
+from haxdex.gui.file_tree.query_filter import (
+    QueryFilterEvaluator,
+    QueryResult,
+)
 from haxdex.services.core.types import FileHash
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import (
+    ColumnSortFilterProxyModel,
+)
+from hstd_py_qt.src.hstd_py_qt.filterable_table_view import (
+    FilterableTableView,
+    FilterColumnConfig,
+)
+from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 
 
 @beartype
@@ -103,10 +120,14 @@ class TreeModelViewer(QWidget):
 
         self.treeView = QTreeView(self)
         self.treeView.setIndentation(20)
-        self.treeView.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.treeView.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.treeView.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
         self.treeView.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.treeView.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        self.treeView.setHorizontalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.treeView.setModel(self.model)
         self.model.configureView(self.treeView)
         self.treeView.doubleClicked.connect(self.row_double_clicked.emit)
@@ -148,7 +169,8 @@ class TableModelViewer(QWidget):
         self.sortFilterModel = ColumnSortFilterProxyModel(self)
         self.sortFilterModel.setSourceModel(self.tableModel)
         self.sortPriority: list[int] = list(
-            range(self.tableModel.columnCount(QModelIndex())))
+            range(self.tableModel.columnCount(QModelIndex()))
+        )
         self.sortOrderByColumn: dict[int, Qt.SortOrder] = {}
         self.sortFilterModel.setSortPriority(self.sortPriority)
         self.sortFilterModel.sort(0, Qt.SortOrder.AscendingOrder)
@@ -156,9 +178,12 @@ class TableModelViewer(QWidget):
         self.tableView = FilterableTableView(self)
         self.tableView.setModel(self.sortFilterModel)
         self.tableView.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
-        self.tableView.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.tableView.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOn
+        )
         self.tableView.setHorizontalScrollMode(
-            QAbstractItemView.ScrollMode.ScrollPerPixel)
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.tableView.doubleClicked.connect(self.row_double_clicked.emit)
         self.tableView.configure_filters(self.build_filter_columns())
         self.tableView.resizeColumnsToContents()
@@ -181,7 +206,9 @@ class TableModelViewer(QWidget):
                 Qt.Orientation.Horizontal,
                 Qt.ItemDataRole.DisplayRole,
             )
-            placeholder = f"filter {header}" if header is not None else f"filter {column}"
+            placeholder = (
+                f"filter {header}" if header is not None else f"filter {column}"
+            )
             result.append(FilterColumnConfig(column=column, placeholder=placeholder))
         return result
 
@@ -313,9 +340,9 @@ class FileTreeRegion(QWidget):
         self.regionId = region_id
         self.queryPicker: QueryPickerPopup | None = None
 
-        self.modelViewer = SwitchableModelViewer(model=self.model,
-                                                 columns=self.columns,
-                                                 parent=self)
+        self.modelViewer = SwitchableModelViewer(
+            model=self.model, columns=self.columns, parent=self
+        )
         self.modelViewer.row_double_clicked.connect(self.on_item_double_clicked)
 
         self.queryEdit = PythonQueryEditor(self)
@@ -392,7 +419,8 @@ class FileTreeRegion(QWidget):
         state = json.loads(str(serialized))
         if not isinstance(state, dict):
             raise ValueError(
-                f"{self.current_query_settings_key()} must contain a JSON object")
+                f"{self.current_query_settings_key()} must contain a JSON object"
+            )
         return {
             "name": str(state.get("name", "")),
             "text": str(state.get("text", "")),
@@ -401,10 +429,7 @@ class FileTreeRegion(QWidget):
     def write_current_query_state(self, name: str, text: str) -> None:
         get_settings().setValue(
             self.current_query_settings_key(),
-            json.dumps({
-                "name": name,
-                "text": text
-            }, sort_keys=True),
+            json.dumps({"name": name, "text": text}, sort_keys=True),
         )
 
     def persist_current_query_state(self, *args: Any) -> None:
@@ -421,12 +446,13 @@ class FileTreeRegion(QWidget):
 
         if column is not None and isinstance(column, KnownActionColumnSpec):
             data = index.data(CustomModelRole.FullDataRole.value)
-            logger.warning(f"full data for known actions is none column {index.column()}")
+            logger.warning(
+                f"full data for known actions is none column {index.column()}"
+            )
             if data is None:
                 return
 
             class QueryActionResult(ActionResult):
-
                 def __init__(self) -> None:
                     self.paths: list[Path] = []
 
@@ -440,7 +466,8 @@ class FileTreeRegion(QWidget):
                     case VideoConvertAction():
                         assert column.executor
                         handler = column.executor.handlers[
-                            VideoConvertActionHandler.action_type.kind]
+                            VideoConvertActionHandler.action_type.kind
+                        ]
                         assert isinstance(handler, VideoConvertActionHandler)
                         result.paths.append(handler.dest_path(act))
                     case _:
@@ -465,7 +492,8 @@ class FileTreeRegion(QWidget):
         self.queryPicker.query_selected.connect(self.load_named_query)
 
         button_pos = self.selectQueryButton.mapToGlobal(
-            QPoint(0, self.selectQueryButton.height()))
+            QPoint(0, self.selectQueryButton.height())
+        )
         self.queryPicker.move(button_pos)
         self.queryPicker.show()
 

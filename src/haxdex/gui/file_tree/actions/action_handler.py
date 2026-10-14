@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from beartype.typing import Any, ClassVar, Mapping
 from pydantic import BaseModel, model_validator
-from beartype.typing import ClassVar, Any, Mapping
 from pydantic_core import PydanticCustomError
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
@@ -56,7 +56,6 @@ class ActionHandler(ABC):
 
 
 class ActionResult(ABC):
-
     @abstractmethod
     def getResultPaths(self) -> list[Path]:
         raise NotImplementedError

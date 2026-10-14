@@ -1,14 +1,18 @@
 import hashlib
 import json
-from loguru import logger
-from datetime import datetime, timezone
+from datetime import datetime
 
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import IndexerOutput
-from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data, format_json_with_fjson
+from haxdex.services.pydantic_utils import (
+    format_json_with_fjson,
+    model_from_json_data,
+    model_to_json_data,
+)
 from haxdex.services.utils import ExceptionContextNote
 
 
@@ -18,7 +22,8 @@ def get_schema_hash(indexer: BaseIndexer) -> str:
             indexer.result_model.model_json_schema(),
             sort_keys=True,
             separators=(",", ":"),
-        ).encode("utf-8"),).hexdigest()
+        ).encode("utf-8"),
+    ).hexdigest()
 
 
 def parse_indexer_output(indexer: BaseIndexer, data: dict) -> IndexerOutput:
@@ -26,7 +31,8 @@ def parse_indexer_output(indexer: BaseIndexer, data: dict) -> IndexerOutput:
     model for the 'processed' payload."""
     assert data["indexer_id"] == indexer.asset_name, (
         f"cached indexer id '{data['indexer_id']}' does not match "
-        f"'{indexer.asset_name}'")
+        f"'{indexer.asset_name}'"
+    )
     with ExceptionContextNote(lambda: format_json_with_fjson(data, max_width=200)):
         return IndexerOutput(
             indexer_id=indexer.asset_name,
@@ -43,7 +49,9 @@ def has_cached_result(indexer: BaseIndexer, file_hash: str) -> bool:
     with indexer.database.connect() as database:
         row = database.execute(
             select(indexer.cache_table.c.schema_hash).where(
-                indexer.cache_table.c.file_hash == file_hash,),).one_or_none()
+                indexer.cache_table.c.file_hash == file_hash,
+            ),
+        ).one_or_none()
 
     return row is not None and row[0] == get_schema_hash(indexer)
 
@@ -58,19 +66,25 @@ def load_cached_output(
     schema_hash = get_schema_hash(indexer)
 
     with (
-            ctx.trace_scope(
-                "load cache database record",
-                indexer=indexer.asset_name,
-                file_hash=file_hash,
-            ),
-            indexer.database.connect() as database,
+        ctx.trace_scope(
+            "load cache database record",
+            indexer=indexer.asset_name,
+            file_hash=file_hash,
+        ),
+        indexer.database.connect() as database,
     ):
-        cache_row = database.execute(
-            select(
-                indexer.cache_table.c.schema_hash,
-                indexer.cache_table.c.result,
-            ).where(
-                indexer.cache_table.c.file_hash == file_hash,),).mappings().one_or_none()
+        cache_row = (
+            database.execute(
+                select(
+                    indexer.cache_table.c.schema_hash,
+                    indexer.cache_table.c.result,
+                ).where(
+                    indexer.cache_table.c.file_hash == file_hash,
+                ),
+            )
+            .mappings()
+            .one_or_none()
+        )
 
     if cache_row is None:
         return None
@@ -82,7 +96,8 @@ def load_cached_output(
                 indexer.asset_name,
                 cache_row["schema_hash"],
                 schema_hash,
-            ),)
+            ),
+        )
         return None
 
     try:
@@ -90,8 +105,8 @@ def load_cached_output(
 
     except json.JSONDecodeError as err:
         logger.error(
-            f"Could not parse cached database value for "
-            f"{indexer.asset_name}: {err}",)
+            f"Could not parse cached database value for {indexer.asset_name}: {err}",
+        )
         return None
 
 
@@ -126,11 +141,11 @@ def store_cached_output(
     )
 
     with (
-            ctx.trace_scope(
-                "store cache database record",
-                indexer=indexer.asset_name,
-                file_hash=file_hash,
-            ),
-            indexer.database.begin() as database,
+        ctx.trace_scope(
+            "store cache database record",
+            indexer=indexer.asset_name,
+            file_hash=file_hash,
+        ),
+        indexer.database.begin() as database,
     ):
         database.execute(upsert)

@@ -4,11 +4,11 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from beartype.typing import ClassVar
 import flax
 import jax
 import numpy as np
 import pandas as pd
+from beartype.typing import ClassVar
 from huggingface_hub import hf_hub_download
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -78,8 +78,11 @@ class PredModel:
 
 def pil_ensure_rgb(image: Image.Image) -> Image.Image:
     if image.mode not in ["RGB", "RGBA"]:
-        image = (image.convert("RGBA")
-                 if "transparency" in image.info else image.convert("RGB"))
+        image = (
+            image.convert("RGBA")
+            if "transparency" in image.info
+            else image.convert("RGB")
+        )
 
     if image.mode == "RGBA":
         canvas = Image.new("RGBA", image.size, (255, 255, 255))
@@ -107,7 +110,8 @@ class WdTaggerConfig(BaseResourceConfig):
     model: str = "swinv2_v3"
     threshold: float = 0.01
     cache_dir: Path | None = Field(
-        default_factory=lambda: get_xdg_cache_dir(["resource", "wd_tagger"]))
+        default_factory=lambda: get_xdg_cache_dir(["resource", "wd_tagger"])
+    )
 
 
 class WdTagger(BaseResource):
@@ -127,7 +131,8 @@ class WdTagger(BaseResource):
                 filename="model.msgpack",
                 repo_type="model",
                 cache_dir=self.config.cache_dir,
-            ))
+            )
+        )
 
         config_path = Path(
             hf_hub_download(
@@ -135,7 +140,8 @@ class WdTagger(BaseResource):
                 filename="sw_jax_cv_config.json",
                 repo_type="model",
                 cache_dir=self.config.cache_dir,
-            ))
+            )
+        )
 
         tags_csv_path = Path(
             hf_hub_download(
@@ -143,7 +149,8 @@ class WdTagger(BaseResource):
                 filename="selected_tags.csv",
                 repo_type="model",
                 cache_dir=self.config.cache_dir,
-            ))
+            )
+        )
 
         self.model_name = self.config.model
         self.model_path = weights_path
@@ -198,11 +205,16 @@ class WdTagger(BaseResource):
                         category=category,
                         name=str(row["name"]),
                         probability=float(prob),
-                    ))
+                    )
+                )
 
         result.sort(key=lambda x: x.probability, reverse=True)
         return result
 
-    def handle(self, ctx: RunContext, request: WdTaggerRequest,
-               resources: dict[str, BaseResource]) -> WdTaggerResult:
+    def handle(
+        self,
+        ctx: RunContext,
+        request: WdTaggerRequest,
+        resources: dict[str, BaseResource],
+    ) -> WdTaggerResult:
         return WdTaggerResult(tags=self.tag_image(ctx, Path(request.path)))

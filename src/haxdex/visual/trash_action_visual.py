@@ -9,7 +9,7 @@ from typing import Any
 from coloraide import Color
 from pydantic import BaseModel
 
-from haxdex.gui.file_tree.actions.action_list_model import load_actions, TrashAction
+from haxdex.gui.file_tree.actions.action_list_model import TrashAction, load_actions
 
 
 @dataclass
@@ -31,8 +31,11 @@ def iter_files(node: Any):
 
 def normalize_under_root(root_dir: Path, raw_path: str) -> Path | None:
     p = Path(raw_path)
-    candidate = (root_dir / p).resolve(
-        strict=False) if not p.is_absolute() else p.resolve(strict=False)
+    candidate = (
+        (root_dir / p).resolve(strict=False)
+        if not p.is_absolute()
+        else p.resolve(strict=False)
+    )
     if candidate.is_relative_to(root_dir):
         return candidate
     return None
@@ -72,8 +75,9 @@ def root_name_placeholder(stats: dict[str, DirStats]) -> str:
     return "/"
 
 
-def build_directory_stats(root_dir: Path, all_files: set[str],
-                          deleted_files: set[str]) -> dict[str, DirStats]:
+def build_directory_stats(
+    root_dir: Path, all_files: set[str], deleted_files: set[str]
+) -> dict[str, DirStats]:
     stats: dict[str, DirStats] = {
         "": DirStats(path="", name=root_dir.name or str(root_dir))
     }
@@ -82,7 +86,7 @@ def build_directory_stats(root_dir: Path, all_files: set[str],
         parts = Path(file_rel).parts
         dirs = [""]
         for i in range(len(parts) - 1):
-            dirs.append("/".join(parts[:i + 1]))
+            dirs.append("/".join(parts[: i + 1]))
         return dirs
 
     for rel_file in all_files:
@@ -139,20 +143,25 @@ def to_plotly_data(root: DirStats, full_root: Path) -> dict[str, list[Any]]:
     def append_directory(node: DirStats, parent_id: str | None) -> None:
         node_id = f"dir:{node.path}"
         full_path = full_root if node.path == "" else full_root / node.path
-        ratio = ((node.deleted_files / node.total_files) *
-                 100.0 if node.total_files > 0 else 0.0)
+        ratio = (
+            (node.deleted_files / node.total_files) * 100.0
+            if node.total_files > 0
+            else 0.0
+        )
 
         data["ids"].append(node_id)
         data["labels"].append(node.name)
         data["parents"].append(parent_id or "")
         data["values"].append(node.total_files)
         data["colors"].append(deletion_color(node.total_files, node.deleted_files))
-        data["customdata"].append([
-            str(full_path),
-            node.deleted_files,
-            node.total_files,
-            round(ratio, 2),
-        ])
+        data["customdata"].append(
+            [
+                str(full_path),
+                node.deleted_files,
+                node.total_files,
+                round(ratio, 2),
+            ]
+        )
 
         for child in sorted(node.children.values(), key=lambda item: item.name):
             append_directory(child, node_id)

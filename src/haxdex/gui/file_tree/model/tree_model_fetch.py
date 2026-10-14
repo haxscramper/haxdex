@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
 
+from loguru import logger
 from pydantic import BaseModel
+
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
-from haxdex.services.file_iteration import match_root, RootFilter
-from loguru import logger
+from haxdex.services.file_iteration import RootFilter, match_root
 
 AQL_FILE_PATHS = """
 FOR file IN files
@@ -32,8 +33,9 @@ class FilePathRow:
     relative: str
 
 
-def _fetch_file_paths_impl(db: IndexDatabase,
-                           root_filters: Sequence[RootFilter]) -> list[FilePathRow]:
+def _fetch_file_paths_impl(
+    db: IndexDatabase, root_filters: Sequence[RootFilter]
+) -> list[FilePathRow]:
     rows: list[FilePathRow] = []
 
     for item in db.aql.execute(AQL_FILE_PATHS):  # type: ignore
@@ -56,7 +58,8 @@ def _fetch_file_paths_impl(db: IndexDatabase,
             continue
 
         if root_filter.ignore_spec is not None and root_filter.ignore_spec.match_file(
-                relative):
+            relative
+        ):
             logger.info(f"skipping {path_str} via filter")
             continue
 
@@ -66,7 +69,8 @@ def _fetch_file_paths_impl(db: IndexDatabase,
                 hash=item["hash"],
                 root=item["root"],
                 relative=relative,
-            ))
+            )
+        )
 
     return rows
 
@@ -94,7 +98,8 @@ def fetch_indexer_assets(
     with ctx.trace_scope("fetch indexer results"):
         for indexer in indexers:
             available_hashes = [
-                file_hash for file_hash in hash_objs
+                file_hash
+                for file_hash in hash_objs
                 if db.has_indexer_result(file_hash, indexer)
             ]
 
@@ -102,9 +107,9 @@ def fetch_indexer_assets(
                 continue
 
             with ctx.trace_scope(
-                    "batch indexer",
-                    asset_name=indexer.asset_name,
-                    file_count=len(available_hashes),
+                "batch indexer",
+                asset_name=indexer.asset_name,
+                file_count=len(available_hashes),
             ):
                 results = db.get_indexer_result_batch(list(available_hashes), indexer)
 

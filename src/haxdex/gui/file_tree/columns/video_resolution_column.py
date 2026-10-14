@@ -1,15 +1,19 @@
-from pathlib import Path
-
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
-
-from beartype.typing import Any, cast, Optional
+from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from haxdex.services.core.types import FileHash
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeIndexerResult, FFProbeInfoModel
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from haxdex.services.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+    FFProbeIndexerResult,
+    FFProbeInfoModel,
+)
 
 
 class VideoResolutionData(BaseModel, extra="forbid"):
@@ -56,7 +60,11 @@ class VideoResolutionColumnSpec(FileTreeColumnSpec):
             case Qt.ItemDataRole.DisplayRole:
                 return format_resolution(res.probe)
 
-            case Qt.ItemDataRole.UserRole | CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                Qt.ItemDataRole.UserRole
+                | CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 if res.probe.width is None or res.probe.height is None:
                     return None
 

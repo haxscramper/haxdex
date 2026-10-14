@@ -1,11 +1,10 @@
 from datetime import datetime
-from pathlib import Path
 
+from pydantic import Field
 from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from pydantic import BaseModel, Field
 
 
 class FileStatsIndexerResult(IndexDocument, extra="forbid"):
@@ -14,7 +13,8 @@ class FileStatsIndexerResult(IndexDocument, extra="forbid"):
     mtime: float = Field(ge=0)
     ctime: float = Field(ge=0)
     modification_time: str = Field(
-        pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?$")
+        pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?$"
+    )
 
 
 class FileStatsIndexer(BaseIndexer):

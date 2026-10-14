@@ -421,6 +421,7 @@ from pathlib import Path
 import hashlib
 import mimetypes
 
+
 def build_file_doc(path: Path, content: str, ocr_text: str | None) -> dict:
     stat = path.stat()
     checksum = hashlib.sha256(path.read_bytes()).hexdigest()

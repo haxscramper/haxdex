@@ -1,14 +1,12 @@
 from beartype import beartype
 from beartype.typing import Any, Callable, Sequence
-
-from PyQt6.QtCore import QModelIndex, Qt, QSortFilterProxyModel
+from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 @beartype
 class ColumnSortFilterProxyModel(QSortFilterProxyModel):
-
     def __init__(self, parent: None | object = None) -> None:
         super().__init__(parent)
         self.sortPriority: tuple[int, ...] = tuple()
@@ -23,8 +21,12 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
     def setSortPriority(self, columns: Sequence[int]) -> None:
         priority = tuple(columns)
         if len(set(priority)) != len(priority):
-            duplicate = next(column for column in priority if 1 < priority.count(column))
-            raise ValueError(f"Sort priority contains duplicate column index {duplicate}")
+            duplicate = next(
+                column for column in priority if 1 < priority.count(column)
+            )
+            raise ValueError(
+                f"Sort priority contains duplicate column index {duplicate}"
+            )
 
         model = self.sourceModel()
         if model is not None:
@@ -65,9 +67,9 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
         self.filterRoles[column] = role
         self.invalidateFilter()
 
-    def sort(self,
-             column: int,
-             order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+    def sort(
+        self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
+    ) -> None:
         model = self.sourceModel()
         if model is None:
             super().sort(column, order)
@@ -85,8 +87,9 @@ class ColumnSortFilterProxyModel(QSortFilterProxyModel):
         match len(self.sortPriority):
             case 0:
                 self.activeSortPriority = tuple(
-                    [fixedColumn] +
-                    [idx for idx in range(columnCount) if idx != fixedColumn])
+                    [fixedColumn]
+                    + [idx for idx in range(columnCount) if idx != fixedColumn]
+                )
             case _:
                 self.activeSortPriority = self.sortPriority
 

@@ -6,23 +6,34 @@ import json
 import math
 import re
 import shutil
+from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 from types import NoneType, UnionType
 
 from beartype import beartype
-from beartype.typing import Any, Literal, Sequence, Union, get_args, get_origin, Iterable
-from hypothesis import assume, strategies as st
+from beartype.typing import (
+    Any,
+    Iterable,
+    Literal,
+    Sequence,
+    Union,
+    get_args,
+    get_origin,
+)
+from hypothesis import assume
+from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
-
-from haxdex.services.core.job_types import BaseIndexer, META_SUFFIX
-from haxdex.services.pydantic_utils import model_to_json_data
-
-from dataclasses import dataclass
-from pathlib import Path
-
 from pydantic import BaseModel
 
-from tests.generation_full_file import CorpusManifest, initialize_persistent_corpus, _MIME_SUFFIXES, CorpusFileEntry
+from haxdex.services.core.job_types import META_SUFFIX, BaseIndexer
+from haxdex.services.pydantic_utils import model_to_json_data
+from tests.generation_full_file import (
+    _MIME_SUFFIXES,
+    CorpusFileEntry,
+    CorpusManifest,
+    initialize_persistent_corpus,
+)
 
 
 @dataclass(frozen=True)
@@ -65,14 +76,17 @@ class GeneratedDirectory:
         return result
 
     def collect_directories_direct(
-            self,
-            query: Path = Path("."),
+        self,
+        query: Path = Path("."),
     ) -> list[GeneratedIndexerDirectory]:
         query = self._as_relative_path(query)
         direct_dirs: set[Path] = set()
         for file in self.collect_files_recursive(query):
-            rel = file.relative_path if query == Path(
-                ".") else file.relative_path.relative_to(query)
+            rel = (
+                file.relative_path
+                if query == Path(".")
+                else file.relative_path.relative_to(query)
+            )
             if len(rel.parts) <= 1:
                 continue
             direct = Path(rel.parts[0]) if query == Path(".") else query / rel.parts[0]
@@ -83,8 +97,8 @@ class GeneratedDirectory:
         ]
 
     def collect_directories_recursive(
-            self,
-            query: Path = Path("."),
+        self,
+        query: Path = Path("."),
     ) -> list[GeneratedIndexerDirectory]:
         query = self._as_relative_path(query)
         dirs: set[Path] = set()
@@ -98,15 +112,15 @@ class GeneratedDirectory:
         ]
 
     def collect_files_direct(
-            self,
-            query: Path | str = Path("."),
+        self,
+        query: Path | str = Path("."),
     ) -> list[GeneratedIndexerFile]:
         query_path = self._as_relative_path(query)
         return [file for file in self.files if file.relative_path.parent == query_path]
 
     def collect_files_recursive(
-            self,
-            query: Path | str = Path("."),
+        self,
+        query: Path | str = Path("."),
     ) -> list[GeneratedIndexerFile]:
         query_path = self._as_relative_path(query)
         if query_path == Path("."):
@@ -116,8 +130,8 @@ class GeneratedDirectory:
         ]
 
     def collect_entries_direct(
-            self,
-            query: Path = Path("."),
+        self,
+        query: Path = Path("."),
     ) -> list[GeneratedIndexerEntry]:
         return [
             *self.collect_files_direct(query),
@@ -125,8 +139,8 @@ class GeneratedDirectory:
         ]
 
     def collect_entries_recursive(
-            self,
-            query: Path = Path("."),
+        self,
+        query: Path = Path("."),
     ) -> list[GeneratedIndexerEntry]:
         return [
             *self.collect_files_recursive(query),
@@ -140,8 +154,9 @@ class GeneratedDirectory:
                 return file
         raise KeyError(f"File entry is missing for relative path '{rel_name}'")
 
-    def get_directory_by_relative_name(self,
-                                       name: Path | str) -> GeneratedIndexerDirectory:
+    def get_directory_by_relative_name(
+        self, name: Path | str
+    ) -> GeneratedIndexerDirectory:
         rel_name = self._as_relative_path(name)
         if rel_name == Path("."):
             raise KeyError("Root path '.' is not a generated directory entry")
@@ -158,7 +173,8 @@ class GeneratedDirectory:
         if rel_name in self._all_directory_paths():
             return GeneratedIndexerDirectory(relative_path=rel_name)
         raise KeyError(
-            f"File or directory entry is missing for relative path '{rel_name}'")
+            f"File or directory entry is missing for relative path '{rel_name}'"
+        )
 
 
 @dataclass(frozen=True)
@@ -204,7 +220,8 @@ def _integer_strategy(metadata: Sequence[Any]) -> SearchStrategy[int]:
     if upper < lower:
         raise ValueError(
             f"Integer constraints cannot be satisfied: lower bound is {lower}, "
-            f"upper bound is {upper}")
+            f"upper bound is {upper}"
+        )
 
     if multiple_of is None:
         return st.integers(min_value=lower, max_value=upper)
@@ -219,10 +236,12 @@ def _integer_strategy(metadata: Sequence[Any]) -> SearchStrategy[int]:
     if last < first:
         raise ValueError(
             f"Integer constraints cannot produce a multiple of {multiple_of} "
-            f"between {lower} and {upper}")
+            f"between {lower} and {upper}"
+        )
 
-    return st.integers(min_value=first,
-                       max_value=last).map(lambda value: value * magnitude)
+    return st.integers(min_value=first, max_value=last).map(
+        lambda value: value * magnitude
+    )
 
 
 @beartype
@@ -251,7 +270,8 @@ def _float_strategy(metadata: Sequence[Any]) -> SearchStrategy[float]:
     if upper < lower:
         raise ValueError(
             f"Float constraints cannot be satisfied: lower bound is {lower}, "
-            f"upper bound is {upper}")
+            f"upper bound is {upper}"
+        )
 
     multiple_of: float | None = _constraint_value(metadata, "multiple_of")
     strategy = st.floats(
@@ -262,11 +282,13 @@ def _float_strategy(metadata: Sequence[Any]) -> SearchStrategy[float]:
     )
 
     if multiple_of is not None:
-        strategy = strategy.filter(lambda value: math.isclose(
-            value % multiple_of,
-            0.0,
-            abs_tol=1e-9,
-        ))
+        strategy = strategy.filter(
+            lambda value: math.isclose(
+                value % multiple_of,
+                0.0,
+                abs_tol=1e-9,
+            )
+        )
 
     return strategy
 
@@ -297,7 +319,8 @@ def _decimal_strategy(metadata: Sequence[Any]) -> SearchStrategy[decimal.Decimal
     if upper < lower:
         raise ValueError(
             f"Decimal constraints cannot be satisfied: lower bound is {lower}, "
-            f"upper bound is {upper}")
+            f"upper bound is {upper}"
+        )
 
     decimal_places: int | None = _constraint_value(metadata, "decimal_places")
     strategy = st.decimals(
@@ -327,14 +350,16 @@ def _string_strategy(metadata: Sequence[Any]) -> SearchStrategy[str]:
     if max_length < min_length:
         raise ValueError(
             f"String constraints cannot be satisfied: min_length is {min_length}, "
-            f"max_length is {max_length}")
+            f"max_length is {max_length}"
+        )
 
     if pattern is None:
         return st.text(min_size=min_length, max_size=max_length)
 
     else:
         return st.from_regex(pattern, fullmatch=True).filter(
-            lambda value: min_length <= len(value) and len(value) <= max_length)
+            lambda value: min_length <= len(value) and len(value) <= max_length
+        )
 
 
 @beartype
@@ -346,8 +371,10 @@ def _collection_bounds(metadata: Sequence[Any]) -> tuple[int, int]:
         max_length = 8
 
     if max_length < min_length:
-        raise ValueError(f"Collection constraints cannot be satisfied: min_length is "
-                         f"{min_length}, max_length is {max_length}")
+        raise ValueError(
+            f"Collection constraints cannot be satisfied: min_length is "
+            f"{min_length}, max_length is {max_length}"
+        )
 
     return min_length, max_length
 
@@ -381,15 +408,16 @@ def pydantic_model_strategy(model_type: type[BaseModel]) -> SearchStrategy[BaseM
 
 @beartype
 def pydantic_value_strategy(
-        annotation: Any,
-        metadata: Sequence[Any] = (),
+    annotation: Any,
+    metadata: Sequence[Any] = (),
 ) -> SearchStrategy[Any]:
     origin = get_origin(annotation)
     arguments = get_args(annotation)
 
     if origin is Union or origin is UnionType:
         return st.one_of(
-            *[pydantic_value_strategy(argument, metadata) for argument in arguments])
+            *[pydantic_value_strategy(argument, metadata) for argument in arguments]
+        )
 
     if origin is Literal:
         return st.sampled_from(arguments)
@@ -464,7 +492,8 @@ def pydantic_value_strategy(
                 ).map(tuple)
 
             return st.tuples(
-                *[pydantic_value_strategy(argument) for argument in arguments])
+                *[pydantic_value_strategy(argument) for argument in arguments]
+            )
         case dict():
             return st.dictionaries(
                 pydantic_value_strategy(arguments[0]),
@@ -478,7 +507,8 @@ def pydantic_value_strategy(
 
 @beartype
 def _normalize_mime_requirements(
-    mime_types: Sequence[str | tuple[str, int]],) -> list[tuple[str, int]]:
+    mime_types: Sequence[str | tuple[str, int]],
+) -> list[tuple[str, int]]:
     requirements: list[tuple[str, int]] = []
     seen: set[str] = set()
 
@@ -489,13 +519,15 @@ def _normalize_mime_requirements(
         else:
             if len(item) != 2:
                 raise ValueError(
-                    f"MIME requirement tuple must have exactly 2 items, got {item}")
+                    f"MIME requirement tuple must have exactly 2 items, got {item}"
+                )
             mime_type, min_count = item
             if not isinstance(mime_type, str):
                 raise ValueError(f"MIME type must be a string, got {mime_type!r}")
             if not isinstance(min_count, int) or isinstance(min_count, bool):
                 raise ValueError(
-                    f"MIME minimum count must be an integer, got {min_count!r}")
+                    f"MIME minimum count must be an integer, got {min_count!r}"
+                )
             if min_count < 0:
                 raise ValueError(
                     f"MIME minimum count must be non-negative, got {min_count} for {mime_type!r}"
@@ -530,7 +562,8 @@ def _validate_directory_structure_inputs(
 
     if min_duplicates < 0:
         raise ValueError(
-            f"min_duplicates must be non-negative, got min_duplicates={min_duplicates}")
+            f"min_duplicates must be non-negative, got min_duplicates={min_duplicates}"
+        )
 
     if max_duplicates < min_duplicates:
         raise ValueError(
@@ -550,7 +583,8 @@ def _validate_directory_structure_inputs(
 
 @beartype
 def _validate_unique_indexer_asset_names(
-    indexer_types: Sequence[type[BaseIndexer]],) -> None:
+    indexer_types: Sequence[type[BaseIndexer]],
+) -> None:
     asset_names = [indexer_type.asset_name for indexer_type in indexer_types]
     duplicate_names = {name for name in asset_names if 1 < asset_names.count(name)}
     if 0 < len(duplicate_names):
@@ -581,7 +615,9 @@ def _validate_mime_requirements(
     max_files: int,
 ) -> tuple[int, int]:
     unsupported_mime_types = [
-        mime_type for mime_type, _ in mime_requirements if mime_type not in _MIME_SUFFIXES
+        mime_type
+        for mime_type, _ in mime_requirements
+        if mime_type not in _MIME_SUFFIXES
     ]
     if 0 < len(unsupported_mime_types):
         raise ValueError(
@@ -589,12 +625,14 @@ def _validate_mime_requirements(
         )
 
     missing_required = [
-        mime_type for mime_type, min_count in mime_requirements
+        mime_type
+        for mime_type, min_count in mime_requirements
         if 0 < min_count and len(entries_by_mime[mime_type]) == 0
     ]
     if 0 < len(missing_required):
         raise ValueError(
-            f"Corpus does not contain files for required MIME types {missing_required}")
+            f"Corpus does not contain files for required MIME types {missing_required}"
+        )
 
     required_total = sum(min_count for _, min_count in mime_requirements)
     if max_files < required_total:
@@ -612,7 +650,8 @@ def _eligible_entries(
     entries_by_mime: dict[str, list[CorpusFileEntry]],
 ) -> list[CorpusFileEntry]:
     eligible = [
-        entry for mime_type, _ in mime_requirements
+        entry
+        for mime_type, _ in mime_requirements
         for entry in entries_by_mime[mime_type]
     ]
     if len(eligible) == 0:
@@ -622,7 +661,8 @@ def _eligible_entries(
 
 @beartype
 def _build_indexer_strategies(
-    indexer_types: Sequence[type[BaseIndexer]],) -> dict[str, SearchStrategy[Any]]:
+    indexer_types: Sequence[type[BaseIndexer]],
+) -> dict[str, SearchStrategy[Any]]:
     return {
         indexer_type.asset_name: pydantic_model_strategy(indexer_type.result_model)
         for indexer_type in indexer_types
@@ -646,7 +686,8 @@ def _draw_parent_path(
             ),
             min_size=depth,
             max_size=depth,
-        ))
+        )
+    )
     parent = Path(*parts)
     if different_from is not None:
         assume(parent != different_from)
@@ -660,7 +701,8 @@ def _draw_stem(draw: Any, different_from: str | None = None) -> str:
             alphabet="abcdefghijklmnopqrstuvwxyz0123456789",
             min_size=8,
             max_size=8,
-        ))
+        )
+    )
     if different_from is not None:
         assume(stem != different_from)
     return stem
@@ -710,14 +752,16 @@ def _draw_file_and_duplicate_counts(
     unique_upper = min(eligible_entries_count, file_count - min_duplicates)
 
     feasible_unique_counts = [
-        unique_count for unique_count in range(unique_lower, unique_upper + 1)
+        unique_count
+        for unique_count in range(unique_lower, unique_upper + 1)
         if _minimal_required_duplicates(
             file_count=file_count,
             unique_count=unique_count,
             required_total=required_total,
             positive_mime_count=positive_mime_count,
             additional_cover_capacity=additional_cover_capacity,
-        ) <= (file_count - unique_count)
+        )
+        <= (file_count - unique_count)
     ]
     assume(0 < len(feasible_unique_counts))
 
@@ -732,7 +776,9 @@ def _allocate_unique_targets(
     mime_requirements: Sequence[tuple[str, int]],
     entries_by_mime: dict[str, list[CorpusFileEntry]],
 ) -> dict[str, int]:
-    unique_targets: dict[str, int] = {mime_type: 0 for mime_type, _ in mime_requirements}
+    unique_targets: dict[str, int] = {
+        mime_type: 0 for mime_type, _ in mime_requirements
+    }
 
     positive_mime_count = sum(1 for _, min_count in mime_requirements if 0 < min_count)
     for mime_type, min_count in mime_requirements:
@@ -833,7 +879,8 @@ def directory_structure(
                 min_size=take_count,
                 max_size=take_count,
                 unique=True,
-            ))
+            )
+        )
 
         for entry_index in selected_indices:
             selected_entry = mime_entries[entry_index]
@@ -863,14 +910,16 @@ def directory_structure(
 
     for _ in range(duplicate_count):
         deficit_mimes = [
-            mime_type for mime_type, deficit in deficits.items()
+            mime_type
+            for mime_type, deficit in deficits.items()
             if 0 < deficit and 0 < len(generated_by_mime[mime_type])
         ]
         if 0 < len(deficit_mimes):
             selected_mime = draw(st.sampled_from(deficit_mimes))
         else:
             available_mimes = [
-                mime_type for mime_type, files in generated_by_mime.items()
+                mime_type
+                for mime_type, files in generated_by_mime.items()
                 if 0 < len(files)
             ]
             selected_mime = draw(st.sampled_from(available_mimes))
@@ -1014,9 +1063,12 @@ def assert_generated_directory_entries_exact(
     missing_dirs = expected_dirs - actual_dirs
     extra_dirs = actual_dirs - expected_dirs
 
-    assert not missing_files and not extra_files and not missing_dirs and not extra_dirs, (
+    assert (
+        not missing_files and not extra_files and not missing_dirs and not extra_dirs
+    ), (
         "Directory entries mismatch:\n"
         f"  missing files: {sorted(map(str, missing_files))}\n"
         f"  extra files:   {sorted(map(str, extra_files))}\n"
         f"  missing dirs:  {sorted(map(str, missing_dirs))}\n"
-        f"  extra dirs:    {sorted(map(str, extra_dirs))}")
+        f"  extra dirs:    {sorted(map(str, extra_dirs))}"
+    )

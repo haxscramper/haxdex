@@ -4,10 +4,10 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import ClassVar
+from loguru import logger
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
-from loguru import logger
 
 
 class MoveAction(BaseAction):

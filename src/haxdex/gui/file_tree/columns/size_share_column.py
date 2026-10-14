@@ -2,25 +2,27 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QModelIndex, Qt
-from PyQt6.QtGui import QPainter
-from PyQt6.QtWidgets import (
-    QApplication,
-    QAbstractItemDelegate,
-    QStyle,
-    QStyleOptionProgressBar,
-    QStyleOptionViewItem,
-    QStyledItemDelegate,
-)
 from beartype import beartype
 from beartype.typing import Any, Literal, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtGui import QPainter
+from PyQt6.QtWidgets import (
+    QAbstractItemDelegate,
+    QApplication,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionProgressBar,
+    QStyleOptionViewItem,
+)
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from haxdex.services.core.types import FileHash
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
-from loguru import logger
 
 
 class SizeShareData(BaseModel, extra="forbid"):
@@ -30,7 +32,7 @@ class SizeShareData(BaseModel, extra="forbid"):
 
 @beartype
 @dataclass
-class _DirSizeStats():
+class _DirSizeStats:
     per_path: dict[Path, int]
     total: int
     "Multi-root sum of all sizes"
@@ -75,9 +77,9 @@ def _compute_directory_size_bytes(parent_directories: list[Path]) -> _DirSizeSta
 
 @beartype
 class SizeShareDelegate(QStyledItemDelegate):
-
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem,
-              index: QModelIndex) -> None:
+    def paint(
+        self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
+    ) -> None:
         share = cast(Optional[float], index.data(Qt.ItemDataRole.UserRole))
         if share is None:
             super().paint(painter, option, index)
@@ -98,8 +100,9 @@ class SizeShareDelegate(QStyledItemDelegate):
         progress_option.textVisible = True
         progress_option.textAlignment = Qt.AlignmentFlag.AlignCenter
 
-        QApplication.style().drawControl(QStyle.ControlElement.CE_ProgressBar,
-                                         progress_option, painter)
+        QApplication.style().drawControl(
+            QStyle.ControlElement.CE_ProgressBar, progress_option, painter
+        )
 
 
 @beartype
@@ -118,7 +121,8 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
         self.parent_roots = [path.resolve() for path in parent_directories]
         self.directory_size_bytes = _compute_directory_size_bytes(self.parent_roots)
         self.global_size_bytes = sum(
-            self.directory_size_bytes.per_path[root] for root in self.parent_roots)
+            self.directory_size_bytes.per_path[root] for root in self.parent_roots
+        )
         self.delegate = SizeShareDelegate()
 
     def initColumnData(
@@ -135,8 +139,9 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
 
             else:
                 if FileStatsIndexer.asset_name in assets:
-                    result = cast(FileStatsIndexerResult,
-                                  assets[FileStatsIndexer.asset_name])
+                    result = cast(
+                        FileStatsIndexerResult, assets[FileStatsIndexer.asset_name]
+                    )
                     return result.size_bytes
 
                 else:
@@ -154,8 +159,9 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
             return None
 
         if resolved_path.parent not in self.directory_size_bytes.per_path:
-            return SizeShareData(size_self=self_size,
-                                 size_parent=self.directory_size_bytes.total)
+            return SizeShareData(
+                size_self=self_size, size_parent=self.directory_size_bytes.total
+            )
         else:
             return SizeShareData(size_self=self_size, size_parent=get_parent())
 
@@ -178,7 +184,10 @@ class SizeShareColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return entry
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return float(entry.size_self) / float(entry.size_parent)
 
             case _:

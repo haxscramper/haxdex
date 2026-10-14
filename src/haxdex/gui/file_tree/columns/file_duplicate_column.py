@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.columns.file_tree_column import (
@@ -11,7 +11,6 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeInitArgs,
     FileTreeNode,
 )
-from haxdex.services.core.types import FileHash
 
 
 class FileDuplicateData(BaseModel, extra="forbid"):
@@ -111,7 +110,8 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
 
         matches = sorted(
             {
-                candidate for candidate in self._paths_by_hash.get(file_hash, [])
+                candidate
+                for candidate in self._paths_by_hash.get(file_hash, [])
                 if candidate != path
             },
             key=str,
@@ -141,25 +141,24 @@ class FileDuplicateColumnSpec(FileTreeColumnSpec):
 
         if duplicate_data.hash is None:
             if role in (
-                    Qt.ItemDataRole.DisplayRole,
-                    Qt.ItemDataRole.EditRole,
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.EditRole,
             ):
-                return (f"{duplicate_data.duplicate_count}"
-                        f"/{duplicate_data.total_count}")
+                return f"{duplicate_data.duplicate_count}/{duplicate_data.total_count}"
 
             else:
                 return None
 
         if role in (
-                Qt.ItemDataRole.DisplayRole,
-                Qt.ItemDataRole.EditRole,
+            Qt.ItemDataRole.DisplayRole,
+            Qt.ItemDataRole.EditRole,
         ):
             if duplicate_data.matches:
                 return str(duplicate_data.matches[0])
             else:
                 return None
 
-        if (role == Qt.ItemDataRole.ToolTipRole and duplicate_data.matches):
+        if role == Qt.ItemDataRole.ToolTipRole and duplicate_data.matches:
             return "\n".join(str(path) for path in duplicate_data.matches)
 
         return None

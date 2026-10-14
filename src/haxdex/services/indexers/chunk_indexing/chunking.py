@@ -1,23 +1,25 @@
 import enum
 import hashlib
 import json
-from loguru import logger
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
-from beartype.typing import Any, Callable, ClassVar, Literal, Optional, Union
+from dataclasses import dataclass
 
-from beartype import beartype
 import semchunk
 import tiktoken
+from beartype import beartype
+from beartype.typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field
 
+import haxdex.services.indexers.full_document.full_document_types as doc_types
 from haxdex.services.core.types import (
     IndexEdge,
     IndexMultiDocument,
 )
-from haxdex.services.indexers.full_document.full_document_types import DocumentBlock, InlineContent
-import haxdex.services.indexers.full_document.full_document_types as doc_types
+from haxdex.services.indexers.full_document.full_document_types import (
+    DocumentBlock,
+    InlineContent,
+)
 
 
 class ChunkUnit(str, enum.Enum):
@@ -111,13 +113,14 @@ def chunk_hash(file_hash: str, index: int, text: str, spans: list[SourceSpan]) -
         "text": text,
         "spans": [s.model_dump() for s in spans],
     }
-    hasher.update(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8"))
+    hasher.update(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    )
     return hasher.hexdigest()
 
 
 @beartype
 class Chunker:
-
     def __init__(self, config: ChunkConfig) -> None:
         self.cfg = config
         self._enc = tiktoken.get_encoding(config.encoding_name)
@@ -130,8 +133,9 @@ class Chunker:
     def _size(self, text: str) -> int:
         return self._counter(text)
 
-    def _raw(self, index: int, text: str, spans: list[SourceSpan],
-             file_hash: str) -> RawChunk:
+    def _raw(
+        self, index: int, text: str, spans: list[SourceSpan], file_hash: str
+    ) -> RawChunk:
         return RawChunk(
             index=index,
             text=text,
@@ -153,7 +157,7 @@ class Chunker:
         take = min(omax, len(toks))
         if take < omin:
             return 0
-        return len(self._enc.decode(toks[len(toks) - take:]))
+        return len(self._enc.decode(toks[len(toks) - take :]))
 
     def _right_overlap(self, text: str, pos: int) -> int:
         omax, omin = self.cfg.end_overlap_max, self.cfg.end_overlap_min
@@ -181,32 +185,42 @@ class Chunker:
             spans: list[SourceSpan] = []
             if lo:
                 spans.append(
-                    SourceSpan(source_start=start,
-                               source_end=s,
-                               chunk_start=0,
-                               chunk_end=lo,
-                               source_hash=file_hash,
-                               kind="start_overlap"))
+                    SourceSpan(
+                        source_start=start,
+                        source_end=s,
+                        chunk_start=0,
+                        chunk_end=lo,
+                        source_hash=file_hash,
+                        kind="start_overlap",
+                    )
+                )
             spans.append(
-                SourceSpan(source_start=s,
-                           source_end=e,
-                           chunk_start=lo,
-                           chunk_end=lo + (e - s),
-                           source_hash=file_hash,
-                           kind="core"))
+                SourceSpan(
+                    source_start=s,
+                    source_end=e,
+                    chunk_start=lo,
+                    chunk_end=lo + (e - s),
+                    source_hash=file_hash,
+                    kind="core",
+                )
+            )
             if ro:
                 spans.append(
-                    SourceSpan(source_start=e,
-                               source_end=end,
-                               chunk_start=lo + (e - s),
-                               source_hash=file_hash,
-                               chunk_end=len(ctext),
-                               kind="end_overlap"))
+                    SourceSpan(
+                        source_start=e,
+                        source_end=end,
+                        chunk_start=lo + (e - s),
+                        source_hash=file_hash,
+                        chunk_end=len(ctext),
+                        kind="end_overlap",
+                    )
+                )
             results.append(self._raw(i, ctext, spans, file_hash))
         return results
 
-    def chunk_blocks(self, documents: list[DocumentBlock], edges,
-                     file_hash: str) -> list[RawChunk]:
+    def chunk_blocks(
+        self, documents: list[DocumentBlock], edges, file_hash: str
+    ) -> list[RawChunk]:
         units = self._render_units(documents, edges)
         if not units:
             return []
@@ -231,7 +245,8 @@ class Chunker:
                         chunk_start=start,
                         chunk_end=len(parts_text),
                         kind=kind,
-                    ))
+                    )
+                )
 
             if i > 0:
                 for u in self._overlap_prev(groups[i - 1], units):
@@ -325,10 +340,12 @@ class Chunker:
                 return
             btype = getattr(block, "type", None)
             if btype == "table":
-                self._emit(units,
-                           block.hash,
-                           self._render_table(block, children, by_hash),
-                           barrier=True)
+                self._emit(
+                    units,
+                    block.hash,
+                    self._render_table(block, children, by_hash),
+                    barrier=True,
+                )
                 return  # table rendered whole; do not descend into rows
             own = self._render_own(block, depth)
             if own:
@@ -340,11 +357,9 @@ class Chunker:
             walk(r.hash, 0)
         return units
 
-    def _emit(self,
-              units: list[_Unit],
-              hash_: str,
-              text: str,
-              barrier: bool = False) -> None:
+    def _emit(
+        self, units: list[_Unit], hash_: str, text: str, barrier: bool = False
+    ) -> None:
         if not text:
             return
         size = self._size(text)
@@ -356,20 +371,28 @@ class Chunker:
         for s, e in offsets:
             piece = text[s:e]
             units.append(
-                _Unit(hash=hash_,
-                      text=piece,
-                      size=self._size(piece),
-                      barrier=barrier,
-                      no_merge=True,
-                      src_start=s))
+                _Unit(
+                    hash=hash_,
+                    text=piece,
+                    size=self._size(piece),
+                    barrier=barrier,
+                    no_merge=True,
+                    src_start=s,
+                )
+            )
 
     def _inline(self, content: InlineContent) -> str:
         return content.text
 
     def _render_own(self, block: DocumentBlock, depth: int) -> str | None:
         match block:
-            case doc_types.Document() | doc_types.File() | doc_types.Div(
-            ) | doc_types.TableRow() | doc_types.TableCell():
+            case (
+                doc_types.Document()
+                | doc_types.File()
+                | doc_types.Div()
+                | doc_types.TableRow()
+                | doc_types.TableCell()
+            ):
                 return None
 
             case doc_types.Heading():
@@ -414,7 +437,7 @@ class Chunker:
         header = rows[0]
         lines = [
             "| " + " | ".join(header) + " |",
-            "| " + " | ".join("---" for _ in header) + " |"
+            "| " + " | ".join("---" for _ in header) + " |",
         ]
         for r in rows[1:]:
             lines.append("| " + " | ".join(r) + " |")
@@ -446,7 +469,9 @@ def chunks_to_multidoc(
                 unit=c.unit,
                 spans=c.spans,
                 **per_chunk(c),
-            ))
+            )
+        )
         edges.append(
-            link_cls(file_hash=file_hash, from_=file_hash, to_=c.hash, order=c.index))
+            link_cls(file_hash=file_hash, from_=file_hash, to_=c.hash, order=c.index)
+        )
     return documents, edges

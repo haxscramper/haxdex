@@ -4,22 +4,25 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
 from pydantic import BaseModel
 from sqlalchemy import Engine
-from yapf.pytree.split_penalty import STAR_EXPR
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import (
-    IndexRuntime,)
+    IndexRuntime,
+)
 from haxdex.services.core.job_types import (
     BaseIndexer,
-    BaseResource,
-    RunContext,
     BaseIndexerConfig,
+    BaseResource,
     BaseResourceConfig,
+    RunContext,
 )
-from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput, IndexerRequest
+from haxdex.services.core.types import (
+    IndexDocument,
+    IndexerOutput,
+    IndexerRequest,
+)
 
 
 class _DummyResult(IndexDocument):
@@ -27,11 +30,11 @@ class _DummyResult(IndexDocument):
 
 
 def _make_indexer(
-        name: str,
-        index_cache_database: Engine,
-        required_resources: tuple[str, ...] = tuple(),
-        required_assets=tuple(),
-        max_parallel=1,
+    name: str,
+    index_cache_database: Engine,
+    required_resources: tuple[str, ...] = tuple(),
+    required_assets=tuple(),
+    max_parallel=1,
 ):
 
     _required_resources = required_resources
@@ -49,16 +52,18 @@ def _make_indexer(
             super().__init__(config=config, database=database)
 
         def run(self, ctx, request, resources, assets):
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=_DummyResult(hash=request.get_hash_str()))
+            return IndexerOutput(
+                indexer_id=self.asset_name,
+                result=_DummyResult(hash=request.get_hash_str()),
+            )
 
     return _Idx(config=_Idx.config_model(), database=index_cache_database)
 
 
 def _make_resource(
-        key: str,
-        exclusive=False,
-        required_resources=(),
+    key: str,
+    exclusive=False,
+    required_resources=(),
 ):
     _exclusive = exclusive
     _required_resources = required_resources
@@ -119,9 +124,9 @@ def test_plan_topological_order(
         db=db,
         indexer_types=[
             _make_indexer("a", index_cache_database=index_cache_database),
-            _make_indexer("b",
-                          index_cache_database=index_cache_database,
-                          required_assets=("a",)),
+            _make_indexer(
+                "b", index_cache_database=index_cache_database, required_assets=("a",)
+            ),
         ],
     )
     root = db.add_root("root", stable_test_dir)
@@ -179,18 +184,22 @@ def test_plan_can_run_filter(
             return path.suffix == ".txt"
 
         def run(self, ctx, request: IndexerRequest, resources, assets):
-            return IndexerOutput(indexer_id=self.asset_name,
-                                 result=_DummyResult(hash=request.get_hash_str()))
+            return IndexerOutput(
+                indexer_id=self.asset_name,
+                result=_DummyResult(hash=request.get_hash_str()),
+            )
 
     ctx = RunContext(db)
-    rt = IndexRuntime(ctx=ctx,
-                      db=db,
-                      indexer_types=[
-                          TxtOnly(
-                              config=TxtOnly.config_model(),
-                              database=index_cache_database,
-                          )
-                      ])
+    rt = IndexRuntime(
+        ctx=ctx,
+        db=db,
+        indexer_types=[
+            TxtOnly(
+                config=TxtOnly.config_model(),
+                database=index_cache_database,
+            )
+        ],
+    )
     root = db.add_root("root", stable_test_dir)
     files = [
         db.as_ref(root, stable_test_dir / "a.txt"),
@@ -253,8 +262,9 @@ def test_exclusive_transitive_different_consumers(
     assert rt.can_share_batch("a", "c") is False
 
 
-def test_exclusive_transitive_same_consumer(db: IndexDatabase,
-                                            index_cache_database: Engine):
+def test_exclusive_transitive_same_consumer(
+    db: IndexDatabase, index_cache_database: Engine
+):
     """A→B→R, C→B→R (R exclusive) → same direct consumer B → can share."""
     res_r = _make_resource("R", exclusive=True)
     res_b = _make_resource("B", required_resources=("R",))
@@ -279,8 +289,9 @@ def test_exclusive_transitive_same_consumer(db: IndexDatabase,
     assert rt.can_share_batch("a", "c") is True
 
 
-def test_exclusive_transitive_via_multiple_resources(db: IndexDatabase,
-                                                     index_cache_database: Engine):
+def test_exclusive_transitive_via_multiple_resources(
+    db: IndexDatabase, index_cache_database: Engine
+):
     """A→B→C→R and X→C→R (R exclusive) share same direct consumer C → can share."""
     res_r = _make_resource("R", exclusive=True)
     res_c = _make_resource("C", required_resources=("R",))
@@ -306,8 +317,9 @@ def test_exclusive_transitive_via_multiple_resources(db: IndexDatabase,
     assert rt.can_share_batch("a", "x") is True
 
 
-def test_exclusive_transitive_via_multiple_indexers(db: IndexDatabase,
-                                                    index_cache_database: Engine):
+def test_exclusive_transitive_via_multiple_indexers(
+    db: IndexDatabase, index_cache_database: Engine
+):
     """A→B→R, C→B→R, D→E→R (R exclusive) → A,C compatible; A,D incompatible."""
     res_r = _make_resource("R", exclusive=True)
     res_b = _make_resource("B", required_resources=("R",))
@@ -340,8 +352,9 @@ def test_exclusive_transitive_via_multiple_indexers(db: IndexDatabase,
     assert rt.can_share_batch("c", "d") is False
 
 
-def test_exclusive_not_flagged_allows_sharing(db: IndexDatabase,
-                                              index_cache_database: Engine):
+def test_exclusive_not_flagged_allows_sharing(
+    db: IndexDatabase, index_cache_database: Engine
+):
     """Without exclusive=True, different direct consumers can share."""
     res_r = _make_resource("R", exclusive=False)
     res_b = _make_resource("B", required_resources=("R",))
@@ -431,8 +444,9 @@ class SummaryIndexer(BaseIndexer):
         )
 
 
-def test_stateful_resource_no_churn_within_batch(db: IndexDatabase, stable_test_dir: Path,
-                                                 index_cache_database: Engine):
+def test_stateful_resource_no_churn_within_batch(
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+):
     """20 files in one batch requesting the same model → load_model called once."""
     for i in range(20):
         (stable_test_dir / f"f{i}.txt").write_text(f"doc {i}")
@@ -516,8 +530,9 @@ def test_stateful_resource_churn_across_models(
     pass  # see test below
 
 
-def test_stateful_resource_churn_across_batches(db: IndexDatabase, stable_test_dir: Path,
-                                                index_cache_database: Engine):
+def test_stateful_resource_churn_across_batches(
+    db: IndexDatabase, stable_test_dir: Path, index_cache_database: Engine
+):
     """Two indexer types requesting different models from same exclusive resource."""
 
     class SummaryA(BaseIndexer):

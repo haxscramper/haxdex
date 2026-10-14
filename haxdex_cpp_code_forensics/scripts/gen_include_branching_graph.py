@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import html
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
-from dominate import document
-from dominate.tags import a, body, div, head, meta, script, style
-from dominate.util import raw
 import graphviz
 import igraph as ig
 import py_codegen.proto_lib as pb
@@ -86,7 +82,8 @@ def create_include_tree_graph(
             "</TABLE>"
             "</TD>"
             "</TR>"
-            "</TABLE>")
+            "</TABLE>"
+        )
 
     visible_subtree_cache: dict[int, bool] = {}
 
@@ -100,17 +97,19 @@ def create_include_tree_graph(
         return result
 
     def nested_rows_for(
-            v: pb.IncludeVisit
+        v: pb.IncludeVisit,
     ) -> list[tuple[pb.IncludeVisit, int, int, str, int | None]]:
         rows: list[tuple[pb.IncludeVisit, int, int, str, bool]] = []
         for ch in v.nested:
-            rows.append((
-                ch,
-                cumulative_used(ch),
-                int(ch.file_line_count),
-                ch.relative_path or ch.absolute_path or "<unknown>",
-                has_visible_subtree(ch),
-            ))
+            rows.append(
+                (
+                    ch,
+                    cumulative_used(ch),
+                    int(ch.file_line_count),
+                    ch.relative_path or ch.absolute_path or "<unknown>",
+                    has_visible_subtree(ch),
+                )
+            )
 
         rows.sort(key=lambda item: item[1], reverse=True)
 
@@ -137,8 +136,8 @@ def create_include_tree_graph(
             f'<TD COLSPAN="4"><B>{title}</B></TD>',
             '<TD><FONT POINT-SIZE="10">'
             '<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">'
-            f"<TR><TD ALIGN=\"LEFT\">physical</TD><TD>{physical}</TD></TR>"
-            f"<TR><TD ALIGN=\"LEFT\">used sum</TD><TD>{used_sum}</TD></TR>"
+            f'<TR><TD ALIGN="LEFT">physical</TD><TD>{physical}</TD></TR>'
+            f'<TR><TD ALIGN="LEFT">used sum</TD><TD>{used_sum}</TD></TR>'
             "</TABLE>"
             "</FONT></TD>",
             "</TR>",
@@ -161,16 +160,21 @@ def create_include_tree_graph(
             else:
                 to_cell = f'<TD PORT="p{port_index}">→</TD>'
 
-            rows.append("<TR>"
-                        f'<TD ALIGN="LEFT">{rel_escaped}</TD>'
-                        f"<TD>{used}</TD>"
-                        f"<TD>{lines}</TD>"
-                        f"<TD>{progress}</TD>"
-                        f"{to_cell}"
-                        "</TR>")
+            rows.append(
+                "<TR>"
+                f'<TD ALIGN="LEFT">{rel_escaped}</TD>'
+                f"<TD>{used}</TD>"
+                f"<TD>{lines}</TD>"
+                f"<TD>{progress}</TD>"
+                f"{to_cell}"
+                "</TR>"
+            )
 
-        return ("<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">" +
-                "".join(rows) + "</TABLE>>")
+        return (
+            '<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0">'
+            + "".join(rows)
+            + "</TABLE>>"
+        )
 
     seq = 0
     graph_nodes: list[IncludeTreeNode] = []
@@ -199,7 +203,8 @@ def create_include_tree_graph(
                 path_key=v.absolute_path or v.relative_path or node_id,
                 parent_id=parent_id,
                 parent_row_index=parent_row_index,
-            ))
+            )
+        )
 
     def emit(
         v: pb.IncludeVisit,

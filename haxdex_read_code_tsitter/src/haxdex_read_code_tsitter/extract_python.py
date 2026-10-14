@@ -50,8 +50,11 @@ _PYTHON_IGNORED_TYPES = {
 
 def clean_python_docstring(raw: str) -> DocInfo | None:
     text = raw.strip()
-    if (text.startswith(('"""', "'''")) and text.endswith(('"""', "'''")) and
-            len(text) >= 6):
+    if (
+        text.startswith(('"""', "'''"))
+        and text.endswith(('"""', "'''"))
+        and len(text) >= 6
+    ):
         text = text[3:-3]
     elif text.startswith(("'", '"')) and text.endswith(("'", '"')) and len(text) >= 2:
         text = text[1:-1]
@@ -76,7 +79,9 @@ def clean_python_docstring(raw: str) -> DocInfo | None:
     return normalize_doc_lines(normalized)
 
 
-def get_python_docstring_for_statement_list(node: Node, source: bytes) -> DocInfo | None:
+def get_python_docstring_for_statement_list(
+    node: Node, source: bytes
+) -> DocInfo | None:
     if node.named_child_count == 0:
         return None
 
@@ -111,8 +116,8 @@ def python_parse_module_scope(
             continue
 
         if definition.type in {
-                "function_definition",
-                "async_function_definition",
+            "function_definition",
+            "async_function_definition",
         }:
             fn = python_parse_function(
                 definition,
@@ -162,8 +167,9 @@ def python_extract_function_name(node: Node, source: bytes) -> str | None:
     return node_text(name_node, source)
 
 
-def python_parse_arguments(params_node: Node | None,
-                           source: bytes) -> list[ParsedArgument]:
+def python_parse_arguments(
+    params_node: Node | None, source: bytes
+) -> list[ParsedArgument]:
     if params_node is None:
         return []
 
@@ -225,13 +231,17 @@ def python_parse_function(
     body = node.child_by_field_name("body")
     params = node.child_by_field_name("parameters")
     return_type = node.child_by_field_name("return_type")
-    doc = (get_python_docstring_for_statement_list(body, source)
-           if body is not None else None)
+    doc = (
+        get_python_docstring_for_statement_list(body, source)
+        if body is not None
+        else None
+    )
     args = python_parse_arguments(params, source)
 
     params_text = node_text(params, source) if params is not None else "()"
-    return_text = (f" -> {node_text(return_type, source)}"
-                   if return_type is not None else "")
+    return_text = (
+        f" -> {node_text(return_type, source)}" if return_type is not None else ""
+    )
     signature = f"{params_text}{return_text}"
 
     qn = ".".join(qualified_prefix + [name])
@@ -264,8 +274,11 @@ def python_parse_class(
         return None
 
     body = node.child_by_field_name("body")
-    doc = (get_python_docstring_for_statement_list(body, source)
-           if body is not None else None)
+    doc = (
+        get_python_docstring_for_statement_list(body, source)
+        if body is not None
+        else None
+    )
     start_line, end_line = source_lines(node)
     qn = ".".join(qualified_prefix + [name])
 
@@ -289,8 +302,8 @@ def python_parse_class(
             continue
 
         if definition.type in {
-                "function_definition",
-                "async_function_definition",
+            "function_definition",
+            "async_function_definition",
         }:
             method = python_parse_function(
                 definition,
@@ -339,7 +352,8 @@ def python_parse_class(
                     doc=None,
                     type_text=type_text,
                     path=rel_path,
-                ))
+                )
+            )
 
     return cls
 
@@ -362,7 +376,8 @@ def index_python_file(path: Path, rel_path: str, parser: Parser) -> ParsedEntry:
         start_line=start_line,
         end_line=end_line,
         doc=get_python_docstring_for_statement_list(root, source)
-        if root.type == "module" else None,
+        if root.type == "module"
+        else None,
     )
 
     python_parse_module_scope(

@@ -16,20 +16,23 @@ def main() -> int:
 
     rc = 0
     for target in targets:
-        rc = (subprocess.run(
-            [
-                "uv",
-                "run",
-                "--project",
-                str(PROJECT_DIR),
-                "./fix_ai_qt.py",
-                str(QT_CORE),
-                str(QT_WIDGETS),
-                "--target",
-                target,
-            ],
-            cwd=REPO_ROOT,
-        ).returncode or rc)
+        rc = (
+            subprocess.run(
+                [
+                    "uv",
+                    "run",
+                    "--project",
+                    str(PROJECT_DIR),
+                    "./fix_ai_qt.py",
+                    str(QT_CORE),
+                    str(QT_WIDGETS),
+                    "--target",
+                    target,
+                ],
+                cwd=REPO_ROOT,
+            ).returncode
+            or rc
+        )
     return rc
 
 

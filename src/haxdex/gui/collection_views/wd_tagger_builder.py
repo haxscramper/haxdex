@@ -1,18 +1,15 @@
+from beartype.typing import cast
 from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, QWidget
-from beartype.typing import Optional, cast
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer
-from haxdex.services.indexers.wd_indexer import WdTagIndexer, WdTagIndexerResult
-from haxdex.services.resources.wd_tagger import WdTaggerResult
 from haxdex.services.core.types import FileHash
+from haxdex.services.indexers.wd_indexer import WdTagIndexerResult
 
 
 class WdTaggerWidgetBuilder(WidgetBuilder):
-
     def build(
         self,
         db: IndexDatabase,

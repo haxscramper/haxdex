@@ -1,16 +1,14 @@
-from pathlib import Path
-
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
-
-from beartype.typing import Any, cast, Optional
+from beartype.typing import Any, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode, FileTreeInitArgs
-from haxdex.services.core.types import FileHash
-
-from loguru import logger
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 
 
 class FileNameData(BaseModel, extra="forbid"):
@@ -47,7 +45,10 @@ class FileNameColumnSpec(FileTreeColumnSpec):
             case CustomModelRole.FullDataRole.value:
                 return data
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return data.name
 
             case _:

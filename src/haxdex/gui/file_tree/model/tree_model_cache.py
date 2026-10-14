@@ -1,38 +1,38 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
-from sqlalchemy import (
-    bindparam,)
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
-from haxdex.gui.file_tree.model.tree_model_fetch import FilePathRow, fetch_indexer_assets
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import FileHash
-from haxdex.services.pydantic_utils import model_to_json_data
 import hashlib
 import json
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
+from loguru import logger
 from sqlalchemy import (
     Column,
     MetaData,
     Table,
     Text,
+    bindparam,
     delete,
     inspect,
     select,
 )
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 
 from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
 )
+from haxdex.gui.file_tree.model.tree_model_fetch import (
+    FilePathRow,
+    fetch_indexer_assets,
+)
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_types import BaseIndexer, RunContext
+from haxdex.services.core.types import FileHash
+from haxdex.services.pydantic_utils import model_to_json_data
 from haxdex.services.utils import create_cache_engine
-from loguru import logger
 
 CACHE_SCHEMA_TABLE = "file_tree_column_schemas"
 CACHE_FILE_TABLE = "file_tree_file_columns"
@@ -68,7 +68,8 @@ def _validate_columns(columns: Sequence[FileTreeColumnSpec]) -> None:
     duplicates = [name for name in dict.fromkeys(names) if names.count(name) > 1]
     if duplicates:
         raise ValueError(
-            f"File tree column names must be unique; duplicate items: {duplicates}")
+            f"File tree column names must be unique; duplicate items: {duplicates}"
+        )
 
     reserved_names = {"hash", "root", "relative"}
     reserved_in_use = sorted(name for name in names if name in reserved_names)
@@ -79,7 +80,8 @@ def _validate_columns(columns: Sequence[FileTreeColumnSpec]) -> None:
 
 
 def _build_cache_tables(
-    columns: Sequence[FileTreeColumnSpec],) -> tuple[MetaData, Table, Table, Table]:
+    columns: Sequence[FileTreeColumnSpec],
+) -> tuple[MetaData, Table, Table, Table]:
     metadata = MetaData()
 
     schema_table = Table(
@@ -147,12 +149,15 @@ def initialize_cache(
 
     if not cache_needs_rebuild:
         path_table_columns = {
-            column_info["name"] for column_info in inspector.get_columns(CACHE_PATH_TABLE)
+            column_info["name"]
+            for column_info in inspector.get_columns(CACHE_PATH_TABLE)
         }
         expected_path_table_columns = {"path", "hash", "root", "relative"}
 
-        cache_needs_rebuild = (len(path_table_columns) != len(expected_path_table_columns)
-                               or path_table_columns != expected_path_table_columns)
+        cache_needs_rebuild = (
+            len(path_table_columns) != len(expected_path_table_columns)
+            or path_table_columns != expected_path_table_columns
+        )
 
         if len(path_table_columns) != len(expected_path_table_columns):
             logger.info(
@@ -166,7 +171,8 @@ def initialize_cache(
 
     if not cache_needs_rebuild:
         file_table_columns = {
-            column_info["name"] for column_info in inspector.get_columns(CACHE_FILE_TABLE)
+            column_info["name"]
+            for column_info in inspector.get_columns(CACHE_FILE_TABLE)
         }
         expected_file_table_columns = {
             "hash",
@@ -175,8 +181,10 @@ def initialize_cache(
             *[column.column_name for column in columns],
         }
 
-        cache_needs_rebuild = (len(file_table_columns) != len(expected_file_table_columns)
-                               or file_table_columns != expected_file_table_columns)
+        cache_needs_rebuild = (
+            len(file_table_columns) != len(expected_file_table_columns)
+            or file_table_columns != expected_file_table_columns
+        )
 
         if len(file_table_columns) != len(expected_file_table_columns):
             logger.info(
@@ -196,10 +204,13 @@ def initialize_cache(
         with engine.begin() as connection:
             connection.execute(
                 schema_table.insert(),
-                [{
-                    "column_name": column_name,
-                    "schema_hash": schema_hash,
-                } for column_name, schema_hash in expected_schema_hashes.items()],
+                [
+                    {
+                        "column_name": column_name,
+                        "schema_hash": schema_hash,
+                    }
+                    for column_name, schema_hash in expected_schema_hashes.items()
+                ],
             )
 
         return engine, schema_table, file_table, path_table
@@ -210,7 +221,9 @@ def initialize_cache(
                 select(
                     schema_table.c.column_name,
                     schema_table.c.schema_hash,
-                ),).all(),)
+                ),
+            ).all(),
+        )
 
     schema_changed = cached_schema_hashes != expected_schema_hashes
 
@@ -223,10 +236,13 @@ def initialize_cache(
             connection.execute(delete(schema_table))
             connection.execute(
                 schema_table.insert(),
-                [{
-                    "column_name": column_name,
-                    "schema_hash": schema_hash,
-                } for column_name, schema_hash in expected_schema_hashes.items()],
+                [
+                    {
+                        "column_name": column_name,
+                        "schema_hash": schema_hash,
+                    }
+                    for column_name, schema_hash in expected_schema_hashes.items()
+                ],
             )
 
     logger.info("OK")
@@ -253,7 +269,8 @@ def _get_uncached_rows(
                     file_table.c.hash,
                     file_table.c.root,
                     file_table.c.relative,
-                ),)
+                ),
+            )
         }
 
     return [row for key, row in ordered_rows_by_key.items() if key not in cached_keys]
@@ -284,12 +301,15 @@ def _store_path_hashes(
         if path_rows:
             connection.execute(
                 path_upsert,
-                [{
-                    "path": row.path,
-                    "hash": row.hash,
-                    "root": row.root,
-                    "relative": row.relative,
-                } for row in path_rows.values()],
+                [
+                    {
+                        "path": row.path,
+                        "hash": row.hash,
+                        "root": row.root,
+                        "relative": row.relative,
+                    }
+                    for row in path_rows.values()
+                ],
             )
 
         stale_paths = cached_paths - path_rows.keys()
@@ -297,9 +317,7 @@ def _store_path_hashes(
         if stale_paths:
             connection.execute(
                 delete_path,
-                [{
-                    "stale_path": path
-                } for path in stale_paths],
+                [{"stale_path": path} for path in stale_paths],
             )
 
 
@@ -359,11 +377,13 @@ def store_missing_file_columns(
 
     with engine.begin() as connection:
         connection.execute(
-            sqlite_insert(file_table).on_conflict_do_nothing(index_elements=[
-                file_table.c.hash,
-                file_table.c.root,
-                file_table.c.relative,
-            ],),
+            sqlite_insert(file_table).on_conflict_do_nothing(
+                index_elements=[
+                    file_table.c.hash,
+                    file_table.c.root,
+                    file_table.c.relative,
+                ],
+            ),
             rows,
         )
 

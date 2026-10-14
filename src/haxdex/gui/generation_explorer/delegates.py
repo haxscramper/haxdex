@@ -1,8 +1,9 @@
-import random
 from difflib import SequenceMatcher
 from pathlib import Path
 
 from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QEvent,
     QModelIndex,
     QObject,
     QPersistentModelIndex,
@@ -10,9 +11,7 @@ from PyQt6.QtCore import (
     QSize,
     Qt,
     QThreadPool,
-    QEvent,
     pyqtSignal,
-    QAbstractItemModel,
 )
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap, QTextOption
 from PyQt6.QtWidgets import (
@@ -28,16 +27,15 @@ from PyQt6.QtWidgets import (
     QStyle,
     QStyledItemDelegate,
     QStyleOptionButton,
+    QStyleOptionViewItem,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QStyleOptionViewItem,
 )
 
 from .constants import (
-    GenExplorerColumns,
     COLOR_BAD,
     COLOR_REPLACED,
     COLOR_WARN,
@@ -46,10 +44,10 @@ from .constants import (
     LORA_ON_W,
     LORA_ROW_H,
     LORA_WEIGHT_W,
-    MODEL_EXTS,
     RUN_BTN_H,
     RUN_BTN_W,
     THUMB,
+    GenExplorerColumns,
 )
 from .model_registry import ModelRegistry
 
@@ -70,8 +68,9 @@ class ImageLoaderSignals(QObject):
 
 
 class ImageLoader(QRunnable):
-
-    def __init__(self, path: str, cache: dict[str, QImage], signals: ImageLoaderSignals):
+    def __init__(
+        self, path: str, cache: dict[str, QImage], signals: ImageLoaderSignals
+    ):
         super().__init__()
         self.path = path
         self.cache = cache
@@ -92,7 +91,6 @@ class ImageLoader(QRunnable):
 
 
 class ImageDelegate(QStyledItemDelegate):
-
     def __init__(self, view: QTableView):
         super().__init__(view)
         self.view = view
@@ -109,8 +107,9 @@ class ImageDelegate(QStyledItemDelegate):
     def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex) -> QSize:
         return QSize(THUMB + 8, THUMB + 8)
 
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem,
-              index: QModelIndex) -> None:
+    def paint(
+        self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
+    ) -> None:
         path = index.data(Qt.ItemDataRole.DisplayRole)
         image = self.cache.get(path)
         if image is None:
@@ -128,7 +127,6 @@ class ImageDelegate(QStyledItemDelegate):
 
 
 class ImagePreviewDialog(QDialog):
-
     def __init__(self, path: str, parent=None):
         super().__init__(parent)
         self.path = path
@@ -170,7 +168,6 @@ class ImagePreviewDialog(QDialog):
 
 
 class ModelComboDelegate(QStyledItemDelegate):
-
     def __init__(
         self,
         options: list[tuple[str, str]],
@@ -187,8 +184,9 @@ class ModelComboDelegate(QStyledItemDelegate):
         self.kind = kind
         self.filter_by_type = filter_by_type
 
-    def sorted_options(self, default_text: str,
-                       options: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    def sorted_options(
+        self, default_text: str, options: list[tuple[str, str]]
+    ) -> list[tuple[str, str]]:
         needle = default_text.strip().casefold()
         if needle == "":
             return sorted(options, key=lambda item: item[0].casefold())
@@ -202,8 +200,9 @@ class ModelComboDelegate(QStyledItemDelegate):
 
         return sorted(options, key=lambda item: (-score(item), item[0].casefold()))
 
-    def filtered_options(self, default_text: str,
-                         index: QModelIndex) -> list[tuple[str, str]]:
+    def filtered_options(
+        self, default_text: str, index: QModelIndex
+    ) -> list[tuple[str, str]]:
         options = self.options_data
         if self.filter_by_type:
             current = str(index.data(Qt.ItemDataRole.EditRole) or "").strip()
@@ -211,7 +210,8 @@ class ModelComboDelegate(QStyledItemDelegate):
             model_type = self.registry.type_for_payload(payload, self.kind)
             if model_type is not None:
                 options = [
-                    item for item in options
+                    item
+                    for item in options
                     if self.registry.type_for_payload(item[1], self.kind) == model_type
                 ]
         return self.sorted_options(default_text, options)
@@ -223,8 +223,10 @@ class ModelComboDelegate(QStyledItemDelegate):
         combo.setMaximumHeight(EDITOR_H)
 
         default_text = str(
-            index.data(Qt.ItemDataRole.DisplayRole) or
-            index.data(Qt.ItemDataRole.EditRole) or "").strip()
+            index.data(Qt.ItemDataRole.DisplayRole)
+            or index.data(Qt.ItemDataRole.EditRole)
+            or ""
+        ).strip()
         if self.allow_empty:
             combo.addItem("", "")
 
@@ -233,8 +235,9 @@ class ModelComboDelegate(QStyledItemDelegate):
 
         return combo
 
-    def updateEditorGeometry(self, editor: QWidget, option: QStyleOptionViewItem,
-                             index: QModelIndex):
+    def updateEditorGeometry(
+        self, editor: QWidget, option: QStyleOptionViewItem, index: QModelIndex
+    ):
         margin_x = 1
         width = max(0, option.rect.width() - (2 * margin_x))
         height = min(36, max(0, option.rect.height() - 4))
@@ -243,24 +246,31 @@ class ModelComboDelegate(QStyledItemDelegate):
 
     def setEditorData(self, editor: QWidget, index: QModelIndex):
         payload = self.registry.resolve_payload(
-            str(index.data(Qt.ItemDataRole.EditRole) or ""), self.kind)
+            str(index.data(Qt.ItemDataRole.EditRole) or ""), self.kind
+        )
         for row in range(editor.count()):
             if str(editor.itemData(row) or "") == payload:
                 editor.setCurrentIndex(row)
                 return
         editor.setCurrentText(str(index.data(Qt.ItemDataRole.EditRole) or ""))
 
-    def setModelData(self, editor: QWidget, model: QAbstractItemModel,
-                     index: QModelIndex):
+    def setModelData(
+        self, editor: QWidget, model: QAbstractItemModel, index: QModelIndex
+    ):
         text = editor.currentText().strip()
         payload = editor.currentData()
         if payload:
             model.setData(index, payload, Qt.ItemDataRole.EditRole)
             return
-        model.setData(index, self.registry.resolve_payload(text, self.kind),
-                      Qt.ItemDataRole.EditRole)
+        model.setData(
+            index,
+            self.registry.resolve_payload(text, self.kind),
+            Qt.ItemDataRole.EditRole,
+        )
 
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
+    def paint(
+        self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex
+    ):
         value = str(index.data(Qt.ItemDataRole.DisplayRole) or "").strip()
         payload, replaced = self.registry.resolve_with_replacement(value, self.kind)
 
@@ -284,8 +294,9 @@ class ModelComboDelegate(QStyledItemDelegate):
             background = QColor(70, 150, 90, 50)
 
         foreground = option.palette.text().color()
-        rect = option.rect.adjusted(6, (option.rect.height() - 22) // 2, -6,
-                                    -(option.rect.height() - 22) // 2)
+        rect = option.rect.adjusted(
+            6, (option.rect.height() - 22) // 2, -6, -(option.rect.height() - 22) // 2
+        )
 
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
@@ -293,8 +304,9 @@ class ModelComboDelegate(QStyledItemDelegate):
         painter.setBrush(background)
         painter.drawRoundedRect(rect, 6, 6)
         painter.setPen(foreground)
-        shown = option.fontMetrics.elidedText(text, Qt.TextElideMode.ElideMiddle,
-                                              rect.width() - 10)
+        shown = option.fontMetrics.elidedText(
+            text, Qt.TextElideMode.ElideMiddle, rect.width() - 10
+        )
         painter.drawText(
             rect.adjusted(5, 0, -5, 0),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
@@ -304,11 +316,12 @@ class ModelComboDelegate(QStyledItemDelegate):
 
 
 class LoraEditorWidget(QWidget):
-
-    def __init__(self,
-                 options: list[tuple[str, str]],
-                 registry: ModelRegistry,
-                 parent: QWidget | None = None):
+    def __init__(
+        self,
+        options: list[tuple[str, str]],
+        registry: ModelRegistry,
+        parent: QWidget | None = None,
+    ):
         super().__init__(parent)
         self.options_data = options
         self.registry = registry
@@ -320,12 +333,15 @@ class LoraEditorWidget(QWidget):
         self.table = QTableWidget(0, 3, self)
         self.table.setHorizontalHeaderLabels(["On", "LoRA", "Weight"])
         self.table.horizontalHeader().setVisible(False)
-        self.table.horizontalHeader().setSectionResizeMode(0,
-                                                           QHeaderView.ResizeMode.Fixed)
-        self.table.horizontalHeader().setSectionResizeMode(1,
-                                                           QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2,
-                                                           QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Fixed
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Fixed
+        )
         self.table.setColumnWidth(0, LORA_ON_W)
         self.table.setColumnWidth(2, LORA_WEIGHT_W)
 
@@ -379,8 +395,11 @@ class LoraEditorWidget(QWidget):
 
         line_edit = combo.lineEdit()
         if line_edit is not None:
-            line_edit.textEdited.connect(lambda text, arg_combo=combo: self.
-                                         resort_combo_by_similarity(arg_combo, text))
+            line_edit.textEdited.connect(
+                lambda text, arg_combo=combo: self.resort_combo_by_similarity(
+                    arg_combo, text
+                )
+            )
 
         if payload != "":
             for index in range(combo.count()):
@@ -405,8 +424,11 @@ class LoraEditorWidget(QWidget):
             on_item.setFlags(Qt.ItemFlag.ItemIsSelectable)
             on_item.setCheckState(Qt.CheckState.Unchecked)
         else:
-            on_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable |
-                             Qt.ItemFlag.ItemIsSelectable)
+            on_item.setFlags(
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsUserCheckable
+                | Qt.ItemFlag.ItemIsSelectable
+            )
             if bool(value.get("enabled", True)):
                 on_item.setCheckState(Qt.CheckState.Checked)
             else:
@@ -431,11 +453,13 @@ class LoraEditorWidget(QWidget):
     def set_loras(self, loras: list[dict]) -> None:
         self.table.setRowCount(0)
         for lora in loras:
-            self.add_row({
-                "enabled": bool(lora.get("enabled", True)),
-                "model": str(lora.get("model", "")),
-                "weight": float(lora.get("weight", 1.0)),
-            })
+            self.add_row(
+                {
+                    "enabled": bool(lora.get("enabled", True)),
+                    "model": str(lora.get("model", "")),
+                    "weight": float(lora.get("weight", 1.0)),
+                }
+            )
         if self.table.rowCount() == 0:
             self.add_row()
 
@@ -456,23 +480,25 @@ class LoraEditorWidget(QWidget):
             spin_box = self.table.cellWidget(row, 2)
             weight = spin_box.value() if spin_box is not None else 1.0
 
-            output.append({
-                "enabled": enabled,
-                "model": model_payload,
-                "weight": float(weight),
-            })
+            output.append(
+                {
+                    "enabled": enabled,
+                    "model": model_payload,
+                    "weight": float(weight),
+                }
+            )
         return output
 
 
 class LoraDelegate(QStyledItemDelegate):
-
     def __init__(self, registry: ModelRegistry, parent=None):
         super().__init__(parent)
         self.registry = registry
 
     def createEditor(self, parent, option, index):
-        checkpoint_index = index.sibling(index.row(),
-                                         GenExplorerColumns.COL_CHECKPOINT.value)
+        checkpoint_index = index.sibling(
+            index.row(), GenExplorerColumns.COL_CHECKPOINT.value
+        )
         checkpoint = str(checkpoint_index.data(Qt.ItemDataRole.EditRole) or "").strip()
         payload = self.registry.resolve_payload(checkpoint, "checkpoint")
         checkpoint_type = self.registry.type_for_payload(payload, "checkpoint")
@@ -480,7 +506,8 @@ class LoraDelegate(QStyledItemDelegate):
             options = self.registry.options("lora")
         else:
             options = [
-                item for item in self.registry.options("lora")
+                item
+                for item in self.registry.options("lora")
                 if self.registry.type_for_payload(item[1], "lora") == checkpoint_type
             ]
         return LoraEditorWidget(options, self.registry, parent)
@@ -520,13 +547,15 @@ class LoraDelegate(QStyledItemDelegate):
             if rect.bottom() < y:
                 break
 
-            row_rect = rect.__class__(rect.x(), y, rect.width(),
-                                      min(row_height,
-                                          rect.bottom() - y + 1))
+            row_rect = rect.__class__(
+                rect.x(), y, rect.width(), min(row_height, rect.bottom() - y + 1)
+            )
 
             enabled = bool(lora.get("enabled", True))
             raw_model = str(lora.get("model", "") or "")
-            payload, replaced = self.registry.resolve_with_replacement(raw_model, "lora")
+            payload, replaced = self.registry.resolve_with_replacement(
+                raw_model, "lora"
+            )
             if replaced:
                 model = self.registry.display_for_payload(payload, "lora") or payload
             else:
@@ -564,15 +593,17 @@ class LoraDelegate(QStyledItemDelegate):
 
             painter.drawText(
                 rect.__class__(x_model + 6, y, model_width - 12, row_rect.height()),
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft |
-                Qt.TextFlag.TextSingleLine,
+                Qt.AlignmentFlag.AlignVCenter
+                | Qt.AlignmentFlag.AlignLeft
+                | Qt.TextFlag.TextSingleLine,
                 model,
             )
 
             painter.drawText(
                 rect.__class__(x_weight + 6, y, weight_width - 10, row_rect.height()),
-                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight |
-                Qt.TextFlag.TextSingleLine,
+                Qt.AlignmentFlag.AlignVCenter
+                | Qt.AlignmentFlag.AlignRight
+                | Qt.TextFlag.TextSingleLine,
                 f"{weight:g}",
             )
 
@@ -580,7 +611,6 @@ class LoraDelegate(QStyledItemDelegate):
 
 
 class PromptEdit(QPlainTextEdit):
-
     def __init__(self, text: str, parent=None):
         super().__init__(parent)
         self.setPlainText(text)
@@ -589,7 +619,6 @@ class PromptEdit(QPlainTextEdit):
 
 
 class PromptDelegate(QStyledItemDelegate):
-
     def createEditor(self, parent, option, index):
         return PromptEdit(str(index.data(Qt.ItemDataRole.EditRole) or ""), parent)
 
@@ -608,7 +637,6 @@ class PromptDelegate(QStyledItemDelegate):
 
 
 class NumberDelegate(QStyledItemDelegate):
-
     def __init__(self, decimals: bool, parent=None):
         super().__init__(parent)
         self.decimals = decimals
@@ -659,13 +687,17 @@ class ButtonDelegate(QStyledItemDelegate):
         button.rect = self.button_rect(option.rect)
         button.text = "Run"
         button.state = QStyle.StateFlag.State_Enabled
-        if self.pressed.isValid() and self.pressed.row() == index.row(
-        ) and self.pressed.column() == index.column():
+        if (
+            self.pressed.isValid()
+            and self.pressed.row() == index.row()
+            and self.pressed.column() == index.column()
+        ):
             button.state |= QStyle.StateFlag.State_Sunken
         else:
             button.state |= QStyle.StateFlag.State_Raised
-        QApplication.style().drawControl(QStyle.ControlElement.CE_PushButton, button,
-                                         painter)
+        QApplication.style().drawControl(
+            QStyle.ControlElement.CE_PushButton, button, painter
+        )
 
     def editorEvent(self, event, model, option, index):
         rect = self.button_rect(option.rect)
@@ -677,8 +709,11 @@ class ButtonDelegate(QStyledItemDelegate):
 
         if event.type() == QEvent.Type.MouseButtonRelease:
             hit = rect.contains(event.pos())
-            was_pressed = self.pressed.isValid() and self.pressed.row() == index.row(
-            ) and self.pressed.column() == index.column()
+            was_pressed = (
+                self.pressed.isValid()
+                and self.pressed.row() == index.row()
+                and self.pressed.column() == index.column()
+            )
             self.pressed = QPersistentModelIndex()
             self.view.viewport().update(option.rect)
             if was_pressed and hit:

@@ -1,15 +1,25 @@
-from PyQt6.QtCore import QUrl, Qt, QSize
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PyQt6.QtMultimediaWidgets import QVideoWidget
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSlider, QStyle, QSizePolicy
 from beartype import beartype
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PyQt6.QtMultimediaWidgets import QVideoWidget
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QStyle,
+    QVBoxLayout,
+    QWidget,
+)
 
-from haxdex.gui.collection_views.file_content_view.file_content_builder import FileContentViewBuilder
+from haxdex.gui.collection_views.file_content_view.file_content_builder import (
+    FileContentViewBuilder,
+)
 
 
 @beartype
 class VideoFileContentViewBuilder(FileContentViewBuilder):
-
     def can_build(self, mime: str) -> bool:
         return mime.startswith("video/")
 

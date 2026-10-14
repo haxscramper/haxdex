@@ -1,9 +1,8 @@
 # haxdex/services/resources/text_summary.py
-from loguru import logger
-from typing import Any, ClassVar, Literal, Union
+from typing import Any, ClassVar, Union
 
-from pydantic import BaseModel, Field
 from beartype.typing import Annotated
+from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import (
     BaseResource,
@@ -13,11 +12,11 @@ from haxdex.services.core.job_types import (
 from haxdex.services.core.types import MultiDocumentModel
 from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkConfig,
-    ChunkUnit,
-    Chunker,
     ChunkDocument,
+    Chunker,
     ChunkFile,
     ChunkLink,
+    ChunkUnit,
     chunks_to_multidoc,
 )
 from haxdex.services.resources.flm_server import (
@@ -29,7 +28,8 @@ from haxdex.services.resources.flm_server import (
 _SUMMARIZE_SYSTEM_PROMPT = "You summarize text files in 5-10 concise sentences."
 _COMBINE_SYSTEM_PROMPT = (
     "You are given summaries of consecutive sections of a single text file. "
-    "Produce one coherent summary of the whole file in 5-10 concise sentences.")
+    "Produce one coherent summary of the whole file in 5-10 concise sentences."
+)
 
 
 class SummarizeRequest(BaseModel, extra="forbid"):
@@ -55,12 +55,14 @@ class TextSummaryResult(MultiDocumentModel, extra="forbid"):
 
 class TextSummaryResourceConfig(BaseResourceConfig, extra="forbid"):
     model: str = "gemma4-it:e4b"
-    chunk: ChunkConfig = Field(default_factory=lambda: ChunkConfig(
-        unit=ChunkUnit.TOKENS,
-        max_size=12_000,
-        start_overlap_max=200,
-        encoding_name="o200k_base",
-    ))
+    chunk: ChunkConfig = Field(
+        default_factory=lambda: ChunkConfig(
+            unit=ChunkUnit.TOKENS,
+            max_size=12_000,
+            start_overlap_max=200,
+            encoding_name="o200k_base",
+        )
+    )
 
 
 class TextSummaryResource(BaseResource):
@@ -79,7 +81,8 @@ class TextSummaryResource(BaseResource):
             raise KeyError("Missing required resource: flm_server")
         if not isinstance(flm, FlmServerResource):
             raise TypeError(
-                "Resource `flm_server` must be an instance of FlmServerResource")
+                "Resource `flm_server` must be an instance of FlmServerResource"
+            )
         return flm
 
     def _summarize(
@@ -115,16 +118,19 @@ class TextSummaryResource(BaseResource):
 
         summ: dict[str, str] = {}
         for c in chunks:
-            summ[c.hash] = self._summarize(ctx, flm, resources, c.text,
-                                           _SUMMARIZE_SYSTEM_PROMPT)
+            summ[c.hash] = self._summarize(
+                ctx, flm, resources, c.text, _SUMMARIZE_SYSTEM_PROMPT
+            )
 
         if len(chunks) <= 1:
             file_summary = summ[chunks[0].hash] if chunks else ""
         else:
             combined = "\n\n".join(
-                f"Section {i + 1}: {summ[c.hash]}" for i, c in enumerate(chunks))
-            file_summary = self._summarize(ctx, flm, resources, combined,
-                                           _COMBINE_SYSTEM_PROMPT)
+                f"Section {i + 1}: {summ[c.hash]}" for i, c in enumerate(chunks)
+            )
+            file_summary = self._summarize(
+                ctx, flm, resources, combined, _COMBINE_SYSTEM_PROMPT
+            )
 
         documents, edges = chunks_to_multidoc(
             chunks,

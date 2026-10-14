@@ -1,6 +1,5 @@
 import hashlib
 import json
-from loguru import logger
 import subprocess
 from dataclasses import dataclass
 from fractions import Fraction
@@ -8,10 +7,14 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import ClassVar
+from loguru import logger
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
-from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertTarget, VideoConvertData
+from haxdex.gui.file_tree.columns.video_convert_column import (
+    VideoConvertData,
+    VideoConvertTarget,
+)
 
 
 @beartype
@@ -33,32 +36,37 @@ class VideoConvertActionHandler(ActionHandler):
     action_type = VideoConvertAction
 
     @beartype
-    def __init__(self,
-                 output_directory: Path,
-                 dry_run: bool,
-                 vaapi_device: Path = Path("/dev/dri/renderD128")) -> None:
+    def __init__(
+        self,
+        output_directory: Path,
+        dry_run: bool,
+        vaapi_device: Path = Path("/dev/dri/renderD128"),
+    ) -> None:
         self.output_directory = output_directory.absolute()
         self.dry_run = dry_run
         self.vaapi_device = vaapi_device
 
     _VAAPI_MIN_DIM = 128
     _VAAPI_MAX_DIM = 4096
-    _VAAPI_DECODE_CODECS = frozenset({
-        "h264",
-        "hevc",
-        "vp8",
-        "vp9",
-        "av1",
-        "mpeg2video",
-        "mpeg4",
-        "vc1",
-        "mjpeg",
-    })
+    _VAAPI_DECODE_CODECS = frozenset(
+        {
+            "h264",
+            "hevc",
+            "vp8",
+            "vp9",
+            "av1",
+            "mpeg2video",
+            "mpeg4",
+            "vc1",
+            "mjpeg",
+        }
+    )
 
     @beartype
     def dest_path(self, action: VideoConvertAction) -> Path:
-        dest = (self.output_directory / action.file.root /
-                action.file.root_relative).absolute()
+        dest = (
+            self.output_directory / action.file.root / action.file.root_relative
+        ).absolute()
         return dest.with_suffix(".mkv")
 
     @beartype
@@ -77,14 +85,18 @@ class VideoConvertActionHandler(ActionHandler):
 
         probe = self._probe_video(src)
         target_width, target_height, target_fps = self._resolve_target(
-            probe, action.target.target)
-        target_bitrate = self._infer_target_bitrate(probe, target_width, target_height,
-                                                    target_fps)
+            probe, action.target.target
+        )
+        target_bitrate = self._infer_target_bitrate(
+            probe, target_width, target_height, target_fps
+        )
 
         hw_decode = probe.codec_name in self._VAAPI_DECODE_CODECS
-        vaapi_encodable = (self._VAAPI_MIN_DIM <= target_width <= self._VAAPI_MAX_DIM and
-                           self._VAAPI_MIN_DIM <= target_height <= self._VAAPI_MAX_DIM)
-        scale_needed = (target_width != probe.width or target_height != probe.height)
+        vaapi_encodable = (
+            self._VAAPI_MIN_DIM <= target_width <= self._VAAPI_MAX_DIM
+            and self._VAAPI_MIN_DIM <= target_height <= self._VAAPI_MAX_DIM
+        )
+        scale_needed = target_width != probe.width or target_height != probe.height
 
         if vaapi_encodable:
             hw_decode = probe.codec_name in self._VAAPI_DECODE_CODECS
@@ -190,7 +202,8 @@ class VideoConvertActionHandler(ActionHandler):
         if dest.exists():
             if dest.is_dir():
                 raise ValueError(
-                    f"Undo path points to a directory, expected file: {dest}")
+                    f"Undo path points to a directory, expected file: {dest}"
+                )
             dest.unlink()
 
     @beartype
@@ -211,7 +224,9 @@ class VideoConvertActionHandler(ActionHandler):
             raise ValueError(f"Video convert source cannot be output directory: {src}")
 
         if src == dest:
-            raise ValueError(f"Video convert destination resolves to source path: {src}")
+            raise ValueError(
+                f"Video convert destination resolves to source path: {src}"
+            )
 
         if self.vaapi_device.exists() is False:
             raise ValueError(f"VAAPI device does not exist: {self.vaapi_device}")
@@ -251,10 +266,15 @@ class VideoConvertActionHandler(ActionHandler):
 
         if stream_bitrate_raw is None and format_bitrate_raw is None:
             raise ValueError(
-                f"Unable to infer source bitrate from ffprobe output for file: {src}")
+                f"Unable to infer source bitrate from ffprobe output for file: {src}"
+            )
 
-        stream_bitrate = int(stream_bitrate_raw) if stream_bitrate_raw is not None else 0
-        format_bitrate = int(format_bitrate_raw) if format_bitrate_raw is not None else 0
+        stream_bitrate = (
+            int(stream_bitrate_raw) if stream_bitrate_raw is not None else 0
+        )
+        format_bitrate = (
+            int(format_bitrate_raw) if format_bitrate_raw is not None else 0
+        )
         bitrate = stream_bitrate if 0 < stream_bitrate else format_bitrate
 
         if bitrate < 1:
@@ -269,8 +289,9 @@ class VideoConvertActionHandler(ActionHandler):
         )
 
     @beartype
-    def _resolve_target(self, probe: _ProbeResultType,
-                        target: VideoConvertTarget) -> tuple[int, int, float]:
+    def _resolve_target(
+        self, probe: _ProbeResultType, target: VideoConvertTarget
+    ) -> tuple[int, int, float]:
         match target:
             case VideoConvertTarget.NO_CHANGE:
                 return probe.width, probe.height, probe.fps
@@ -299,8 +320,9 @@ class VideoConvertActionHandler(ActionHandler):
         return max(rounded, 2)
 
     @beartype
-    def _infer_max_bitrate(self, target_width: int, target_height: int,
-                           target_fps: float) -> int:
+    def _infer_max_bitrate(
+        self, target_width: int, target_height: int, target_fps: float
+    ) -> int:
         # Bits-per-pixel-per-frame heuristic tuned to commonly expected H.264
         # bitrates (roughly 2.5 Mbps @480p30, 5 Mbps @720p30, 8 Mbps @1080p30).
         bits_per_pixel = 0.13

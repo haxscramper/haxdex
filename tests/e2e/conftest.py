@@ -1,8 +1,6 @@
-from loguru import logger
-
 from beartype.typing import Any
 
-from haxdex.services.utils import stfu_logs, propagate_logger_level
+from haxdex.services.utils import stfu_logs
 
 
 def pytest_configure(config: Any) -> None:

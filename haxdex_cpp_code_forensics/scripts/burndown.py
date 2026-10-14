@@ -1,22 +1,17 @@
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
 from beartype.typing import Optional
 from cxx_repository.orm_model import (
     Base,
     FileSectionLines,
-    FileTrack,
     FileTrackSection,
     GitCommit,
     LineData,
-    ViewFullFileSectionLines,
 )
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 from py_scriptutils.script_logging import log
-from py_scriptutils.tracer import TraceCollector
 from pydantic import BaseModel
 from sqlalchemy import Engine, func, select
 from sqlalchemy.engine import Engine
@@ -53,26 +48,37 @@ def run_for(engine: Engine, config: BurndownConfiguration) -> None:
     session = session_maker()
 
     # Determine the global time range from commit timestamps.
-    bounds = session.execute(select(func.min(GitCommit.time),
-                                    func.max(GitCommit.time))).one()
+    bounds = session.execute(
+        select(func.min(GitCommit.time), func.max(GitCommit.time))
+    ).one()
     db_min, db_max = bounds
     if db_min is None:
         return
 
-    min_ts = (int(config.min_date.replace(
-        tzinfo=timezone.utc).timestamp()) if config.min_date else db_min)
-    max_ts = (int(config.max_date.replace(
-        tzinfo=timezone.utc).timestamp()) if config.max_date else db_max)
+    min_ts = (
+        int(config.min_date.replace(tzinfo=timezone.utc).timestamp())
+        if config.min_date
+        else db_min
+    )
+    max_ts = (
+        int(config.max_date.replace(tzinfo=timezone.utc).timestamp())
+        if config.max_date
+        else db_max
+    )
 
     sample_secs = int(config.sample_period.total_seconds())
     sample_points = list(range(min_ts, max_ts + 1, sample_secs))
 
     # Subquery: every section with its commit time and track.
-    section_time = (select(
-        FileTrackSection.id.label("section_id"),
-        FileTrackSection.track.label("track"),
-        GitCommit.time.label("section_time"),
-    ).join(GitCommit, GitCommit.id == FileTrackSection.commit_id).subquery())
+    section_time = (
+        select(
+            FileTrackSection.id.label("section_id"),
+            FileTrackSection.track.label("track"),
+            GitCommit.time.label("section_time"),
+        )
+        .join(GitCommit, GitCommit.id == FileTrackSection.commit_id)
+        .subquery()
+    )
 
     # Per-section line counts grouped by the birth bucket of each line.
     # line birth time comes from the commit that introduced the LineData.
@@ -84,15 +90,17 @@ def run_for(engine: Engine, config: BurndownConfiguration) -> None:
             section_time.c.section_time,
             line_commit.time.label("line_time"),
             func.count(FileSectionLines.id).label("n"),
-        ).join(FileSectionLines,
-               FileSectionLines.section == section_time.c.section_id).join(
-                   LineData, LineData.id == FileSectionLines.line_id).join(
-                       line_commit, line_commit.id == LineData.commit_id).group_by(
-                           section_time.c.section_id,
-                           section_time.c.track,
-                           section_time.c.section_time,
-                           line_commit.time,
-                       )).all()
+        )
+        .join(FileSectionLines, FileSectionLines.section == section_time.c.section_id)
+        .join(LineData, LineData.id == FileSectionLines.line_id)
+        .join(line_commit, line_commit.id == LineData.commit_id)
+        .group_by(
+            section_time.c.section_id,
+            section_time.c.track,
+            section_time.c.section_time,
+            line_commit.time,
+        )
+    ).all()
 
     # Index section data per track, sorted by section time, so that for a
     # given sample date we can pick the latest applicable snapshot per track.
@@ -106,7 +114,8 @@ def run_for(engine: Engine, config: BurndownConfiguration) -> None:
         section_bands.setdefault(row.section_id, {})
         band = _bucket_start(row.line_time, config.band_period)
         section_bands[row.section_id][band] = (
-            section_bands[row.section_id].get(band, 0) + row.n)
+            section_bands[row.section_id].get(band, 0) + row.n
+        )
 
     # Build the (section_time, section_id) lists once, deduplicated and sorted.
     seen: dict[int, set[int]] = {}

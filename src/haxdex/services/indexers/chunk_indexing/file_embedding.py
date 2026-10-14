@@ -3,23 +3,29 @@ from typing import Any, ClassVar, Union
 
 import glom
 from beartype import beartype
-from pydantic import Field
 from beartype.typing import Annotated, Optional
+from pydantic import Field
 from sqlalchemy import Engine
 
-from haxdex.services.core.job_types import BaseIndexer, RunContext, BaseIndexerConfig
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, MultiDocumentModel, VectorIndexConfig
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import (
+    IndexerOutput,
+    IndexerRequest,
+    MultiDocumentModel,
+    VectorIndexConfig,
+)
 from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkConfig,
-    ChunkUnit,
-    Chunker,
     ChunkDocument,
+    Chunker,
     ChunkFile,
     ChunkLink,
+    ChunkUnit,
     chunks_to_multidoc,
 )
 from haxdex.services.indexers.full_document.full_document import (
-    DocumentBlockIndexerResult,)
+    DocumentBlockIndexerResult,
+)
 
 
 class EmbeddingChunk(ChunkDocument, extra="forbid"):
@@ -51,11 +57,13 @@ def _placeholder_vector(text: str) -> list[float]:
 
 
 class FileEmbeddingIndexerConfig(BaseIndexerConfig, extra="forbid"):
-    chunk: ChunkConfig = Field(default_factory=lambda: ChunkConfig(
-        unit=ChunkUnit.CHARS,
-        max_size=1500,
-        min_size=300,
-    ))
+    chunk: ChunkConfig = Field(
+        default_factory=lambda: ChunkConfig(
+            unit=ChunkUnit.CHARS,
+            max_size=1500,
+            min_size=300,
+        )
+    )
 
 
 @beartype
@@ -85,8 +93,9 @@ class FileEmbeddingIndexer(BaseIndexer):
         chunker = Chunker(self.config.chunk)
 
         if isinstance(full_document, DocumentBlockIndexerResult):
-            chunks = chunker.chunk_blocks(full_document.documents, full_document.edges,
-                                          file_hash)
+            chunks = chunker.chunk_blocks(
+                full_document.documents, full_document.edges, file_hash
+            )
         else:
             text = ctx.get_path(request.file_ref).read_text()
             chunks = chunker.chunk_text(text, file_hash)

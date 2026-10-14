@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from beartype import beartype
+from beartype.typing import Any
 from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -8,8 +10,6 @@ from PyQt6.QtWidgets import (
     QTableView,
     QWidget,
 )
-from beartype import beartype
-from beartype.typing import Any
 
 
 @beartype
@@ -39,7 +39,8 @@ class ColumnFilterHeaderView(QWidget):
             editor = QLineEdit(self)
             editor.setPlaceholderText(item.placeholder)
             editor.textChanged.connect(
-                lambda text, column=item.column: self.filter_changed.emit(column, text))
+                lambda text, column=item.column: self.filter_changed.emit(column, text)
+            )
             self.editors[item.column] = editor
 
         self.apply_viewport_margin()
@@ -106,7 +107,8 @@ class FilterableTableView(QTableView):
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setTextElideMode(Qt.TextElideMode.ElideNone)
         self.horizontalScrollBar().valueChanged.connect(
-            lambda _value: self.filter_header.update_positions())
+            lambda _value: self.filter_header.update_positions()
+        )
 
         self.viewport().installEventFilter(self)
 

@@ -1,29 +1,30 @@
+import enum
+import io
+import shutil
 from collections import OrderedDict
 from copy import copy
 from dataclasses import dataclass, field
 from datetime import datetime
-import enum
-import io
 from pathlib import Path
-import shutil
-from tempfile import mktemp, TemporaryDirectory
+from tempfile import TemporaryDirectory, mktemp
 from types import TracebackType
 
-from beartype import beartype
-from beartype.typing import Any, Dict, List, Optional, Set, Type
-from cxx_repository.code_forensics import run_forensics
 import git
-from hypothesis import given, settings, strategies as st, Verbosity
 import pandas as pd
 import plumbum
 import plumbum.commands.base
+import pytest
+from beartype import beartype
+from beartype.typing import Any, Dict, List, Optional, Set, Type
+from cxx_repository.code_forensics import run_forensics
+from hypothesis import Verbosity, given, settings
+from hypothesis import strategies as st
 from py_scriptutils.files import get_haxorg_repo_root_path
 from py_scriptutils.os_utils import gettempdir
-import pytest
 from rich import box
 from rich.console import Console
 from rich.table import Table
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import Engine, create_engine
 
 CAT = __name__
 
@@ -34,8 +35,11 @@ def print_df_rich(
     title: str,
     file: Optional[io.TextIOWrapper] = None,
 ) -> None:
-    console = Console(file=file, force_terminal=False,
-                      color_system=None) if file else Console()
+    console = (
+        Console(file=file, force_terminal=False, color_system=None)
+        if file
+        else Console()
+    )
 
     table = Table(
         show_lines=False,
@@ -60,7 +64,7 @@ def print_df_rich(
                 row_data.append(f"[cyan]{item}[/cyan]")
             elif isinstance(item, str):
                 # Quote strings and highlight in yellow
-                row_data.append(f"[yellow]\"{item.strip()}\"[/yellow]")
+                row_data.append(f'[yellow]"{item.strip()}"[/yellow]')
             else:
                 row_data.append(str(item))
         table.add_row(*row_data)
@@ -126,10 +130,10 @@ def git_commit(
         GIT_COMMITTER_DATE=date.strftime("%Y-%m-%d %H:%M:%S"),
     )
     code, stdout, stderr = git.run(
-        ("commit", f"--author={author} <{email}>", "-m", message), retcode=None)
+        ("commit", f"--author={author} <{email}>", "-m", message), retcode=None
+    )
 
     if code != 0 and not allow_fail:
-
         assert False, f"""
 Failed to commit
 stdout:
@@ -155,8 +159,7 @@ class GitTestRepository:
         return get_git(self.git_dir())
 
     def git_dir(self) -> Path:
-        return self.dir if isinstance(self.dir, Path) else Path(
-            self.dir.name)  # type: ignore
+        return self.dir if isinstance(self.dir, Path) else Path(self.dir.name)  # type: ignore
 
     def get_engine(self) -> Engine:
         return create_engine("sqlite:///" + str(self.db))
@@ -209,12 +212,13 @@ class GitTestRepository:
 
 @beartype
 def print_connection_tables(
-        engine: Engine,
-        exclude: List[str] = list(),
-        file: Optional[io.TextIOWrapper] = None,
+    engine: Engine,
+    exclude: List[str] = list(),
+    file: Optional[io.TextIOWrapper] = None,
 ) -> None:
     tables = pd.read_sql_query(
-        "SELECT name FROM sqlite_master WHERE type='table' OR type='view';", engine)
+        "SELECT name FROM sqlite_master WHERE type='table' OR type='view';", engine
+    )
 
     print("", file=file)
     for table_name in tables["name"].tolist():
@@ -225,10 +229,11 @@ def print_connection_tables(
 
 @pytest.mark.test_release
 def test_can_run_dir() -> None:
-    with GitTestRepository({"a": "fixed_line\ninit_commit_content"},
-                           fixed_dir=gettempdir("fixed_git_dir_1"),
-                           fixed_db=gettempdir("result.sqlite")) as repo:
-
+    with GitTestRepository(
+        {"a": "fixed_line\ninit_commit_content"},
+        fixed_dir=gettempdir("fixed_git_dir_1"),
+        fixed_db=gettempdir("result.sqlite"),
+    ) as repo:
         git_write_files(repo.git_dir(), {"a": "fixed_line\nline_1_edit1\nline_2_edit1"})
         git_commit(repo.git_dir(), "second")
 
@@ -245,7 +250,8 @@ def test_can_run_dir() -> None:
                     # "perfetto": gettempdir("code_forensics.pftrace"),
                 },
                 "log_file": gettempdir("test_can_run_dir.log"),
-            })
+            },
+        )
 
         assert repo.db
         assert Path(repo.db).exists(), repo.db
@@ -271,24 +277,43 @@ def test_can_run_dir() -> None:
         assert len(section_versions) == 3
         commit1, commit2, commit3 = [group for _, group in section_versions]
         assert commit1["text"].to_list() == ["fixed_line", "init_commit_content"]
-        assert commit2["text"].to_list() == ["fixed_line", "line_1_edit1", "line_2_edit1"]
-        assert commit3["text"].to_list() == ["fixed_line", "line_1_edit2", "line_2_edit1"]
+        assert commit2["text"].to_list() == [
+            "fixed_line",
+            "line_1_edit1",
+            "line_2_edit1",
+        ]
+        assert commit3["text"].to_list() == [
+            "fixed_line",
+            "line_1_edit2",
+            "line_2_edit1",
+        ]
 
         def trimall(values: List[str]) -> List[str]:
             return [s.strip() for s in values]
 
         assert trimall(commit1["line_commit_message"].to_list()) == ["init", "init"]
-        assert trimall(
-            commit2["line_commit_message"].to_list()) == ["init", "second", "second"]
-        assert trimall(
-            commit3["line_commit_message"].to_list()) == ["init", "third", "second"]
+        assert trimall(commit2["line_commit_message"].to_list()) == [
+            "init",
+            "second",
+            "second",
+        ]
+        assert trimall(commit3["line_commit_message"].to_list()) == [
+            "init",
+            "third",
+            "second",
+        ]
 
         assert trimall(commit1["section_commit_message"].to_list()) == ["init", "init"]
         assert trimall(commit2["section_commit_message"].to_list()) == [
-            "second", "second", "second"
+            "second",
+            "second",
+            "second",
         ]
-        assert trimall(
-            commit3["section_commit_message"].to_list()) == ["third", "third", "third"]
+        assert trimall(commit3["section_commit_message"].to_list()) == [
+            "third",
+            "third",
+            "third",
+        ]
 
 
 @pytest.mark.test_release
@@ -303,8 +328,10 @@ def test_file_move() -> None:
 def test_file_move_and_edit() -> None:
     with GitTestRepository({"original_path": "\n".join(["original"] * 100)}) as repo:
         git_move_files(repo.git_dir(), "original_path", "new_path")
-        git_write_files(repo.git_dir(),
-                        {"new_path": "\n".join(["original"] * 90 + ["changed"] * 10)})
+        git_write_files(
+            repo.git_dir(),
+            {"new_path": "\n".join(["original"] * 90 + ["changed"] * 10)},
+        )
         git_commit(repo.git_dir(), "move1")
         run_forensics(repo.git_dir(), db=str(repo.db))
 
@@ -348,13 +375,15 @@ def test_fast_forward_merge() -> None:
 def test_haxorg_forensics() -> None:
     build_res = get_haxorg_repo_root_path().joinpath("build/code_forensics")
     _, stdout, stderr = run_forensics(
-        get_haxorg_repo_root_path(), {
+        get_haxorg_repo_root_path(),
+        {
             "out": {
                 "db_path": str(build_res.joinpath("test_haxorg_forensics.sqlite")),
                 "log_file": str(build_res.joinpath("test_haxorg_forensics.log")),
                 "perfetto": str(build_res.joinpath("test_haxorg_forensics.pftrace")),
             },
-        })
+        },
+    )
 
 
 file_names = st.text(
@@ -385,7 +414,8 @@ def line_content(draw: st.DrawFn) -> str:
                 ),
                 min_size=15,
                 max_size=20,
-            ))
+            )
+        )
 
 
 MAX_FILES = 5
@@ -417,15 +447,16 @@ class GitFileEdit:
 
 
 class GitFileEditStrategy:
-
     def __init__(self, lines: List[str]):
         self.lines = ["" for _ in lines]
 
     def get_ops(self, draw: st.DrawFn) -> GitFileEdit:
         if not self.lines:
-            operation = GitFileEdit(kind=GitFileEditKind.INSERT_LINE,
-                                    line_index=0,
-                                    line_content=draw(line_content()))
+            operation = GitFileEdit(
+                kind=GitFileEditKind.INSERT_LINE,
+                line_index=0,
+                line_content=draw(line_content()),
+            )
 
         else:
             which_line = draw(st.integers(min_value=0, max_value=len(self.lines) - 1))
@@ -433,14 +464,18 @@ class GitFileEditStrategy:
 
             match what_to_do:
                 case GitFileEditKind.INSERT_LINE:
-                    operation = GitFileEdit(kind=what_to_do,
-                                            line_content=draw(line_content()),
-                                            line_index=which_line)
+                    operation = GitFileEdit(
+                        kind=what_to_do,
+                        line_content=draw(line_content()),
+                        line_index=which_line,
+                    )
 
                 case GitFileEditKind.CHANGE_LINE:
-                    operation = GitFileEdit(kind=what_to_do,
-                                            line_content=draw(line_content()),
-                                            line_index=which_line)
+                    operation = GitFileEdit(
+                        kind=what_to_do,
+                        line_content=draw(line_content()),
+                        line_index=which_line,
+                    )
 
                 case GitFileEditKind.REMOVE_LINE:
                     operation = GitFileEdit(kind=what_to_do, line_index=which_line)
@@ -449,7 +484,8 @@ class GitFileEditStrategy:
                     is_empty = draw(st.sampled_from([True, False]))
                     operation = GitFileEdit(
                         kind=what_to_do,
-                        line_content="" if is_empty else draw(line_content()))
+                        line_content="" if is_empty else draw(line_content()),
+                    )
 
         edit_file_content_1(operation, self.lines)
         return operation
@@ -473,15 +509,15 @@ def edit_file_content_1(edit: GitFileEdit, content: List[str]) -> None:
         case GitFileEdit(kind=GitFileEditKind.REMOVE_LINE, line_index=index):
             content.pop(index)
 
-        case GitFileEdit(kind=GitFileEditKind.CHANGE_LINE,
-                         line_index=index,
-                         line_content=text):
+        case GitFileEdit(
+            kind=GitFileEditKind.CHANGE_LINE, line_index=index, line_content=text
+        ):
             assert text is not None
             content[index] = text
 
-        case GitFileEdit(kind=GitFileEditKind.INSERT_LINE,
-                         line_index=index,
-                         line_content=text):
+        case GitFileEdit(
+            kind=GitFileEditKind.INSERT_LINE, line_index=index, line_content=text
+        ):
             assert text is not None
             content.insert(index, text)
 
@@ -539,10 +575,12 @@ class GitOpStrategy:
         match op:
             case GitOperationKind.CREATE_FILE:
                 name = draw(file_names.filter(lambda x: x not in self.files))
-                self.files[name] = draw(st.lists(line_content(), min_size=2, max_size=5))
-                return GitOperation(operation=op,
-                                    filename=name,
-                                    file_content=self.files[name])
+                self.files[name] = draw(
+                    st.lists(line_content(), min_size=2, max_size=5)
+                )
+                return GitOperation(
+                    operation=op, filename=name, file_content=self.files[name]
+                )
 
             case GitOperationKind.DELETE_FILE:
                 name = draw(st.sampled_from(self.files))  # type: ignore
@@ -558,17 +596,21 @@ class GitOpStrategy:
 
             case GitOperationKind.FORK_BRANCH:
                 new_branch = draw(
-                    file_names.filter(lambda x: x not in self.used_branches))
+                    file_names.filter(lambda x: x not in self.used_branches)
+                )
                 self.used_branches.add(new_branch)
                 self.branch_stack.append(new_branch)
                 return GitOperation(operation=op, branch_to_checkout=new_branch)
 
             case GitOperationKind.JOIN_BRANCH:
-                to_checkout = self.branch_stack[-2] if 1 < len(
-                    self.branch_stack) else "master"
-                return GitOperation(operation=op,
-                                    branch_to_merge=self.branch_stack.pop(),
-                                    branch_to_checkout=to_checkout)
+                to_checkout = (
+                    self.branch_stack[-2] if 1 < len(self.branch_stack) else "master"
+                )
+                return GitOperation(
+                    operation=op,
+                    branch_to_merge=self.branch_stack.pop(),
+                    branch_to_checkout=to_checkout,
+                )
 
             case GitOperationKind.MODIFY_FILE:
                 name = draw(st.sampled_from(self.files))  # type: ignore
@@ -581,9 +623,9 @@ class GitOpStrategy:
                 modifications = draw(st.lists(get_operations(), min_size=5))
                 edit_file_content(modifications, self.files[name])
 
-                return GitOperation(operation=op,
-                                    filename=name,
-                                    file_content=copy(self.files[name]))
+                return GitOperation(
+                    operation=op, filename=name, file_content=copy(self.files[name])
+                )
 
             case _:
                 assert False, f"Unexpected git operation {op}"
@@ -601,7 +643,9 @@ def multiple_files_strategy(draw: st.DrawFn) -> List[Any]:
 
 
 @beartype
-def run_repo_operations(repo: GitTestRepository, operations: List[GitOperation]) -> None:
+def run_repo_operations(
+    repo: GitTestRepository, operations: List[GitOperation]
+) -> None:
     BRANCH_CANARY_FILE = "branch-canary"
     for idx, action in enumerate(operations):
         match action:
@@ -621,9 +665,11 @@ def run_repo_operations(repo: GitTestRepository, operations: List[GitOperation])
                 assert file_content is not None
                 repo.git_dir().joinpath(file).write_text("\n".join(file_content))
 
-            case GitOperation(operation=GitOperationKind.CREATE_FILE,
-                              filename=file,
-                              file_content=content):
+            case GitOperation(
+                operation=GitOperationKind.CREATE_FILE,
+                filename=file,
+                file_content=content,
+            ):
                 assert file is not None
                 assert content is not None
                 git_write_files(repo.git_dir(), {file: "\n".join(content)})
@@ -637,7 +683,9 @@ def run_repo_operations(repo: GitTestRepository, operations: List[GitOperation])
                 assert new_name is not None
                 git_move_files(repo.git_dir(), source=file, target=new_name)
 
-            case GitOperation(operation=GitOperationKind.REPO_COMMIT, commit_message=msg):
+            case GitOperation(
+                operation=GitOperationKind.REPO_COMMIT, commit_message=msg
+            ):
                 git_commit(repo.git_dir(), msg or "message", allow_fail=True)
 
             case GitOperation(
@@ -663,10 +711,10 @@ def run_repo_operations(repo: GitTestRepository, operations: List[GitOperation])
 
 @beartype
 def run_repo_operations_test(
-        operations: List[GitOperation],
-        with_debugger: bool = False,
-        fixed_dir: Optional[Path] = None,
-        params: Dict[str, Any] = dict(),
+    operations: List[GitOperation],
+    with_debugger: bool = False,
+    fixed_dir: Optional[Path] = None,
+    params: Dict[str, Any] = dict(),
 ) -> None:
     with GitTestRepository({"init": "init"}, fixed_dir=fixed_dir) as repo:
         run_repo_operations(repo, operations)
@@ -824,26 +872,32 @@ def test_repeated_delete() -> None:
 
 @pytest.mark.test_release
 def test_repo_operations_example_3() -> None:
-    run_repo_operations_test([
-        GitOperation(GitOperationKind.CREATE_FILE,
-                     filename="manual_wrap.hpp",
-                     file_content=[
-                         "#ifndef PY_HAXORG_COMPILING",
-                         *(["SAME"] * 20),
-                         "",
-                         "",
-                     ]),
-        GitOperation(operation=GitOperationKind.REPO_COMMIT),
-        GitOperation(GitOperationKind.CREATE_FILE,
-                     filename="manual_wrap.hpp",
-                     file_content=[
-                         "#ifndef PY_HAXORG_COMPILING",
-                         *(["SAME"] * 20),
-                         "",
-                     ]),
-        GitOperation(operation=GitOperationKind.REPO_COMMIT),
-    ],
-                             fixed_dir=gettempdir("test_repo_operations_example_3"))
+    run_repo_operations_test(
+        [
+            GitOperation(
+                GitOperationKind.CREATE_FILE,
+                filename="manual_wrap.hpp",
+                file_content=[
+                    "#ifndef PY_HAXORG_COMPILING",
+                    *(["SAME"] * 20),
+                    "",
+                    "",
+                ],
+            ),
+            GitOperation(operation=GitOperationKind.REPO_COMMIT),
+            GitOperation(
+                GitOperationKind.CREATE_FILE,
+                filename="manual_wrap.hpp",
+                file_content=[
+                    "#ifndef PY_HAXORG_COMPILING",
+                    *(["SAME"] * 20),
+                    "",
+                ],
+            ),
+            GitOperation(operation=GitOperationKind.REPO_COMMIT),
+        ],
+        fixed_dir=gettempdir("test_repo_operations_example_3"),
+    )
 
 
 @pytest.mark.test_release
@@ -866,27 +920,29 @@ def test_repo_operations_example_4() -> None:
     run_repo_operations_test(
         [
             GitOperation(
-                GitOperationKind.CREATE_FILE, filename=file_1, file_content=content_1),
+                GitOperationKind.CREATE_FILE, filename=file_1, file_content=content_1
+            ),
             GitOperation(operation=GitOperationKind.REPO_COMMIT),
             GitOperation(
-                operation=GitOperationKind.RENAME_FILE, filename=file_1, new_name=file_2),
+                operation=GitOperationKind.RENAME_FILE, filename=file_1, new_name=file_2
+            ),
             GitOperation(operation=GitOperationKind.REPO_COMMIT),
             GitOperation(
-                GitOperationKind.CREATE_FILE, filename=file_1, file_content=content_2),
+                GitOperationKind.CREATE_FILE, filename=file_1, file_content=content_2
+            ),
             GitOperation(operation=GitOperationKind.REPO_COMMIT),
-            GitOperation(operation=GitOperationKind.MODIFY_FILE,
-                         filename=file_2,
-                         file_content=content_1[:-3] + ["LINE1", "LINE2", "LINE3"])
+            GitOperation(
+                operation=GitOperationKind.MODIFY_FILE,
+                filename=file_2,
+                file_content=content_1[:-3] + ["LINE1", "LINE2", "LINE3"],
+            ),
         ],
         params={
-            "config": {
-                "verbose_consistency_checks": True
-            },
-            "out": {
-                "log_file": gettempdir("test_repo_operations_example_4.log")
-            }
+            "config": {"verbose_consistency_checks": True},
+            "out": {"log_file": gettempdir("test_repo_operations_example_4.log")},
         },
-        fixed_dir=gettempdir("test_repo_operations_example_4"))
+        fixed_dir=gettempdir("test_repo_operations_example_4"),
+    )
 
 
 @pytest.mark.skip()

@@ -1,6 +1,5 @@
 import dataclasses
 import functools
-from loguru import logger
 import logging
 import shutil
 from contextlib import contextmanager, redirect_stderr
@@ -8,27 +7,42 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import glom
-from PyQt6.QtCore import QModelIndex, QAbstractItemModel
-from beartype import beartype
-from beartype.typing import cast, Iterator, Any
-
 import pandas as pd
+from beartype import beartype
+from beartype.typing import Any, Iterator, cast
+from loguru import logger
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 
 from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import ActionConfig, AppConfig, IndexConfig, DatabaseConfig, IndexPathConfig, \
-    FileTreeViewConfig, LoggingConfig
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig, ActionExecutor
+from haxdex.cli.cli_config import (
+    ActionConfig,
+    AppConfig,
+    DatabaseConfig,
+    FileTreeViewConfig,
+    IndexConfig,
+    IndexPathConfig,
+    LoggingConfig,
+)
+from haxdex.gui.file_tree.actions.action_execute import (
+    ActionExecutionConfig,
+    ActionExecutor,
+)
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
 from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
-from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
+from haxdex.gui.file_tree.columns.trivial_data_column import TrivialDataColumnSpec
 from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
 from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
-from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
+from haxdex.gui.file_tree.columns.video_resolution_column import (
+    VideoResolutionColumnSpec,
+)
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
@@ -38,7 +52,7 @@ from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 
 @beartype
 @dataclass
-class IndexServiceConfig():
+class IndexServiceConfig:
     service: IndexService
     data_dir: Path
     root_dirs: list[Path]
@@ -80,13 +94,17 @@ def init_index_service(
                 name=root_name,
                 root_path=root_dir,
                 paths=[DirConfig(path=root_dir)],
-            ) for root_name, root_dir in zip(root_names, root_dirs))
+            )
+            for root_name, root_dir in zip(root_names, root_dirs)
+        )
     else:
-        index_paths = (IndexPathConfig(
-            name="data",
-            root_path=data_dir,
-            paths=[DirConfig(path=data_dir)],
-        ),)
+        index_paths = (
+            IndexPathConfig(
+                name="data",
+                root_path=data_dir,
+                paths=[DirConfig(path=data_dir)],
+            ),
+        )
 
     cfg = AppConfig(
         index=IndexConfig(
@@ -105,7 +123,8 @@ def init_index_service(
         db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
         action_file=stable_test_dir.joinpath("actions.jsonl"),
         act=ActionConfig(execution=act_conf),
-        logging=LoggingConfig())
+        logging=LoggingConfig(),
+    )
 
     if reset:
         IndexService.reset_for_config(cfg)
@@ -124,22 +143,26 @@ def init_index_service(
 
 @beartype
 def init_file_tree_columns(
-        index: IndexServiceConfig,
-        reference_tree: FileTreeNode | None = None) -> list[FileTreeColumnSpec]:
-    specs = cast(list[FileTreeColumnSpec], [
-        FileNameColumnSpec(),
-        TrivialDataColumnSpec("trivial"),
-        FileMimeColumnSpec("mime"),
-        EntrySizeColumnSpec("size"),
-        SizeShareColumnSpec("share", [index.data_dir]),
-        VideoFramerateColumnSpec("framerate"),
-        VideoBitrateColumnSpec("bitrate"),
-        VideoResolutionColumnSpec("video_resolution"),
-    ])
+    index: IndexServiceConfig, reference_tree: FileTreeNode | None = None
+) -> list[FileTreeColumnSpec]:
+    specs = cast(
+        list[FileTreeColumnSpec],
+        [
+            FileNameColumnSpec(),
+            TrivialDataColumnSpec("trivial"),
+            FileMimeColumnSpec("mime"),
+            EntrySizeColumnSpec("size"),
+            SizeShareColumnSpec("share", [index.data_dir]),
+            VideoFramerateColumnSpec("framerate"),
+            VideoBitrateColumnSpec("bitrate"),
+            VideoResolutionColumnSpec("video_resolution"),
+        ],
+    )
 
     if reference_tree is not None:
         specs.append(
-            FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree))
+            FileDuplicateColumnSpec("file_duplicates", reference_tree=reference_tree)
+        )
 
     if index.cfg.act and index.cfg.act.execution.sqlite_path.exists():
         executor = ActionExecutor(index.cfg.act.execution)
@@ -150,7 +173,7 @@ def init_file_tree_columns(
 
 @beartype
 @dataclass
-class FileTreeServiceConfig():
+class FileTreeServiceConfig:
     service: IndexService
     data_dir: Path
     root_dirs: list[Path]
@@ -164,18 +187,22 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     all_root_dirs = [
         dir_cfg for path_cfg in index.cfg.index.paths for dir_cfg in path_cfg.paths
     ]
-    cfg = index.cfg.model_copy(update=dict(
-        index=None,
-        file_tree_view=FileTreeViewConfig(
-            root_dirs=all_root_dirs,
-            reference_tree_cache_path=index.stable_test_dir.joinpath(
-                "reference_tree_cache.sqlite"),
-            visual_tree_cache_path=index.stable_test_dir.joinpath(
-                "input_tree_cache.sqlite"),
-            user_edit_path=index.stable_test_dir.joinpath("user_actions.sqlite"),
-            reference_dir=DirConfig(path=index.data_dir),
-        ),
-    ))
+    cfg = index.cfg.model_copy(
+        update=dict(
+            index=None,
+            file_tree_view=FileTreeViewConfig(
+                root_dirs=all_root_dirs,
+                reference_tree_cache_path=index.stable_test_dir.joinpath(
+                    "reference_tree_cache.sqlite"
+                ),
+                visual_tree_cache_path=index.stable_test_dir.joinpath(
+                    "input_tree_cache.sqlite"
+                ),
+                user_edit_path=index.stable_test_dir.joinpath("user_actions.sqlite"),
+                reference_dir=DirConfig(path=index.data_dir),
+            ),
+        )
+    )
 
     service = IndexService(
         cfg=cfg,
@@ -192,10 +219,9 @@ def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
     )
 
 
-def sub_row_by_name(index: QModelIndex,
-                    model: QAbstractItemModel,
-                    suffix: str,
-                    name_column: int = 0) -> QModelIndex:
+def sub_row_by_name(
+    index: QModelIndex, model: QAbstractItemModel, suffix: str, name_column: int = 0
+) -> QModelIndex:
     for i in range(0, model.rowCount(index)):
         row_idx = model.index(i, name_column, index)
         node = row_idx.internalPointer()
@@ -207,7 +233,6 @@ def sub_row_by_name(index: QModelIndex,
 
 
 class _InterceptHandler(logging.Handler):
-
     def emit(self, record: logging.LogRecord) -> None:
         try:
             level: str | int = logger.level(record.levelname).name
@@ -220,7 +245,9 @@ class _InterceptHandler(logging.Handler):
             frame = frame.f_back
             depth += 1
 
-        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+        logger.opt(depth=depth, exception=record.exc_info).log(
+            level, record.getMessage()
+        )
 
 
 @contextmanager
@@ -243,7 +270,10 @@ def capture_all_logs_to_test_file(
             obj.propagate = True
 
     run_log_path.write_text("")
-    with run_log_path.open("w", encoding="utf-8") as log_file, redirect_stderr(log_file):
+    with (
+        run_log_path.open("w", encoding="utf-8") as log_file,
+        redirect_stderr(log_file),
+    ):
         sink_id = logger.add(
             log_file,
             level=level,
@@ -274,9 +304,9 @@ def capture_logs(test_name: str | None = None, level: int = logging.DEBUG):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             with capture_all_logs_to_test_file(
-                    kwargs["stable_test_dir"],
-                    test_name or func.__name__,
-                    level,
+                kwargs["stable_test_dir"],
+                test_name or func.__name__,
+                level,
             ):
                 return func(*args, **kwargs)
 

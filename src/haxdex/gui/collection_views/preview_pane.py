@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from loguru import logger
 from typing import List, Optional, Sequence
 
 from beartype import beartype
+from loguru import logger
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPainter, QPen
 from PyQt6.QtWidgets import (
-    QAbstractItemView,
-    QListWidget,
-    QListWidgetItem,
     QTabBar,
     QTabWidget,
     QVBoxLayout,
@@ -25,7 +22,6 @@ from haxdex.services.core.types import FileHash
 
 
 class HorizontalTextTabBar(QTabBar):
-
     def tabSizeHint(self, index: int) -> QSize:
         font_metrics = self.fontMetrics()
         text = self.tabText(index)
@@ -37,8 +33,11 @@ class HorizontalTextTabBar(QTabBar):
     def paintEvent(self, event) -> None:  # type: ignore[override]
         painter = QPainter(self)
         palette = self.palette()
-        group = (palette.ColorGroup.Current
-                 if self.isEnabled() else palette.ColorGroup.Disabled)
+        group = (
+            palette.ColorGroup.Current
+            if self.isEnabled()
+            else palette.ColorGroup.Disabled
+        )
 
         for index in range(self.count()):
             rect = self.tabRect(index)
@@ -76,7 +75,6 @@ class HorizontalTextTabBar(QTabBar):
 
 @beartype
 class FilePreviewPane(QWidget):
-
     def __init__(
         self,
         db: IndexDatabase,
@@ -88,10 +86,9 @@ class FilePreviewPane(QWidget):
 
         self._db = db
         self._collection_names = list(collection_names)
-        self._widget_builders: dict[
-            str, WidgetBuilder] = {  # type: ignore
-                "paths": PathsWidgetBuilder(),
-            }
+        self._widget_builders: dict[str, WidgetBuilder] = {  # type: ignore
+            "paths": PathsWidgetBuilder(),
+        }
 
         for name in self._collection_names:
             for builder in builders:
@@ -120,7 +117,7 @@ class FilePreviewPane(QWidget):
             widget = builder.build(self._db, hash, action)
             self._tabs.addTab(widget, name)
 
-        target_index = (previous_index if 0 <= previous_index < self._tabs.count() else 0)
+        target_index = previous_index if 0 <= previous_index < self._tabs.count() else 0
         self._tabs.setCurrentIndex(target_index)
 
     def _on_tab_changed(self, index: int) -> None:

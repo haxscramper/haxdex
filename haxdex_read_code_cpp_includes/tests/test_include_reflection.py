@@ -1,9 +1,8 @@
 from pathlib import Path
 
+import haxdex_read_code_cpp.proto as pb
 import pytest
 import refl_test_driver
-
-import haxdex_read_code_cpp.proto as pb
 
 
 @pytest.mark.test_release
@@ -103,16 +102,16 @@ def test_duplicate_header_names_in_different_directories(logged_test_dir: Path) 
 def test_skipped_blocks_under_ifdef(logged_test_dir: Path) -> None:
     incl: pb.IncludeVisit = refl_test_driver.get_include_tree(
         {
-            "main.hpp":
-                '#include "cond.hpp"',
-            "cond.hpp":
-                "\n".join([
+            "main.hpp": '#include "cond.hpp"',
+            "cond.hpp": "\n".join(
+                [
                     "#if 0",
                     "int skip1;",
                     "int skip2;",
                     "#endif",
                     "int live;",
-                ]),
+                ]
+            ),
         },
         main_file_suffix="main.hpp",
         stable_test_dir=logged_test_dir,
@@ -129,10 +128,8 @@ def test_skipped_blocks_under_ifdef(logged_test_dir: Path) -> None:
 def test_include_guard_header_included_twice(logged_test_dir: Path) -> None:
     incl: pb.IncludeVisit = refl_test_driver.get_include_tree(
         {
-            "main.hpp":
-                '#include "guarded.hpp"\n#include "guarded.hpp"',
-            "guarded.hpp":
-                "#ifndef GUARDED_HPP\n#define GUARDED_HPP\nint guarded;\n#endif",
+            "main.hpp": '#include "guarded.hpp"\n#include "guarded.hpp"',
+            "guarded.hpp": "#ifndef GUARDED_HPP\n#define GUARDED_HPP\nint guarded;\n#endif",
         },
         main_file_suffix="main.hpp",
         stable_test_dir=logged_test_dir,

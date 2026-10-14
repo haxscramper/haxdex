@@ -4,15 +4,20 @@ import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-import PIL.TiffImagePlugin
 import pandas as pd
+import PIL.TiffImagePlugin
 import pytest
 from beartype import beartype
-from beartype.typing import Any, Annotated, ClassVar, Literal, Optional, Union
+from beartype.typing import Annotated, Any, ClassVar, Literal, Optional, Union
 from pydantic import BaseModel, Field
 from pydantic_core import PydanticSerializationError
 
-from haxdex.services.pydantic_utils import _DUMPERS, from_json_safe, model_to_json_data, to_json_safe
+from haxdex.services.pydantic_utils import (
+    _DUMPERS,
+    from_json_safe,
+    model_to_json_data,
+    to_json_safe,
+)
 
 
 class IndexDocument(BaseModel, extra="forbid"):
@@ -84,7 +89,8 @@ def compare_values(lhs: Any, rhs: Any, path: str, failures: list[str]) -> None:
         case (pd.Series(), pd.Series()):
             if not lhs.equals(rhs):
                 failures.append(
-                    f"{path}: series mismatch lhs={lhs.to_dict()} rhs={rhs.to_dict()}")
+                    f"{path}: series mismatch lhs={lhs.to_dict()} rhs={rhs.to_dict()}"
+                )
 
         case (pd.Timestamp(), pd.Timestamp()):
             if lhs != rhs:
@@ -141,7 +147,8 @@ def use_any_target_for_roundtrip(target_type: Any) -> bool:
 
             else:
                 return any(
-                    issubclass(tp, registered_type) for registered_type in _DUMPERS)
+                    issubclass(tp, registered_type) for registered_type in _DUMPERS
+                )
         case _:
             return False
 
@@ -149,7 +156,9 @@ def use_any_target_for_roundtrip(target_type: Any) -> bool:
 @beartype
 def verify_roundtrip(value: Any, target_type: Any, expected: Any | None = None) -> None:
     serialized = model_to_json_data(value)
-    deserialize_target = Any if use_any_target_for_roundtrip(target_type) else target_type
+    deserialize_target = (
+        Any if use_any_target_for_roundtrip(target_type) else target_type
+    )
     restored = from_json_safe(serialized, deserialize_target)
 
     match target_type:
@@ -189,10 +198,7 @@ def test_roundtrip_standard_registered_types() -> None:
 
 def test_roundtrip_pandas_types() -> None:
     frame = pd.DataFrame(
-        {
-            "name": ["a", "b"],
-            "value": [10, 20]
-        },
+        {"name": ["a", "b"], "value": [10, 20]},
         index=pd.Index(["row1", "row2"], name="rid"),
     )
     verify_roundtrip(frame, pd.DataFrame)
@@ -257,7 +263,8 @@ def test_roundtrip_discriminated_union_ignores_runtime_model_hint() -> None:
     )
     serialized = model_to_json_data(value)
     serialized["__pydantic_type__"] = (
-        f"{ChunkDocument.__module__}:{ChunkDocument.__qualname__}")
+        f"{ChunkDocument.__module__}:{ChunkDocument.__qualname__}"
+    )
     restored = from_json_safe(serialized, FullTextResultType)
 
     failures: list[str] = []
@@ -269,13 +276,12 @@ def test_roundtrip_discriminated_union_ignores_runtime_model_hint() -> None:
 def test_unregistered_type_raises_serialization_error() -> None:
 
     class Unsupported:
-
         def __init__(self, value: int) -> None:
             self.value = value
 
     with pytest.raises(
-            PydanticSerializationError,
-            match="no serializer registered for type",
+        PydanticSerializationError,
+        match="no serializer registered for type",
     ):
         to_json_safe(Unsupported(1))
 
@@ -326,7 +332,9 @@ class CaseDocumentBlockIndexerResult(CaseMultiDocumentModel, extra="forbid"):
     document_type: ClassVar[Any] = CaseDocumentType
 
 
-def test_roundtrip_document_block_like_result_with_subtype_edges_and_documents() -> None:
+def test_roundtrip_document_block_like_result_with_subtype_edges_and_documents() -> (
+    None
+):
     file_hash = "f" * 64
     parent_hash = "a" * 64
     child_hash = "b" * 64
@@ -379,8 +387,9 @@ def test_roundtrip_document_block_like_result_with_subtype_edges_and_documents()
         pytest.fail("roundtrip mismatches:\n" + "\n".join(failures))
 
 
-def test_cache_like_payload_restores_nested_runtime_models_for_basemodel_subclass_target(
-) -> None:
+def test_cache_like_payload_restores_nested_runtime_models_for_basemodel_subclass_target() -> (
+    None
+):
     file_hash = "1" * 64
     root_hash = "2" * 64
     child_hash = "3" * 64

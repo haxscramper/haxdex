@@ -5,11 +5,14 @@ from pathlib import Path
 from beartype import beartype
 from beartype.typing import Optional, Sequence
 from pydantic import BaseModel
-from sqlalchemy import MetaData, Column, Text, Table, select
+from sqlalchemy import Column, MetaData, Table, Text, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
-from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
+from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex.services.utils import create_cache_engine
 
 CACHE_USER_EDIT_TABLE = "file_tree_user_edits"
@@ -65,12 +68,14 @@ def store_user_column_edit(
     with engine.begin() as connection:
         connection.execute(
             upsert_stmt,
-            [{
-                "root": root,
-                "relative": relative,
-                "column_name": column.column_name,
-                "json_data": json_data,
-            }],
+            [
+                {
+                    "root": root,
+                    "relative": relative,
+                    "column_name": column.column_name,
+                    "json_data": json_data,
+                }
+            ],
         )
 
     engine.dispose()
@@ -104,7 +109,8 @@ def load_user_edits(
                 relative=row.relative,
                 column_name=row.column_name,
                 json_data=row.json_data,
-            ) for row in connection.execute(query)
+            )
+            for row in connection.execute(query)
         ]
 
     engine.dispose()
@@ -117,7 +123,8 @@ def apply_user_edits(
     user_edit_rows: Sequence[_UserEditRow],
 ) -> None:
     edits_by_key = {
-        (row.root, row.relative, row.column_name): row.json_data for row in user_edit_rows
+        (row.root, row.relative, row.column_name): row.json_data
+        for row in user_edit_rows
     }
 
     column_by_name = {column.column_name: column for column in columns}
@@ -134,9 +141,11 @@ def apply_user_edits(
                 continue
 
             json_data = json.loads(edits_by_key[key])
-            node.columns[column_name] = (None
-                                         if json_data is None else model_from_json_data(
-                                             json_data, column.column_type))
+            node.columns[column_name] = (
+                None
+                if json_data is None
+                else model_from_json_data(json_data, column.column_type)
+            )
 
         for nested_node in node.nested:
             apply_to_node(nested_node)

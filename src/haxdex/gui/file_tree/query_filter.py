@@ -1,19 +1,20 @@
 import ast
 import linecache
-from loguru import logger
 from dataclasses import dataclass
 
+from beartype import beartype
+from beartype.typing import Callable, cast
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QAbstractProxyModel,
     QModelIndex,
     QObject,
 )
-from beartype import beartype
-from beartype.typing import Callable, cast
 
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
-from haxdex.gui.file_tree.actions.action_list_model import ActionListModel, ActionProvider
+from haxdex.gui.file_tree.actions.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+)
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.python_code_editor import (
     QUERY_FILENAME,
@@ -21,6 +22,7 @@ from haxdex.gui.file_tree.python_code_editor import (
     as_query_error,
 )
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
 
 FilterFn = Callable[[list[FileTreeNode]], list[FileTreeNode]]
 TraverseFn = Callable[["ActionProvider", list[FileTreeNode]], object]
@@ -30,7 +32,7 @@ QueryResultModel = AbstractColumnItemModel | ActionListModel
 
 
 @dataclass(slots=True)
-class QueryResult():
+class QueryResult:
     model: QueryResultModel
     is_action: bool
 
@@ -46,7 +48,6 @@ class QueryProgram:
 
 @beartype
 class QueryFilterEvaluator:
-
     def _actions_tree(
         self,
         nodes: list[FileTreeNode],
@@ -78,9 +79,9 @@ class QueryFilterEvaluator:
         return list(filter_fn(rebuilt))
 
     def _collect_scope_nodes(
-            self,
-            model: QAbstractItemModel,
-            parent: QModelIndex = QModelIndex(),
+        self,
+        model: QAbstractItemModel,
+        parent: QModelIndex = QModelIndex(),
     ) -> list[FileTreeNode]:
         nodes: list[FileTreeNode] = []
         row_count = model.rowCount(parent)
@@ -92,8 +93,10 @@ class QueryFilterEvaluator:
 
             pointer = index.internalPointer()
             if not isinstance(pointer, FileTreeNode):
-                raise QueryError("model index internalPointer() is not FileTreeNode "
-                                 f"(got {type(pointer).__name__})")
+                raise QueryError(
+                    "model index internalPointer() is not FileTreeNode "
+                    f"(got {type(pointer).__name__})"
+                )
 
             copied = pointer.model_copy()
             copied.nested = self._collect_scope_nodes(model, index)
@@ -195,7 +198,8 @@ class QueryFilterEvaluator:
                 actions_obj = namespace.get("action")
             if actions_obj is None or not callable(actions_obj):
                 raise QueryError(
-                    "query defines 'actions'/'action' but it is not callable")
+                    "query defines 'actions'/'action' but it is not callable"
+                )
 
             def built_actions(
                 provider: ActionProvider,

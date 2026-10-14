@@ -30,8 +30,9 @@ def action_executor(stable_test_dir: Path) -> ActionExecutor:
     return executor
 
 
-def test_execute_move_and_trash(action_executor: ActionExecutor,
-                                stable_test_dir: Path) -> None:
+def test_execute_move_and_trash(
+    action_executor: ActionExecutor, stable_test_dir: Path
+) -> None:
     source_move = stable_test_dir / "a.txt"
     source_trash = stable_test_dir / "b.txt"
     move_dest = stable_test_dir / "moved" / "a.txt"
@@ -41,19 +42,23 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[BaseAction] = [
-        MoveAction(file=FileTreeNode(
-            path=source_move,
-            is_directory=False,
-            root="root",
-            root_relative="a.txt",
+        MoveAction(
+            file=FileTreeNode(
+                path=source_move,
+                is_directory=False,
+                root="root",
+                root_relative="a.txt",
+            ),
+            dest=str(move_dest),
         ),
-                   dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(
-            path=source_trash,
-            is_directory=False,
-            root="root",
-            root_relative="b.txt",
-        )),
+        TrashAction(
+            file=FileTreeNode(
+                path=source_trash,
+                is_directory=False,
+                root="root",
+                root_relative="b.txt",
+            )
+        ),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -64,7 +69,9 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
     assert source_trash.exists() is False
 
     with Session(action_executor.engine) as session:
-        rows = list(session.scalars(select(OperationRow).order_by(OperationRow.id.asc())))
+        rows = list(
+            session.scalars(select(OperationRow).order_by(OperationRow.id.asc()))
+        )
         assert len(rows) == 2
         assert rows[0].status == "done"
         assert rows[1].status == "done"
@@ -79,7 +86,9 @@ def test_execute_move_and_trash(action_executor: ActionExecutor,
         assert trash_file.exists()
 
 
-def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path) -> None:
+def test_resume_execution(
+    action_executor: ActionExecutor, stable_test_dir: Path
+) -> None:
     source_move = stable_test_dir / "resume_a.txt"
     source_trash = stable_test_dir / "resume_b.txt"
     move_dest = stable_test_dir / "resume_moved" / "resume_a.txt"
@@ -89,19 +98,23 @@ def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[BaseAction] = [
-        MoveAction(file=FileTreeNode(
-            path=source_move,
-            is_directory=False,
-            root="root",
-            root_relative="resume_a.txt",
+        MoveAction(
+            file=FileTreeNode(
+                path=source_move,
+                is_directory=False,
+                root="root",
+                root_relative="resume_a.txt",
+            ),
+            dest=str(move_dest),
         ),
-                   dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(
-            path=source_trash,
-            is_directory=False,
-            root="root",
-            root_relative="resume_b.txt",
-        )),
+        TrashAction(
+            file=FileTreeNode(
+                path=source_trash,
+                is_directory=False,
+                root="root",
+                root_relative="resume_b.txt",
+            )
+        ),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -109,7 +122,9 @@ def test_resume_execution(action_executor: ActionExecutor, stable_test_dir: Path
     assert first_executed == 1
 
     with Session(action_executor.engine) as session:
-        rows = list(session.scalars(select(OperationRow).order_by(OperationRow.id.asc())))
+        rows = list(
+            session.scalars(select(OperationRow).order_by(OperationRow.id.asc()))
+        )
         assert rows[0].status == "done"
         assert rows[1].status == "pending"
 
@@ -130,19 +145,23 @@ def test_revert_done(action_executor: ActionExecutor, stable_test_dir: Path) -> 
     move_dest.parent.mkdir(parents=True, exist_ok=True)
 
     actions: list[BaseAction] = [
-        MoveAction(file=FileTreeNode(
-            path=source_move,
-            is_directory=False,
-            root="root",
-            root_relative="rev_a.txt",
+        MoveAction(
+            file=FileTreeNode(
+                path=source_move,
+                is_directory=False,
+                root="root",
+                root_relative="rev_a.txt",
+            ),
+            dest=str(move_dest),
         ),
-                   dest=str(move_dest)),
-        TrashAction(file=FileTreeNode(
-            path=source_trash,
-            is_directory=False,
-            root="root",
-            root_relative="rev_b.txt",
-        )),
+        TrashAction(
+            file=FileTreeNode(
+                path=source_trash,
+                is_directory=False,
+                root="root",
+                root_relative="rev_b.txt",
+            )
+        ),
     ]
 
     action_executor.register_actions(actions=actions)
@@ -155,11 +174,15 @@ def test_revert_done(action_executor: ActionExecutor, stable_test_dir: Path) -> 
     assert move_dest.exists() is False
 
     with Session(action_executor.engine) as session:
-        rows = list(session.scalars(select(OperationRow).order_by(OperationRow.id.asc())))
+        rows = list(
+            session.scalars(select(OperationRow).order_by(OperationRow.id.asc()))
+        )
         assert rows[0].action_data is not None
         assert rows[1].action_data is not None
 
-        trash_file = action_executor.config.trash_root / f"{rows[1].id}_{source_trash.name}"
+        trash_file = (
+            action_executor.config.trash_root / f"{rows[1].id}_{source_trash.name}"
+        )
         assert trash_file.exists() is False
 
 
@@ -187,7 +210,9 @@ def test_register_actions_skips_duplicate_same_type(
     action_executor.register_actions(actions=[action])
 
     with Session(action_executor.engine) as session:
-        rows = list(session.scalars(select(OperationRow).order_by(OperationRow.id.asc())))
+        rows = list(
+            session.scalars(select(OperationRow).order_by(OperationRow.id.asc()))
+        )
         assert len(rows) == 1
         assert rows[0].status == "pending"
         assert rows[0].execution_hash

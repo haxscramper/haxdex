@@ -1,10 +1,9 @@
 import hashlib
-from loguru import logger
 import os
 from pathlib import Path
 
 from beartype import beartype
-from sqlalchemy import BigInteger, String, Text, URL, create_engine, event, select
+from sqlalchemy import URL, BigInteger, String, Text, create_engine, event, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -27,7 +26,6 @@ class CachedFileHash(Base):
 
 @beartype
 class HashCache:
-
     def __init__(self, database_path: Path, *, flush_every: int = 1_000) -> None:
         database_path = database_path.expanduser().resolve()
         database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -120,12 +118,15 @@ class HashCache:
         if not self._pending:
             return
 
-        rows = [{
-            "path": path,
-            "size": size,
-            "mtime_ns": mtime_ns,
-            "digest": digest,
-        } for path, (size, mtime_ns, digest) in self._pending.items()]
+        rows = [
+            {
+                "path": path,
+                "size": size,
+                "mtime_ns": mtime_ns,
+                "digest": digest,
+            }
+            for path, (size, mtime_ns, digest) in self._pending.items()
+        ]
 
         table = CachedFileHash.__table__
         statement = sqlite_insert(table).values(rows)

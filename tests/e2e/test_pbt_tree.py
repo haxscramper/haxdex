@@ -1,14 +1,11 @@
-from contextlib import ExitStack
-import dataclasses
-import functools
 import itertools
 import json
-from loguru import logger
-import shutil
 from collections import defaultdict
+from contextlib import ExitStack
 from pathlib import Path
 from pprint import pformat
-from typing import List, cast
+from typing import List
+from unittest.mock import patch
 
 import hypothesis.strategies as st
 import pandas as pd
@@ -18,20 +15,23 @@ from beartype import beartype
 from beartype.typing import Any, List
 from hypothesis import HealthCheck, Phase, given, settings
 from hypothesis.control import current_build_context
+from loguru import logger
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from haxdex.cli.cli import IndexService, main_impl
-from haxdex.cli.cli_config import AppConfig, IndexConfig, IndexPathConfig, DatabaseConfig, LoggingConfig
-from hstd_py_qt.src.hstd_py_qt import model_dump
-from hstd_py_qt.src.hstd_py_qt.model_dump import render_text, simple_dump, simple_dump_rows_json
-from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
+from haxdex.cli.cli_config import (
+    AppConfig,
+    DatabaseConfig,
+    IndexConfig,
+    IndexPathConfig,
+    LoggingConfig,
+)
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_execute import _DONE_STR, ActionExecutor
-from unittest.mock import patch
 from haxdex.gui.file_tree.actions.action_list_model import (
     ActionListModel,
     ActionProvider,
@@ -43,27 +43,44 @@ from haxdex.gui.file_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,
     FileDuplicateData,
 )
-from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec, FileMimeData
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_mime_column import (
+    FileMimeColumnSpec,
+    FileMimeData,
+)
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeNode,
+)
 from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.trivial_data_column import (
     TrivialDataColumnSpec,
     TrivialEntryData,
 )
-from haxdex.gui.file_tree.model.tree_model_fetch import AQL_FILE_PATHS, fetch_file_paths, _fetch_file_paths_impl
+from haxdex.gui.file_tree.model.tree_model_fetch import (
+    AQL_FILE_PATHS,
+    _fetch_file_paths_impl,
+)
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.core.hash_cache import HashCache
-from haxdex.services.file_iteration import prepare_root_filters, DirConfig
+from haxdex.services.file_iteration import DirConfig, prepare_root_filters
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
 from haxdex.services.indexers.file_stats import FileStatsIndexer
 from haxdex.services.indexers.full_document.full_document import DocumentBlockIndexer
 from haxdex.services.indexers.mime_indexer import FileMimeIndexer
-from haxdex.services.pydantic_utils import format_json_with_fjson, model_from_json_data, to_json_safe, \
-    model_to_json_data
-from tests.conftest import stable_test_dir
+from haxdex.services.pydantic_utils import (
+    format_json_with_fjson,
+    model_from_json_data,
+    to_json_safe,
+)
+from hstd_py_qt.src.hstd_py_qt import model_dump
+from hstd_py_qt.src.hstd_py_qt.model_dump import (
+    render_text,
+    simple_dump,
+    simple_dump_rows_json,
+)
+from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,
@@ -74,10 +91,10 @@ from tests.generation import (
     create_default_persistent_corpus,
     directory_structure,
     write_generated_directory,
-    GeneratedIndexerFile,
 )
 from tests.utils import (
     FileTreeServiceConfig,
+    IndexServiceConfig,
     capture_logs,
     clean_test_dir,
     init_file_tree_columns,
@@ -85,7 +102,6 @@ from tests.utils import (
     init_index_service,
     split_columns_by_rules,
     sub_row_by_name,
-    IndexServiceConfig,
 )
 
 corpus_root = Path("/tmp/haxdex_tests/pbt_corpus")
@@ -105,8 +121,10 @@ def left_align_formatters(df):
         for column in df.columns
     }
 
-    return [(lambda width: lambda value: f"{str(value):<{width}}")(widths[column])
-            for column in df.columns]
+    return [
+        (lambda width: lambda value: f"{str(value):<{width}}")(widths[column])
+        for column in df.columns
+    ]
 
 
 @beartype
@@ -130,7 +148,8 @@ def _fs_content_files(root: Path) -> list[Path]:
     return _sorted_rel(
         path.relative_to(root)
         for path in root.rglob("*")
-        if path.is_file() and not path.name.endswith(META_SUFFIX))
+        if path.is_file() and not path.name.endswith(META_SUFFIX)
+    )
 
 
 @beartype
@@ -147,7 +166,8 @@ def _fs_files_direct(root: Path, query: Path) -> list[Path]:
     return _sorted_rel(
         path.relative_to(root)
         for path in base.glob("*")
-        if path.is_file() and not path.name.endswith(META_SUFFIX))
+        if path.is_file() and not path.name.endswith(META_SUFFIX)
+    )
 
 
 @beartype
@@ -156,36 +176,44 @@ def _fs_files_recursive(root: Path, query: Path) -> list[Path]:
     return _sorted_rel(
         path.relative_to(root)
         for path in base.rglob("*")
-        if path.is_file() and not path.name.endswith(META_SUFFIX))
+        if path.is_file() and not path.name.endswith(META_SUFFIX)
+    )
 
 
 @beartype
 def _fs_directories_direct(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
-    return _sorted_rel(path.relative_to(root) for path in base.glob("*") if path.is_dir())
+    return _sorted_rel(
+        path.relative_to(root) for path in base.glob("*") if path.is_dir()
+    )
 
 
 @beartype
 def _fs_directories_recursive(root: Path, query: Path) -> list[Path]:
     base = root if query == Path(".") else root / query
     return _sorted_rel(
-        path.relative_to(root) for path in base.rglob("*") if path.is_dir())
+        path.relative_to(root) for path in base.rglob("*") if path.is_dir()
+    )
 
 
 @beartype
 def _fs_entries_direct(root: Path, query: Path) -> list[Path]:
-    return _sorted_rel([
-        *_fs_files_direct(root, query),
-        *_fs_directories_direct(root, query),
-    ])
+    return _sorted_rel(
+        [
+            *_fs_files_direct(root, query),
+            *_fs_directories_direct(root, query),
+        ]
+    )
 
 
 @beartype
 def _fs_entries_recursive(root: Path, query: Path) -> list[Path]:
-    return _sorted_rel([
-        *_fs_files_recursive(root, query),
-        *_fs_directories_recursive(root, query),
-    ])
+    return _sorted_rel(
+        [
+            *_fs_files_recursive(root, query),
+            *_fs_directories_recursive(root, query),
+        ]
+    )
 
 
 @beartype
@@ -194,24 +222,26 @@ def _relset(items: list[GeneratedIndexerEntry]) -> set[Path]:
 
 
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(directory=directory_structure(
-    indexer_types=[],
-    min_files=2,
-    max_files=16,
-    min_nesting=1,
-    max_nesting=4,
-    corpus_manifest=corpus_manifest,
-    corpus_root=corpus_root,
-    mime_types=(
-        "image/png",
-        "application/pdf",
-        "video/mp4",
-        "audio/mpeg",
-        "text/plain",
-        "text/org",
-        "text/markdown",
-    ),
-))
+@given(
+    directory=directory_structure(
+        indexer_types=[],
+        min_files=2,
+        max_files=16,
+        min_nesting=1,
+        max_nesting=4,
+        corpus_manifest=corpus_manifest,
+        corpus_root=corpus_root,
+        mime_types=(
+            "image/png",
+            "application/pdf",
+            "video/mp4",
+            "audio/mpeg",
+            "text/plain",
+            "text/org",
+            "text/markdown",
+        ),
+    )
+)
 def test_generated_directory_collect_methods_match_content(
     stable_test_dir: Path,
     directory: GeneratedDirectory,
@@ -241,19 +271,24 @@ def test_generated_directory_collect_methods_match_content(
     assert set(fs_files) == {item.relative_path for item in directory.files}
 
     # collect_entries_direct() default argument
-    direct_entries_default = [p.relative_path for p in directory.collect_entries_direct()]
+    direct_entries_default = [
+        p.relative_path for p in directory.collect_entries_direct()
+    ]
     fs_entries_default = [
         p.relative_to(materialized.root) for p in materialized.root.glob("*")
     ]
     assert len(direct_entries_default) == len(fs_entries_default), pformat_dir(
-        dict(direct_entries=direct_entries_default, file_entries=fs_entries_default))
+        dict(direct_entries=direct_entries_default, file_entries=fs_entries_default)
+    )
 
     assert set(direct_entries_default) == set(
-        _fs_entries_direct(materialized.root, Path("."))), dbg
+        _fs_entries_direct(materialized.root, Path("."))
+    ), dbg
 
     # collect_entries_direct(Path(".")) explicitly
     assert _relset(directory.collect_entries_direct(Path("."))) == set(
-        _fs_entries_direct(materialized.root, Path(".")))
+        _fs_entries_direct(materialized.root, Path("."))
+    )
 
     for query in _all_query_paths_from_files(fs_files):
         expected_files_direct = set(_fs_files_direct(materialized.root, query))
@@ -263,18 +298,22 @@ def test_generated_directory_collect_methods_match_content(
                 query=query,
                 actual=sorted(actual_files_direct),
                 expected=sorted(expected_files_direct),
-            ))
+            )
+        )
 
         assert actual_files_direct == expected_files_direct
 
         expected_files_recursive = set(_fs_files_recursive(materialized.root, query))
         actual_files_recursive = _relset(directory.collect_files_recursive(query))
-        assert len(actual_files_recursive) == len(expected_files_recursive), (pformat_dir(
-            dict(
-                query=query,
-                actual=sorted(actual_files_recursive),
-                expected=sorted(expected_files_recursive),
-            )))
+        assert len(actual_files_recursive) == len(expected_files_recursive), (
+            pformat_dir(
+                dict(
+                    query=query,
+                    actual=sorted(actual_files_recursive),
+                    expected=sorted(expected_files_recursive),
+                )
+            )
+        )
         assert actual_files_recursive == expected_files_recursive
 
         expected_dirs_direct = set(_fs_directories_direct(materialized.root, query))
@@ -284,17 +323,21 @@ def test_generated_directory_collect_methods_match_content(
                 query=query,
                 actual=sorted(actual_dirs_direct),
                 expected=sorted(expected_dirs_direct),
-            ))
+            )
+        )
         assert actual_dirs_direct == expected_dirs_direct
 
-        expected_dirs_recursive = set(_fs_directories_recursive(materialized.root, query))
+        expected_dirs_recursive = set(
+            _fs_directories_recursive(materialized.root, query)
+        )
         actual_dirs_recursive = _relset(directory.collect_directories_recursive(query))
         assert len(actual_dirs_recursive) == len(expected_dirs_recursive), pformat_dir(
             dict(
                 query=query,
                 actual=sorted(actual_dirs_recursive),
                 expected=sorted(expected_dirs_recursive),
-            ))
+            )
+        )
         assert actual_dirs_recursive == expected_dirs_recursive
 
         expected_entries_direct = set(_fs_entries_direct(materialized.root, query))
@@ -304,10 +347,13 @@ def test_generated_directory_collect_methods_match_content(
                 query=query,
                 actual=sorted(actual_entries_direct),
                 expected=sorted(expected_entries_direct),
-            ))
+            )
+        )
         assert actual_entries_direct == expected_entries_direct
 
-        expected_entries_recursive = set(_fs_entries_recursive(materialized.root, query))
+        expected_entries_recursive = set(
+            _fs_entries_recursive(materialized.root, query)
+        )
         actual_entries_recursive = _relset(directory.collect_entries_recursive(query))
         assert len(actual_entries_recursive) == len(expected_entries_recursive), (
             pformat_dir(
@@ -315,7 +361,9 @@ def test_generated_directory_collect_methods_match_content(
                     query=query,
                     actual=sorted(actual_entries_recursive),
                     expected=sorted(expected_entries_recursive),
-                )))
+                )
+            )
+        )
         assert actual_entries_recursive == expected_entries_recursive
 
     for rel in fs_files:
@@ -358,11 +406,13 @@ def run_main_model_splicing(
     assert "name" in df.columns, str(df.columns)
 
     stable_test_dir.joinpath("df_pre_split.json").write_text(
-        json.dumps(to_json_safe(df), indent=2))
+        json.dumps(to_json_safe(df), indent=2)
+    )
     stable_test_dir.joinpath("base_flat_model.log").write_text(fmt_df(df))
     df = split_columns_by_rules(df, _DF_SPLIT_RULES).sort_values("root_relative")
     stable_test_dir.joinpath("df_post_split.json").write_text(
-        json.dumps(to_json_safe(df), indent=2))
+        json.dumps(to_json_safe(df), indent=2)
+    )
 
     stable_test_dir.joinpath("base_spliced_model.log").write_text(fmt_df(df))
     expected_root_relative = {
@@ -375,12 +425,14 @@ def run_main_model_splicing(
             model_root_relative=set(df["root_relative"]),
             original_model=simple_dump(core.model, max_col=1),
             real_directory=plumbum.local["exa"].run(["--tree", str(gen_dir)]),
-        ))
+        )
+    )
 
     assert df["size_self"].notna().all(), "`size_self` contains None values"
     assert df["size_self"].ne(0).all(), "`size_self` contains zero values"
-    assert (df["size_self"]
-            <= df["size_parent"]).all(), ("entry size cannot be larger than the parent")
+    assert (df["size_self"] <= df["size_parent"]).all(), (
+        "entry size cannot be larger than the parent"
+    )
 
     video_mask = df["mime_type"].str.startswith("video/", na=False)
 
@@ -392,15 +444,18 @@ def run_main_model_splicing(
     assert len(df[~df["is_directory"]]) == expected_file_count
 
     assert len(df.loc[df["root_relative"].eq("")]) == len(directories)
-    assert len(df[~df["is_directory"]]) == df.loc[df["root_relative"].eq(""),
-                                                  "rec_total_count"].sum()
+    assert (
+        len(df[~df["is_directory"]])
+        == df.loc[df["root_relative"].eq(""), "rec_total_count"].sum()
+    )
 
     return df
 
 
 @beartype
-def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
-                             stable_test_dir: Path):
+def run_video_file_filtering(
+    df: pd.DataFrame, core: FileTreeQueryCore, stable_test_dir: Path
+):
     video_eval = QueryFilterEvaluator()
 
     nodes_visited = 0
@@ -419,7 +474,8 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
 
             else:
                 assert FileMimeColumnSpec.column_name in node.columns, str(
-                    node.columns.keys())
+                    node.columns.keys()
+                )
                 mime = node.columns[FileMimeColumnSpec.column_name]
                 assert isinstance(mime, FileMimeData) or mime is None
                 if mime is not None:
@@ -447,12 +503,18 @@ def run_video_file_filtering(df: pd.DataFrame, core: FileTreeQueryCore,
     video_df = video_df[video_df["trivial"].map(map_trivial)]
     assert len(df[df["mime_type"].str.startswith("video/")]) == len(video_df)
     stable_test_dir.joinpath("video_df.json").write_text(
-        json.dumps(to_json_safe(video_df), indent=2))
+        json.dumps(to_json_safe(video_df), indent=2)
+    )
 
 
 @beartype
-def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: AppConfig,
-                                data_dir: Path, stable_test_dir: Path):
+def run_remove_duplicate_action(
+    df: pd.DataFrame,
+    core: FileTreeQueryCore,
+    cfg: AppConfig,
+    data_dir: Path,
+    stable_test_dir: Path,
+):
     evaluator = QueryFilterEvaluator()
 
     act = ActionProvider()
@@ -492,19 +554,24 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 
     assert len(action_model.actions()) == len(deleted_files)
 
-    with_duplicates = df[(1 <= df["rec_duplicate_count"]) &
-                         (df["is_directory"] == False)].copy()
+    with_duplicates = df[
+        (1 <= df["rec_duplicate_count"]) & (df["is_directory"] == False)
+    ].copy()
     with_duplicates["duplicate_paths"] = with_duplicates["duplicate_paths"].map(
-        lambda paths: list(map(lambda it: it.name, paths)))
-    with_duplicates = with_duplicates[[
-        "root",
-        "is_directory",
-        "rec_duplicate_count",
-        "root_relative",
-        "duplicate_paths",
-    ]]
+        lambda paths: list(map(lambda it: it.name, paths))
+    )
+    with_duplicates = with_duplicates[
+        [
+            "root",
+            "is_directory",
+            "rec_duplicate_count",
+            "root_relative",
+            "duplicate_paths",
+        ]
+    ]
     with_duplicates["no_first"] = with_duplicates["rec_duplicate_count"] / (
-        with_duplicates["rec_duplicate_count"] + 1)
+        with_duplicates["rec_duplicate_count"] + 1
+    )
 
     # logger.info(f"with duplicates:\n{fmt_df(with_duplicates)}")
     assert len(with_duplicates) == duplicate_files
@@ -521,7 +588,8 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
             ActionListView._write_action1(act, out)
 
     executor.register_actions(
-        load_actions(actions_file, handlers=list(executor.handlers.values())))
+        load_actions(actions_file, handlers=list(executor.handlers.values()))
+    )
 
     # trash file destination is computed to include the original root name
     trash_root = cfg.act.execution.trash_root
@@ -576,7 +644,8 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
     with Session(executor.engine) as session:
         row: OperationRow
         for row in session.scalars(
-                select(OperationRow).where(OperationRow.status == _DONE_STR)):
+            select(OperationRow).where(OperationRow.status == _DONE_STR)
+        ):
             done_action_count += 1
             trash_act = model_from_json_data(row.action_data, TrashAction)
             assert TrivialDataColumnSpec.column_name in trash_act.file.columns
@@ -596,8 +665,7 @@ def run_remove_duplicate_action(df: pd.DataFrame, core: FileTreeQueryCore, cfg: 
 
 @beartype
 def run_generated_directory_write(
-        directories: list[GeneratedDirectory], stable_test_dir: Path,
-        root_names: list[str]
+    directories: list[GeneratedDirectory], stable_test_dir: Path, root_names: list[str]
 ) -> list[tuple[str, GeneratedDirectory, MaterializedDirectory]]:
     data_dir = stable_test_dir / "data"
     materialized_roots: list[tuple[str, GeneratedDirectory, MaterializedDirectory]] = []
@@ -640,7 +708,8 @@ def run_file_tree_query_validation(
     assert tree.cfg.file_tree_view
 
     file_path_rows = _fetch_file_paths_impl(
-        db, prepare_root_filters(tree.cfg.file_tree_view.root_dirs))
+        db, prepare_root_filters(tree.cfg.file_tree_view.root_dirs)
+    )
 
     file_paths: list[Path] = list(itertools.chain(*[d.files for d in directories]))
 
@@ -650,7 +719,8 @@ def run_file_tree_query_validation(
         dict(
             file_paths=file_paths,
             file_path_rows=[f.path for f in file_path_rows],
-        ))
+        )
+    )
 
 
 @beartype
@@ -697,7 +767,8 @@ def run_initial_index_collection(
     # logger.info(simple_dump(core.model))
     # logger.info("\n" + render_text(model_dump.dump(core.model)))
     stable_test_dir.joinpath("simple_dump.txt").write_text(
-        simple_dump_rows_json(core.model))
+        simple_dump_rows_json(core.model)
+    )
 
     m = core.model
 
@@ -711,9 +782,11 @@ def run_initial_index_collection(
     for root_name, directory, materialized in materialized_roots:
         direct_entries = [p.relative_path for p in directory.collect_entries_direct()]
         file_entries = list(
-            f for f in materialized.root.glob("*") if not str(f).endswith(META_SUFFIX))
+            f for f in materialized.root.glob("*") if not str(f).endswith(META_SUFFIX)
+        )
         assert len(direct_entries) == len(file_entries), pformat(
-            dict(direct_entries=direct_entries, file_entries=file_entries))
+            dict(direct_entries=direct_entries, file_entries=file_entries)
+        )
 
         root_node = sub_row_by_name(QModelIndex(), m, root_name)
         assert root_node is not None
@@ -723,7 +796,8 @@ def run_initial_index_collection(
             nested = sub_row_by_name(root_node, m, str(entry.relative_path))
             assert nested is not None
             assert m.rowCount(nested) == len(
-                directory.collect_entries_direct(entry.relative_path))
+                directory.collect_entries_direct(entry.relative_path)
+            )
 
         expected_entries.append(Path(root_name))
         for entry in directory.collect_entries_recursive():
@@ -734,7 +808,8 @@ def run_initial_index_collection(
     table = TreeToTableProxyModel()
     table.setSourceModel(core.model)
     stable_test_dir.joinpath("table_model.txt").write_text(
-        render_text(model_dump.dump(table)))
+        render_text(model_dump.dump(table))
+    )
     rec_entries = expected_entries
     assert table.rowCount(QModelIndex()) == len(rec_entries)
 
@@ -784,8 +859,9 @@ def run_action_column_validation(
     run_file_tree_query_validation(tree_config, [d for _, _, d in materialized_roots])
 
     assert index.cfg.act
-    assert index.cfg.act.execution.sqlite_path.exists(
-    ), index.cfg.act.execution.sqlite_path
+    assert index.cfg.act.execution.sqlite_path.exists(), (
+        index.cfg.act.execution.sqlite_path
+    )
     columns = init_file_tree_columns(index=index)
 
     assert any(isinstance(c, KnownActionColumnSpec) for c in columns), [
@@ -824,7 +900,8 @@ def run_action_column_validation(
             max_width=1200,
             max_inline_complexity=40,
             max_table_complexity=120,
-        ))
+        )
+    )
 
     assert 0 < len(df[df["actions"].notna()])
 
@@ -835,21 +912,23 @@ def run_action_column_validation(
     max_examples=1,  # 20
     deadline=5000,
 )
-@given(directories=st.lists(
-    directory_structure(
-        indexer_types=[],
-        min_files=12,
-        max_files=32,
-        min_nesting=1,
-        max_nesting=3,
-        corpus_manifest=corpus_manifest,
-        corpus_root=corpus_root,
-        min_duplicates=2,
-        max_duplicates=5,
-    ),
-    min_size=2,
-    max_size=5,
-))
+@given(
+    directories=st.lists(
+        directory_structure(
+            indexer_types=[],
+            min_files=12,
+            max_files=32,
+            min_nesting=1,
+            max_nesting=3,
+            corpus_manifest=corpus_manifest,
+            corpus_root=corpus_root,
+            min_duplicates=2,
+            max_duplicates=5,
+        ),
+        min_size=2,
+        max_size=5,
+    )
+)
 @clean_test_dir
 @capture_logs(test_name="main.log")
 def test_generated_indexer_directory(
@@ -888,21 +967,23 @@ def test_generated_indexer_directory(
     max_examples=20,
     deadline=15000,
 )
-@given(directories=st.lists(
-    directory_structure(
-        indexer_types=[],
-        min_files=12,
-        max_files=32,
-        min_nesting=1,
-        max_nesting=3,
-        corpus_manifest=corpus_manifest,
-        corpus_root=corpus_root,
-        min_duplicates=2,
-        max_duplicates=5,
-    ),
-    min_size=2,
-    max_size=5,
-))
+@given(
+    directories=st.lists(
+        directory_structure(
+            indexer_types=[],
+            min_files=12,
+            max_files=32,
+            min_nesting=1,
+            max_nesting=3,
+            corpus_manifest=corpus_manifest,
+            corpus_root=corpus_root,
+            min_duplicates=2,
+            max_duplicates=5,
+        ),
+        min_size=2,
+        max_size=5,
+    )
+)
 @clean_test_dir
 @capture_logs(test_name="main.log")
 def test_cli_index_rerun(
@@ -928,7 +1009,8 @@ def test_cli_index_rerun(
                     name=m.root.name,
                     root_path=m.root,
                     paths=[DirConfig(path=m.root)],
-                ) for _, _, m in materialized_roots
+                )
+                for _, _, m in materialized_roots
             ],
             reset=False,
         ),
@@ -956,49 +1038,50 @@ def test_cli_index_rerun(
                 "_calculate",
                 autospec=True,
                 side_effect=HashCache._calculate,
-            ))
+            )
+        )
 
         indexer_run_spies = {
-            "ffprobe":
-                stack.enter_context(
-                    patch.object(
-                        FFProbeIndexer,
-                        "run",
-                        autospec=True,
-                        side_effect=FFProbeIndexer.run,
-                    )),
-            "exif":
-                stack.enter_context(
-                    patch.object(
-                        ExifMetadataIndexer,
-                        "run",
-                        autospec=True,
-                        side_effect=ExifMetadataIndexer.run,
-                    )),
-            "file_stats":
-                stack.enter_context(
-                    patch.object(
-                        FileStatsIndexer,
-                        "run",
-                        autospec=True,
-                        side_effect=FileStatsIndexer.run,
-                    )),
-            "file_mime":
-                stack.enter_context(
-                    patch.object(
-                        FileMimeIndexer,
-                        "run",
-                        autospec=True,
-                        side_effect=FileMimeIndexer.run,
-                    )),
-            "doc_blocks":
-                stack.enter_context(
-                    patch.object(
-                        DocumentBlockIndexer,
-                        "run",
-                        autospec=True,
-                        side_effect=DocumentBlockIndexer.run,
-                    )),
+            "ffprobe": stack.enter_context(
+                patch.object(
+                    FFProbeIndexer,
+                    "run",
+                    autospec=True,
+                    side_effect=FFProbeIndexer.run,
+                )
+            ),
+            "exif": stack.enter_context(
+                patch.object(
+                    ExifMetadataIndexer,
+                    "run",
+                    autospec=True,
+                    side_effect=ExifMetadataIndexer.run,
+                )
+            ),
+            "file_stats": stack.enter_context(
+                patch.object(
+                    FileStatsIndexer,
+                    "run",
+                    autospec=True,
+                    side_effect=FileStatsIndexer.run,
+                )
+            ),
+            "file_mime": stack.enter_context(
+                patch.object(
+                    FileMimeIndexer,
+                    "run",
+                    autospec=True,
+                    side_effect=FileMimeIndexer.run,
+                )
+            ),
+            "doc_blocks": stack.enter_context(
+                patch.object(
+                    DocumentBlockIndexer,
+                    "run",
+                    autospec=True,
+                    side_effect=DocumentBlockIndexer.run,
+                )
+            ),
         }
 
         main_impl("index", cfg)
@@ -1012,14 +1095,17 @@ def test_cli_index_rerun(
 
         def assert_no_cache_rerun():
             assert hash_cache_1 == hash_cache_calculate.call_count, (
-                "Second indexing run could not restore the hash cache properly")
+                "Second indexing run could not restore the hash cache properly"
+            )
 
         def assert_no_index_rerun():
             for name, spy in indexer_run_spies.items():
                 assert indexer_calls_1[name] > 0, (
-                    f"{name}.run was not called in the first indexing run")
+                    f"{name}.run was not called in the first indexing run"
+                )
                 assert spy.call_count == indexer_calls_1[name], (
-                    f"{name}.run was called during the second indexing run")
+                    f"{name}.run was called during the second indexing run"
+                )
 
         assert_no_cache_rerun()
         assert_no_index_rerun()

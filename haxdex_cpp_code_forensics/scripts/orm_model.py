@@ -1,11 +1,11 @@
-from typing import Type, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from py_scriptutils.sqlalchemy_utils import ForeignId, IdColumn, IntColumn, StrColumn
-from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base
 
 if TYPE_CHECKING:
     from sqlalchemy.orm.decl_api import DeclarativeMeta
+
     Base = DeclarativeMeta
 else:
     Base = declarative_base()
@@ -15,6 +15,7 @@ class FilePath(Base):
     """
     An interned table of file paths. Each unique path string appears only once.
     """
+
     __tablename__ = "FilePath"
     id = IdColumn()
     file_path = ForeignId("String.id")
@@ -24,6 +25,7 @@ class GitCommit(Base):
     """
     One row per git commit discovered during repository traversal.
     """
+
     __tablename__ = "GitCommit"
     id = IdColumn()
     author = ForeignId("Author.id")
@@ -40,6 +42,7 @@ class GitCommit(Base):
 
 class GitCommitActions(Base):
     "One row per file-level action within a commit (a commit touching N files produces N rows)."
+
     __tablename__ = "GitCommitActions"
     id = IdColumn()
     commit_id = ForeignId("GitCommit.id", nullable=False)
@@ -63,6 +66,7 @@ class FileTrackSection(Base):
     """
     A snapshot of a tracked file's content as it existed at a specific commit. A single FileTrack has one FileTrackSection per commit that touched it.
     """
+
     __tablename__ = "FileTrackSection"
     id = IdColumn()
     commit_id = ForeignId("GitCommit.id")
@@ -77,6 +81,7 @@ class FileTrack(Base):
     """
     A logical identity for a file across its entire history, surviving renames. Contains only an id; all historical snapshots are in FileTrackSection.
     """
+
     __tablename__ = "FileTrack"
     id = IdColumn()
 
@@ -92,6 +97,7 @@ class GitString(Base):
     """
     A global interned string pool shared by file paths, line content, and other text values.
     """
+
     __tablename__ = "String"
     id = IdColumn()
     text = StrColumn()
@@ -101,6 +107,7 @@ class Author(Base):
     """
     Interned, deduplicated author identities extracted from git commit signatures.
     """
+
     __tablename__ = "Author"
     id = IdColumn()
     name = StrColumn()
@@ -113,6 +120,7 @@ class LineData(Base):
     """
     An interned, deduplicated record of a unique (content, commit) pair. The same line text appearing in two different commits produces two LineData rows.
     """
+
     __tablename__ = "LineData"
     id = IdColumn()
     content = ForeignId("String.id")
@@ -134,6 +142,7 @@ class ViewJoinedFileSectionLines(Base):
     """
     A convenience view that resolves the FileSectionLines join table into readable columns, joining through LineData and String to get the text, and joining FileTrackSection to get both the line's originating commit and the section's commit.
     """
+
     __tablename__ = "ViewJoinedFileSectionLines"
     id = IdColumn()
     section_id = IntColumn()  # Assuming this can uniquely identify rows
@@ -153,6 +162,7 @@ class ViewFullFileSectionLines(Base):
     """
     Extends ViewJoinedFileSectionLines by resolving the two commit IDs into their human-readable messages and timestamps.
     """
+
     __tablename__ = "ViewFullFileSectionLines"
     text = StrColumn()
     id = IdColumn()

@@ -1,14 +1,17 @@
 from pathlib import Path
 
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexerResult
-from haxdex.services.core.types import FileRef
 from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.indexers.chunk_indexing.full_text import (
+    FullTextChunk,
+    FullTextIndexerResult,
+)
 from haxdex.services.pydantic_utils import first_by_field_value
 
 
-def test_large_batch_indexing(db: IndexDatabase, tmp_path: Path,
-                              runtime: IndexRuntime) -> None:
+def test_large_batch_indexing(
+    db: IndexDatabase, tmp_path: Path, runtime: IndexRuntime
+) -> None:
 
     root = db.add_root("root", tmp_path)
     for idx in range(20):
@@ -18,12 +21,14 @@ def test_large_batch_indexing(db: IndexDatabase, tmp_path: Path,
 
         runtime.run_indexer(
             ref,
-            runtime.get_indexers([
-                "file_size",
-                "file_stats",
-                "full_text",
-                "document_block",
-            ]),
+            runtime.get_indexers(
+                [
+                    "file_size",
+                    "file_stats",
+                    "full_text",
+                    "document_block",
+                ]
+            ),
         )
 
     record = runtime.get_indexer_result(

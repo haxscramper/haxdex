@@ -1,20 +1,23 @@
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QAbstractListModel, QObject, QModelIndex, Qt, QSortFilterProxyModel, QAbstractTableModel
 from beartype import beartype
 from beartype.typing import Any
 from pydantic import BaseModel
+from PyQt6.QtCore import (
+    QModelIndex,
+    Qt,
+)
 
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.actions.action_handler import BaseAction, ActionHandler
+from haxdex.gui.file_tree.actions.action_handler import ActionHandler, BaseAction
 from haxdex.gui.file_tree.actions.action_move_file import MoveAction
 from haxdex.gui.file_tree.actions.action_trash_file import TrashAction
 from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertData
 from haxdex.services.pydantic_utils import model_from_json_data
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
 
 
 def to_action_handler_map(handlers: list[ActionHandler]) -> dict[str, ActionHandler]:
@@ -50,7 +53,6 @@ def load_actions(jsonl_path: Path, handlers: list[ActionHandler]) -> list[BaseAc
 
 @beartype
 class ActionProvider:
-
     def __init__(self) -> None:
         self.actions: list[BaseModel] = []
 
@@ -60,20 +62,20 @@ class ActionProvider:
     def move(self, file: FileTreeNode, dest: str, message: str | None = None) -> None:
         self.actions.append(MoveAction(file=file, dest=dest, message=message))
 
-    def convert_video(self,
-                      file: FileTreeNode,
-                      target: VideoConvertData,
-                      message: str | None = None):
-        self.actions.append(VideoConvertAction(file=file, target=target, message=message))
+    def convert_video(
+        self, file: FileTreeNode, target: VideoConvertData, message: str | None = None
+    ):
+        self.actions.append(
+            VideoConvertAction(file=file, target=target, message=message)
+        )
 
 
 @beartype
 class ActionKindColumn(ColumnSpec):
-
     def data(
-            self,
-            index: QModelIndex,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        index: QModelIndex,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         action = index.internalPointer()
         match role:
@@ -91,10 +93,10 @@ class ActionKindColumn(ColumnSpec):
                 return None
 
     def setData(
-            self,
-            index: QModelIndex,
-            value: Any,
-            role: int = int(Qt.ItemDataRole.EditRole),
+        self,
+        index: QModelIndex,
+        value: Any,
+        role: int = int(Qt.ItemDataRole.EditRole),
     ) -> bool:
         return False
 
@@ -102,10 +104,10 @@ class ActionKindColumn(ColumnSpec):
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
     def headerData(
-            self,
-            section: int,
-            orientation: Qt.Orientation,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         match role:
             case Qt.ItemDataRole.DisplayRole:
@@ -116,11 +118,10 @@ class ActionKindColumn(ColumnSpec):
 
 @beartype
 class ActionPathColumn(ColumnSpec):
-
     def data(
-            self,
-            index: QModelIndex,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        index: QModelIndex,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         action = index.internalPointer()
         pathText = str(action.file.path)
@@ -139,10 +140,10 @@ class ActionPathColumn(ColumnSpec):
                 return None
 
     def setData(
-            self,
-            index: QModelIndex,
-            value: Any,
-            role: int = int(Qt.ItemDataRole.EditRole),
+        self,
+        index: QModelIndex,
+        value: Any,
+        role: int = int(Qt.ItemDataRole.EditRole),
     ) -> bool:
         return False
 
@@ -150,10 +151,10 @@ class ActionPathColumn(ColumnSpec):
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
     def headerData(
-            self,
-            section: int,
-            orientation: Qt.Orientation,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         match role:
             case Qt.ItemDataRole.DisplayRole:
@@ -164,11 +165,10 @@ class ActionPathColumn(ColumnSpec):
 
 @beartype
 class ActionMessageColumn(ColumnSpec):
-
     def data(
-            self,
-            index: QModelIndex,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        index: QModelIndex,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         action = index.internalPointer()
         messageText = action.message or ""
@@ -187,10 +187,10 @@ class ActionMessageColumn(ColumnSpec):
                 return None
 
     def setData(
-            self,
-            index: QModelIndex,
-            value: Any,
-            role: int = int(Qt.ItemDataRole.EditRole),
+        self,
+        index: QModelIndex,
+        value: Any,
+        role: int = int(Qt.ItemDataRole.EditRole),
     ) -> bool:
         return False
 
@@ -198,10 +198,10 @@ class ActionMessageColumn(ColumnSpec):
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
     def headerData(
-            self,
-            section: int,
-            orientation: Qt.Orientation,
-            role: int = int(Qt.ItemDataRole.DisplayRole),
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = int(Qt.ItemDataRole.DisplayRole),
     ) -> Any:
         match role:
             case Qt.ItemDataRole.DisplayRole:
@@ -212,12 +212,9 @@ class ActionMessageColumn(ColumnSpec):
 
 @beartype
 class ActionListModel(AbstractColumnItemModel):
-
     def __init__(self, actions: list[BaseAction], parent: Any = None) -> None:
         super().__init__(
-            columns=[ActionKindColumn(),
-                     ActionPathColumn(),
-                     ActionMessageColumn()],
+            columns=[ActionKindColumn(), ActionPathColumn(), ActionMessageColumn()],
             parent=parent,
         )
         self.actionsList: list[BaseAction] = actions
@@ -228,10 +225,10 @@ class ActionListModel(AbstractColumnItemModel):
         return len(self.actionsList)
 
     def index(
-            self,
-            row: int,
-            column: int,
-            parent: QModelIndex = QModelIndex(),
+        self,
+        row: int,
+        column: int,
+        parent: QModelIndex = QModelIndex(),
     ) -> QModelIndex:
         if parent.isValid():
             return QModelIndex()

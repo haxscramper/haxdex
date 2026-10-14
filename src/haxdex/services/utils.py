@@ -1,22 +1,18 @@
-from contextlib import contextmanager
-from dataclasses import dataclass
 import enum
 import json
-from loguru import logger
 import logging
-from datetime import datetime, timezone
-
-from sqlalchemy import URL, Engine, create_engine
-
-from PyQt6.QtCore import QLoggingCategory
-from beartype import beartype
-from beartype.typing import Any, Callable, Literal, Optional, Set, Iterator
 import os
 import traceback
-from rich.console import Console
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
+from beartype import beartype
+from beartype.typing import Any, Callable, Literal, Optional, Set
 from platformdirs import user_cache_dir
+from PyQt6.QtCore import QLoggingCategory
+from rich.console import Console
+from sqlalchemy import URL, Engine, create_engine
 
 
 def get_xdg_cache_dir(target: list[str]) -> Path:
@@ -61,13 +57,16 @@ def get_custom_traceback_handler(
             frame = current_tb.tb_frame
             filename = frame.f_code.co_filename
 
-            if not any(it in filename for it in [
+            if not any(
+                it in filename
+                for it in [
                     "pykka",
                     "pluggy",
                     "_pytest",
                     "<@beartype",
                     "dagster",
-            ]):
+                ]
+            ):
                 line_no = current_tb.tb_lineno
                 func_name = frame.f_code.co_name
 
@@ -76,7 +75,7 @@ def get_custom_traceback_handler(
                 runtime_types = {}
 
                 if show_args:
-                    arg_names = frame.f_code.co_varnames[:frame.f_code.co_argcount]
+                    arg_names = frame.f_code.co_varnames[: frame.f_code.co_argcount]
                     for arg_name in arg_names:
                         if arg_name in frame.f_locals:
                             args[arg_name] = frame.f_locals[arg_name]
@@ -91,7 +90,8 @@ def get_custom_traceback_handler(
                         arg_types,
                         runtime_types,
                         extracted_frame.line or "",
-                    ))
+                    )
+                )
 
             current_tb = current_tb.tb_next
 
@@ -113,38 +113,46 @@ def get_custom_traceback_handler(
         display_filenames = [
             Path(frame_info.filename).resolve().absolute() for frame_info in frames_info
         ]
-        common_prefix = (os.path.commonpath(display_filenames)
-                         if display_filenames else "")
+        common_prefix = (
+            os.path.commonpath(display_filenames) if display_filenames else ""
+        )
 
         for frame_info in frames_info:
             display_filename = frame_info.filename
             if common_prefix:
                 try:
-                    display_filename = os.path.relpath(frame_info.filename, common_prefix)
+                    display_filename = os.path.relpath(
+                        frame_info.filename, common_prefix
+                    )
                 except ValueError:
                     display_filename = frame_info.filename
 
-            header = (f'File {frame_info.filename}:{frame_info.line_no} '
-                      f"in {frame_info.func_name}")
+            header = (
+                f"File {frame_info.filename}:{frame_info.line_no} "
+                f"in {frame_info.func_name}"
+            )
             lines.append(f"{header} : {frame_info.code_line}")
 
             if show_args:
                 for arg_name, arg_value in frame_info.args.items():
                     type_info = ""
-                    available_width = (console.width - max_arg_name_width -
-                                       len(type_info) - 5)
+                    available_width = (
+                        console.width - max_arg_name_width - len(type_info) - 5
+                    )
 
                     if truncate_value:
                         arg_repr = repr(arg_value)
                         if available_width < len(arg_repr):
-                            arg_repr = arg_repr[:available_width - 3] + "..."
+                            arg_repr = arg_repr[: available_width - 3] + "..."
                         lines.append(
                             f"  {arg_name}{type_info:<{max_arg_name_width - len(arg_name)}} = {arg_repr}"
                         )
                     else:
                         import pprint
 
-                        formatted_value = pprint.pformat(arg_value, width=available_width)
+                        formatted_value = pprint.pformat(
+                            arg_value, width=available_width
+                        )
                         value_lines = formatted_value.split("\n")
 
                         lines.append(
@@ -179,35 +187,36 @@ def propagate_logger_level(logger_name: str, level: int):
 
 def stfu_logs():
     for logger_name in [
-            "openai._base_client",
-            "git.cmd",
-            "alembic",
-            "git.util",
-            # toggle this to see database interactions in tests
-            "urllib3.connectionpool",
-            # openai uses this for connection
-            "httpcore.connection",
-            # each individual resource actor creation and start
-            "pykka",
-            # execution of individual steps is printed to stderr?
-            "dagster",
-            "dagster.builtin",
-            "asyncio",
-            "PIL.Image",
-            "PIL.PngImagePlugin",
-            "PIL.TiffImagePlugin",
-            "PIL",
-            "httpcore.http11",
-            "httpx",
-            "faker.factory",
-            "jax._src",
-            "plumbum",
-            "parso",
+        "openai._base_client",
+        "git.cmd",
+        "alembic",
+        "git.util",
+        # toggle this to see database interactions in tests
+        "urllib3.connectionpool",
+        # openai uses this for connection
+        "httpcore.connection",
+        # each individual resource actor creation and start
+        "pykka",
+        # execution of individual steps is printed to stderr?
+        "dagster",
+        "dagster.builtin",
+        "asyncio",
+        "PIL.Image",
+        "PIL.PngImagePlugin",
+        "PIL.TiffImagePlugin",
+        "PIL",
+        "httpcore.http11",
+        "httpx",
+        "faker.factory",
+        "jax._src",
+        "plumbum",
+        "parso",
     ]:
         propagate_logger_level(logger_name, logging.CRITICAL + 1)
 
-    QLoggingCategory.setFilterRules("qt.multimedia.ffmpeg.*=false\n"
-                                    "qt.multimedia.*=false")
+    QLoggingCategory.setFilterRules(
+        "qt.multimedia.ffmpeg.*=false\nqt.multimedia.*=false"
+    )
 
 
 def dump_with_type(
@@ -261,9 +270,15 @@ def dump_with_type(
                 has_double = name.startswith("__")
                 has_single = name.startswith("_")
                 is_regular = not has_single
-                return (has_double and include_double_underscore_attrs) or (
-                    not has_double and has_single and
-                    include_single_underscore_attrs) or is_regular
+                return (
+                    (has_double and include_double_underscore_attrs)
+                    or (
+                        not has_double
+                        and has_single
+                        and include_single_underscore_attrs
+                    )
+                    or is_regular
+                )
 
             try:
                 hasattr(obj, "__dict__")
@@ -350,6 +365,7 @@ class ExceptionDump:
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Literal[False]:
         import json
+
         if exc_value is not None:
             if not hasattr(exc_value, "__notes__"):
                 exc_value.__notes__ = []

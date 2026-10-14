@@ -1,21 +1,24 @@
-from pathlib import Path
-
-from PyQt6.QtCore import QModelIndex, Qt, QAbstractItemModel
-from PyQt6.QtWidgets import QStyledItemDelegate, QWidget, QStyleOptionViewItem, QComboBox, QAbstractItemDelegate
-from beartype import beartype
-
-from beartype.typing import Any, cast, Optional
-from pydantic import BaseModel
-from rich.console import NO_CHANGE
-
-from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from haxdex.services.core.types import FileHash
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
-from haxdex.services.utils import format_size
 import enum
 
-from loguru import logger
+from beartype import beartype
+from beartype.typing import Any, Optional, cast
+from pydantic import BaseModel
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemDelegate,
+    QComboBox,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QWidget,
+)
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
 
 
 class VideoConvertTarget(str, enum.Enum):
@@ -31,7 +34,6 @@ class VideoConvertData(BaseModel, extra="forbid"):
 
 
 class PresetDelegate(QStyledItemDelegate):
-
     @beartype
     def __init__(
         self,
@@ -106,7 +108,9 @@ class VideoConvertColumnSpec(FileTreeColumnSpec):
         value: Any,
         role: int = Qt.ItemDataRole.EditRole,
     ) -> bool:
-        self.setColumnData(index, VideoConvertData(target=VideoConvertTarget(str(value))))
+        self.setColumnData(
+            index, VideoConvertData(target=VideoConvertTarget(str(value)))
+        )
         return True
 
     def getDelegate(self) -> QAbstractItemDelegate | None:
@@ -134,7 +138,10 @@ class VideoConvertColumnSpec(FileTreeColumnSpec):
             case Qt.ItemDataRole.DisplayRole:
                 return str(rate.target.value)
 
-            case CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 return rate.target.value
 
             case _:

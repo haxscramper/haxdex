@@ -1,16 +1,14 @@
 import json
-from loguru import logger
-
-from sqlalchemy import Engine
-import glom
 from pathlib import Path
 
+import glom
 from beartype.typing import Any, ClassVar, cast
-from pydantic import BaseModel, Field, model_validator, model_serializer
+from pydantic import BaseModel, Field, model_serializer, model_validator
+from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexerResult
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
 
 
 class XYObject(BaseModel, extra="allow"):
@@ -182,7 +180,8 @@ class ComfyInput(BaseModel, extra="forbid"):
     title: str | None = None
     inputs: dict[str, Any] | list[Any]
     links: list[ComfyInputLink] = Field(
-        description="Incoming links to the node -- origin slot/id is a dependee node")
+        description="Incoming links to the node -- origin slot/id is a dependee node"
+    )
 
 
 class ComfyInputIndexerResult(IndexDocument, extra="forbid"):
@@ -212,8 +211,10 @@ class ComfyInputIndexer(BaseIndexer):
         pre_data = cast(IndexerOutput, assets["exif_metadata"]).result
         assert isinstance(pre_data, ExifMetadataIndexerResult), type(pre_data)
 
-        if ("exif_metadata" not in pre_data.file.original_metadata_full or
-                "workflow" not in pre_data.file.original_metadata_full["exif_metadata"]):
+        if (
+            "exif_metadata" not in pre_data.file.original_metadata_full
+            or "workflow" not in pre_data.file.original_metadata_full["exif_metadata"]
+        ):
             return IndexerOutput(
                 indexer_id=self.asset_name,
                 result=ComfyInputIndexerResult(
@@ -225,7 +226,8 @@ class ComfyInputIndexer(BaseIndexer):
 
         else:
             workflow_js = pre_data.file.original_metadata_full["exif_metadata"][
-                "workflow"]
+                "workflow"
+            ]
             Path("/tmp/result.json").write_text(json.dumps(workflow_js, indent=2))
 
             workflow = ComfyWorkflow1_0(**workflow_js)
@@ -244,8 +246,13 @@ class ComfyInputIndexer(BaseIndexer):
                                     target_slot=int(l.target_slot),
                                     origin_slot=int(l.origin_slot),
                                     origin_id=str(l.origin_id),
-                                ) for l in workflow.links if l.target_id == node.id
-                            ] if workflow.links else list(),
-                        ))
+                                )
+                                for l in workflow.links
+                                if l.target_id == node.id
+                            ]
+                            if workflow.links
+                            else list(),
+                        )
+                    )
 
             return IndexerOutput(indexer_id=self.asset_name, result=result)

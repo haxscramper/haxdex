@@ -1,17 +1,16 @@
 import json
-from datetime import datetime
 from pathlib import Path
-
-from sqlalchemy import Engine
 
 import magic
 from beartype import beartype
-from beartype.typing import Any, cast
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
+from beartype.typing import Any
+from loguru import logger
 from plumbum import local
 from pydantic import BaseModel
-from loguru import logger
+from sqlalchemy import Engine
+
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 
 
 @beartype
@@ -30,15 +29,17 @@ class FFProbeInfoModel(BaseModel):
 def run_ffprobe(path: Path) -> FFProbeInfoModel | None:
     logger.debug(f"running probe on {path}")
     ffprobe = local["ffprobe"]
-    result = ffprobe.run([
-        "-v",
-        "error",
-        "-print_format",
-        "json",
-        "-show_format",
-        "-show_streams",
-        str(path),
-    ])
+    result = ffprobe.run(
+        [
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(path),
+        ]
+    )
     payload = json.loads(result[1])
     streams_raw = payload.get("streams", [])
     format_raw = payload.get("format", {})
@@ -78,10 +79,14 @@ def run_ffprobe(path: Path) -> FFProbeInfoModel | None:
 
     width = parse_int(video_stream.get("width")) if video_stream is not None else None
     height = parse_int(video_stream.get("height")) if video_stream is not None else None
-    resolution = (f"{width}x{height}"
-                  if width is not None and height is not None else None)
-    fps = (parse_fps(video_stream.get("avg_frame_rate"))
-           if video_stream is not None else None)
+    resolution = (
+        f"{width}x{height}" if width is not None and height is not None else None
+    )
+    fps = (
+        parse_fps(video_stream.get("avg_frame_rate"))
+        if video_stream is not None
+        else None
+    )
 
     return FFProbeInfoModel(
         duration_seconds=parse_float(format_raw.get("duration")),

@@ -1,9 +1,9 @@
-from dataclasses import dataclass, field
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from beartype.typing import Any, Callable, Dict, List, Optional, Type
 from py_repository.repo_tasks.command_execution import run_command
 from py_repository.repo_tasks.common import (
     ensure_existing_dir,
@@ -13,16 +13,14 @@ from py_repository.repo_tasks.common import (
 from py_repository.repo_tasks.workflow_utils import TaskContext
 from py_scriptutils.script_logging import log
 from py_scriptutils.sqlalchemy_utils import (
-    BoolColumn,
     ForeignId,
     IdColumn,
     IntColumn,
-    open_sqlite_session,
     StrColumn,
+    open_sqlite_session,
 )
-from sqlalchemy import Column, create_engine, Select, select
-from sqlalchemy.orm import declarative_base, Session
-from sqlalchemy.schema import CreateTable
+from sqlalchemy import Column
+from sqlalchemy.orm import Session, declarative_base
 from sqlalchemy.types import JSON
 
 CAT = __name__
@@ -74,8 +72,12 @@ class BinarySymbol(Base):
 @beartype
 def generate_binary_size_db(ctx: TaskContext) -> None:
     log(CAT).info("Updating database for symbol sizes")
-    assert ctx.config.binary_size_conf.binary_path, "Missing input binary path for the binary size report"
-    assert ctx.config.binary_size_conf.output_db, "Missing output DB for binary size conf"
+    assert ctx.config.binary_size_conf.binary_path, (
+        "Missing input binary path for the binary size report"
+    )
+    assert ctx.config.binary_size_conf.output_db, (
+        "Missing output DB for binary size conf"
+    )
 
     args = [
         "--run-mode",
@@ -92,16 +94,24 @@ def generate_binary_size_db(ctx: TaskContext) -> None:
 
     args.append("--")
     args.append(
-        str(get_script_root(ctx,
-                            "cxx_codegen/reflection_tool/clang_reflection_tool.cpp")))
+        str(
+            get_script_root(
+                ctx, "cxx_codegen/reflection_tool/clang_reflection_tool.cpp"
+            )
+        )
+    )
 
     env = dict()
 
     if ctx.config.binary_size_conf.min_symbol_index:
-        env["REFLECTION_TOOL_SYM_MIN"] = str(ctx.config.binary_size_conf.min_symbol_index)
+        env["REFLECTION_TOOL_SYM_MIN"] = str(
+            ctx.config.binary_size_conf.min_symbol_index
+        )
 
     if ctx.config.binary_size_conf.max_symbol_index:
-        env["REFLECTION_TOOL_SYM_MAX"] = str(ctx.config.binary_size_conf.max_symbol_index)
+        env["REFLECTION_TOOL_SYM_MAX"] = str(
+            ctx.config.binary_size_conf.max_symbol_index
+        )
 
     run_command(
         ctx,
@@ -117,9 +127,11 @@ def _get_grouped_symbols(
     by_head: bool,
     symbol_filter: Optional[Callable[[BinarySymbol], bool]] = None,
 ) -> list[tuple[Any, list[tuple[BinarySymbol, DemangledHead]]]]:
-    query = (session.query(BinarySymbol, DemangledHead).join(
-        DemangledHead, BinarySymbol.DemangledHeadId == DemangledHead.Id).order_by(
-            DemangledHead.Id, BinarySymbol.Size.desc()))
+    query = (
+        session.query(BinarySymbol, DemangledHead)
+        .join(DemangledHead, BinarySymbol.DemangledHeadId == DemangledHead.Id)
+        .order_by(DemangledHead.Id, BinarySymbol.Size.desc())
+    )
 
     # Group symbols based on the specified criteria
     grouped_symbols: dict[Any, List[tuple[BinarySymbol, DemangledHead]]] = {}
@@ -137,9 +149,11 @@ def _get_grouped_symbols(
         grouped_symbols[key].append((symbol, head))
 
     # Sort groups by total size
-    sorted_groups = sorted(grouped_symbols.items(),
-                           key=lambda item: sum(symbol.Size for symbol, _ in item[1]),
-                           reverse=True)
+    sorted_groups = sorted(
+        grouped_symbols.items(),
+        key=lambda item: sum(symbol.Size for symbol, _ in item[1]),
+        reverse=True,
+    )
 
     return sorted_groups
 
@@ -164,7 +178,7 @@ def _write_groups(
                     f.write(f"  {line}\n")
             else:  # file_line
                 file, line = key
-                f.write(f"FILE:\"{file}\":{line}\n")
+                f.write(f'FILE:"{file}":{line}\n')
 
             # Write summary stats
             f.write(f"  total_size = {total_size}\n")
@@ -176,7 +190,7 @@ def _write_groups(
 
                 if by_head:
                     if symbol.File and symbol.Line:
-                        f.write(f" \"{symbol.File}\":{symbol.Line}")
+                        f.write(f' "{symbol.File}":{symbol.Line}')
                     f.write(f" {symbol.Demangled}\n")
                 else:  # file_line
                     f.write(f" ID:{head.Id} KIND:{head.Kind} {symbol.Demangled}\n")
@@ -210,7 +224,7 @@ def _normalize_and_collapse_path(path: str) -> list[str]:
 
 @beartype
 def _build_tree_structure(
-    grouped_symbols: list[tuple[Any, list[tuple[BinarySymbol, DemangledHead]]]]
+    grouped_symbols: list[tuple[Any, list[tuple[BinarySymbol, DemangledHead]]]],
 ) -> dict[str, TreeNode]:
     tree: dict[str, TreeNode] = {}
 
@@ -298,12 +312,14 @@ class TreemapItem:
 
 
 @beartype
-def _generate_treemap_data(tree: dict[str, TreeNode],
-                           top_percent: float) -> list[TreemapItem]:
+def _generate_treemap_data(
+    tree: dict[str, TreeNode], top_percent: float
+) -> list[TreemapItem]:
     treemap_data: list[TreemapItem] = []
 
-    def traverse(nodes: dict[str, TreeNode], parent_label: str, path: str,
-                 depth: int) -> None:
+    def traverse(
+        nodes: dict[str, TreeNode], parent_label: str, path: str, depth: int
+    ) -> None:
         # Check if this node has only leaf children
         has_non_leaf = any(node.nested for node in nodes.values())
 
@@ -321,7 +337,8 @@ def _generate_treemap_data(tree: dict[str, TreeNode],
                         line=node.line,
                         symbols=node.symbols,
                         depth=depth,
-                    ))
+                    )
+                )
 
                 if node.nested:
                     traverse(node.nested, current_path, current_path, depth + 1)
@@ -362,14 +379,20 @@ def _generate_treemap_data(tree: dict[str, TreeNode],
             # Group small items if any
             if small_items:
                 total_size = sum(node.size for _, node in small_items)
-                others_label = f"{parent_label}/Others ({len(small_items)} items)" if parent_label else f"Others ({len(small_items)} items)"
+                others_label = (
+                    f"{parent_label}/Others ({len(small_items)} items)"
+                    if parent_label
+                    else f"Others ({len(small_items)} items)"
+                )
                 item = TreemapItem(
                     label=others_label,
                     parent=parent_label,
                     size=total_size,
                     path=None,
                     line=None,
-                    symbols=[node.symbols[0] for _, node in small_items if node.symbols],
+                    symbols=[
+                        node.symbols[0] for _, node in small_items if node.symbols
+                    ],
                     depth=depth,
                 )
 
@@ -393,7 +416,8 @@ def _generate_treemap_data(tree: dict[str, TreeNode],
             line=None,
             symbols=[],
             depth=0,
-        ))
+        )
+    )
 
     # Start traversal
     traverse(tree, "", "", 1)
@@ -449,8 +473,9 @@ def _get_hover_text(item: TreemapItem) -> str:
     return "<br>".join(parts)
 
 
-def _assign_colors(treemap_data: list[TreemapItem],
-                   max_color_depth: int = 3) -> dict[str, str]:
+def _assign_colors(
+    treemap_data: list[TreemapItem], max_color_depth: int = 3
+) -> dict[str, str]:
     """Assign colors based on hierarchy depth and parent grouping."""
     import plotly.colors as pc
 
@@ -538,12 +563,10 @@ def _create_treemap_html(treemap_data: list["TreemapItem"], output_path: Path) -
             parents=parents,
             labels=labels,
             values=values,
-
             # Hover
             customdata=hover_texts,
             hovertemplate="%{customdata}<extra></extra>",
             branchvalues="total",
-
             # Text rendering (use label/value everywhere)
             texttemplate="%{label}<br>%{value}",
             textinfo="none",
@@ -553,10 +576,11 @@ def _create_treemap_html(treemap_data: list["TreemapItem"], output_path: Path) -
                 colorscale=None,  # Disable automatic colorscale
                 line=dict(
                     color="gray",  # Border color
-                    width=1  # Border width
+                    width=1,  # Border width
                 ),
             ),
-        ))
+        )
+    )
 
     fig.update_traces(
         root_color="lightgrey",
@@ -580,12 +604,14 @@ def _create_tree_report(tree: dict[str, TreeNode], output_path: Path) -> None:
     from rich.console import Console
     from rich.tree import Tree
 
-    console = Console(record=True,
-                      width=120,
-                      file=open(output_path, "w", encoding="utf-8"))
+    console = Console(
+        record=True, width=120, file=open(output_path, "w", encoding="utf-8")
+    )
     root = Tree("Symbol Tree Report")
 
-    def add_to_tree(nodes: dict[str, TreeNode], tree_node: Tree, path: str = "") -> None:
+    def add_to_tree(
+        nodes: dict[str, TreeNode], tree_node: Tree, path: str = ""
+    ) -> None:
         for key, node in sorted(nodes.items(), key=lambda x: x[1].size, reverse=True):
             current_path = f"{path}/{key}" if path else key
 
@@ -603,8 +629,12 @@ def _create_tree_report(tree: dict[str, TreeNode], output_path: Path) -> None:
     add_to_tree(tree, root)
     console.print(root)
     console.file.close()
-    tree_content = output_path.read_text().replace("│   ", "    ").replace(
-        "├── ", "    ").replace("└── ", "    ")
+    tree_content = (
+        output_path.read_text()
+        .replace("│   ", "    ")
+        .replace("├── ", "    ")
+        .replace("└── ", "    ")
+    )
     output_path.write_text(tree_content)
 
 
@@ -616,8 +646,11 @@ def generate_symbol_size_report(ctx: TaskContext) -> None:
     session = open_sqlite_session(Path(ctx.config.binary_size_conf.output_db), Base)
 
     def symbol_filter(sym: BinarySymbol) -> bool:
-        return sym.File and ("src/haxorg" in sym.File or
-                             "src/hstd" in sym.File) and "build" not in sym.File
+        return (
+            sym.File
+            and ("src/haxorg" in sym.File or "src/hstd" in sym.File)
+            and "build" not in sym.File
+        )
 
     group_by_file = _get_grouped_symbols(
         session,
@@ -644,5 +677,8 @@ def generate_symbol_size_report(ctx: TaskContext) -> None:
     log(CAT).info(f"Generated treemap: {treemap_path}")
 
     group_by_head = _get_grouped_symbols(session, by_head=True)
-    _write_groups(ctx.config.workflow_out_dir.joinpath("symbol_report_by_head.txt"),
-                  group_by_head, True)
+    _write_groups(
+        ctx.config.workflow_out_dir.joinpath("symbol_report_by_head.txt"),
+        group_by_head,
+        True,
+    )

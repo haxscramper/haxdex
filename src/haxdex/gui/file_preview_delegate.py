@@ -1,15 +1,13 @@
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Optional, Dict
-
-from beartype import beartype
+from beartype.typing import Dict, Optional
 from PyQt6.QtCore import (
     QModelIndex,
     QObject,
+    QRunnable,
     QSize,
     Qt,
-    QRunnable,
     QThreadPool,
     pyqtSignal,
 )
@@ -34,7 +32,6 @@ class _ThumbSignals(QObject):
 
 @beartype
 class _ThumbLoader(QRunnable):
-
     def __init__(
         self,
         path: str,
@@ -100,11 +97,9 @@ class ThumbnailCache(QObject):
 
 @beartype
 class FilePreviewDelegate(QStyledItemDelegate):
-
-    def __init__(self,
-                 cache: ThumbnailCache,
-                 tile: int,
-                 parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self, cache: ThumbnailCache, tile: int, parent: Optional[QWidget] = None
+    ) -> None:
         super().__init__(parent)
         self._cache = cache
         self._tile = tile
@@ -127,7 +122,7 @@ class FilePreviewDelegate(QStyledItemDelegate):
             y = content.y() + (content.height() - pix.height()) // 2
             painter.drawPixmap(x, y, pix)
         else:
-            label = (Path(path).name if path else index.data(QueryResultModel.HashRole))
+            label = Path(path).name if path else index.data(QueryResultModel.HashRole)
             painter.drawText(
                 content,
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,

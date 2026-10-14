@@ -1,31 +1,11 @@
-from hstd_py_lib.pydantic_utils import register_type
-
 from __future__ import annotations
 
-import base64
-import importlib
-import json
-from pprint import pformat
-import types
+from typing import Any
 
-from beartype import beartype
-from beartype.typing import Literal, Union, get_args, get_origin
-import glom
-import math
-from pydantic import AfterValidator
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, TypeVar
-import plumbum
-
-import PIL.TiffImagePlugin
-from pydantic import BaseModel, TypeAdapter
-from pydantic_core import PydanticSerializationError
-from loguru import logger
 import pandas as pd
-
-from haxdex.services.utils import ExceptionContextNote
+import PIL.TiffImagePlugin
+from hstd_py_lib.pydantic_utils import register_type
+from pydantic import BaseModel
 
 register_type(
     pd.DataFrame,
@@ -37,7 +17,8 @@ register_type(
         "rows": it.to_dict(orient="records"),
     },
     load=lambda it: pd.DataFrame(it["rows"], columns=it["columns"]).set_index(
-        pd.Index(it["index"])),
+        pd.Index(it["index"])
+    ),
 )
 
 register_type(

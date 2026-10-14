@@ -1,15 +1,15 @@
-import json
-from loguru import logger
 import struct
 from collections import Counter
 from pathlib import Path
 
 from beartype.typing import Any
-from sqlalchemy import Engine
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.pydantic_utils import try_parse_json
-from haxdex.services.core.types import IndexerOutput, IndexerRequest, IndexDocument
+from loguru import logger
 from pydantic import BaseModel
+from sqlalchemy import Engine
+
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
+from haxdex.services.pydantic_utils import try_parse_json
 
 
 class TensorInfo(BaseModel, extra="forbid"):
@@ -66,7 +66,8 @@ def _parse(path: Path, request: IndexerRequest) -> SafetensorIndexerResult:
                 shape=shape,
                 num_elements=num_elements,
                 byte_size=byte_size,
-            ))
+            )
+        )
         dtype_counts[dtype] += 1
         total_parameters += num_elements
         total_tensor_bytes += byte_size

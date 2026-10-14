@@ -1,10 +1,7 @@
-from pathlib import Path
-
 from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from pydantic import BaseModel
 
 
 class FileSizeIndexerResult(IndexDocument, extra="forbid"):

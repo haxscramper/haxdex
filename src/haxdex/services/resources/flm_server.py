@@ -1,16 +1,15 @@
 # haxdex/services/resources/flm_server.py
 import atexit
-from loguru import logger
-import os
 import subprocess
 import threading
 import time
 from typing import Any
 
+from loguru import logger
 from openai import OpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from haxdex.services.core.job_types import BaseResource, RunContext, BaseResourceConfig
+from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
 
 
 class FlmMessage(BaseModel, extra="forbid"):
@@ -57,7 +56,9 @@ class FlmServerResource(BaseResource):
             str(config.port),
         ]
 
-        self._client = OpenAI(base_url=self.config.base_url, api_key=self.config.api_key)
+        self._client = OpenAI(
+            base_url=self.config.base_url, api_key=self.config.api_key
+        )
         self._proc: subprocess.Popen[bytes] | None = None
         self._lock = threading.Lock()
         self._stdout_log_path = "/tmp/hax-index-flm-serve-stdout.log"

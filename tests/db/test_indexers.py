@@ -1,25 +1,29 @@
+import functools
 import json
 import os
 from pathlib import Path
-from pprint import pformat
 
+import glom
 import pytest
 from beartype.typing import Any, TypeVar, cast
+from loguru import logger
 from pydantic import BaseModel
-import glom
 from sqlalchemy import Engine
 
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.indexers.chunk_indexing.chunking import ChunkDocument, ChunkFile, ChunkLink
-from haxdex.services.indexers.chunk_indexing.file_summary import FileSummaryIndexerResult
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
+from haxdex.services.indexers.chunk_indexing.chunking import (
+    ChunkDocument,
+    ChunkFile,
+    ChunkLink,
+)
+from haxdex.services.indexers.chunk_indexing.file_summary import (
+    FileSummaryIndexerResult,
+)
+from haxdex.services.indexers.chunk_indexing.full_text import FullTextIndexerResult
 from haxdex.services.indexers.file_size import FileSizeIndexer, FileSizeIndexerResult
 from haxdex.services.indexers.file_stats import FileStatsIndexerResult
-from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
-from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.indexers.chunk_indexing.full_text import FullTextIndexerResult
-from loguru import logger
-import functools
-
 from haxdex.services.pydantic_utils import first_by_field_value
 from haxdex.services.resources.text_summary import SummaryChunk
 from haxdex.services.utils import dump_with_type
@@ -62,8 +66,9 @@ def test_file_size_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
     out = runtime.get_indexer_result(ref.hash, "file_size")
 
     assert out.indexer_id == "file_size"
-    assert cast(FileSizeIndexerResult,
-                out.result).size_bytes == sample_file.stat().st_size
+    assert (
+        cast(FileSizeIndexerResult, out.result).size_bytes == sample_file.stat().st_size
+    )
 
 
 def test_file_stats_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
@@ -73,13 +78,16 @@ def test_file_stats_indexer(runtime: IndexRuntime, sample_file: Path) -> None:
     out = runtime.get_indexer_result(ref.hash, "file_stats")
 
     assert out.indexer_id == "file_stats"
-    assert cast(FileStatsIndexerResult,
-                out.result).size_bytes == sample_file.stat().st_size
+    assert (
+        cast(FileStatsIndexerResult, out.result).size_bytes
+        == sample_file.stat().st_size
+    )
     assert cast(FileStatsIndexerResult, out.result).mtime == sample_file.stat().st_mtime
 
 
-def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
-                                         sample_file: Path) -> None:
+def test_full_text_indexer_with_reverser(
+    runtime: IndexRuntime, sample_file: Path
+) -> None:
     root = runtime.db.add_root("root", sample_file.parent)
     ref = runtime.db.as_ref(root, sample_file)
     runtime.run_indexer(ref, runtime.get_indexers(["full_text"]))
@@ -104,7 +112,9 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
                 field="type",
                 value="chunkFile",
             ),
-            default=None))
+            default=None,
+        ),
+    )
 
     assert main_file is not None
     assert isinstance(main_file, ChunkFile)
@@ -114,7 +124,9 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
         out.result.documents,
         glom.Iter().first(
             lambda it: it.type == "chunk",  # type: ignore
-            default=None))
+            default=None,
+        ),
+    )
 
     assert chunk_document is not None
     assert isinstance(chunk_document, ChunkDocument)
@@ -129,7 +141,9 @@ def test_full_text_indexer_with_reverser(runtime: IndexRuntime,
         out.result.edges,
         glom.Iter().first(
             lambda it: it.relation == "chunk",  # type: ignore
-            default=None))
+            default=None,
+        ),
+    )
 
     assert link is not None
     assert isinstance(link, ChunkLink)
@@ -157,19 +171,25 @@ def test_db_indexer_result_uniqueness(
     db.truncate_all(["file_size"])
     db.store_indexer_output(
         ref_a,
-        IndexerOutput(indexer_id="file_size",
-                      result=FileSizeIndexerResult(
-                          size_bytes=10,
-                          hash=ref_a.hash.hash,
-                      )))
+        IndexerOutput(
+            indexer_id="file_size",
+            result=FileSizeIndexerResult(
+                size_bytes=10,
+                hash=ref_a.hash.hash,
+            ),
+        ),
+    )
 
     db.store_indexer_output(
         ref_b,
-        IndexerOutput(indexer_id="file_size",
-                      result=FileSizeIndexerResult(
-                          size_bytes=20,
-                          hash=ref_b.hash.hash,
-                      )))
+        IndexerOutput(
+            indexer_id="file_size",
+            result=FileSizeIndexerResult(
+                size_bytes=20,
+                hash=ref_b.hash.hash,
+            ),
+        ),
+    )
 
     record = db.get_indexer_result(ref_a.hash, idx)
 
@@ -198,8 +218,9 @@ def test_file_summary_indexer_with_flm(
     sample_files: list[Path],
 ) -> None:
 
-    root = runtime.db.add_root("root",
-                               Path(os.path.commonpath(str(s) for s in sample_files)))
+    root = runtime.db.add_root(
+        "root", Path(os.path.commonpath(str(s) for s in sample_files))
+    )
 
     for path in sample_files:
         ref = runtime.db.as_ref(root, path)

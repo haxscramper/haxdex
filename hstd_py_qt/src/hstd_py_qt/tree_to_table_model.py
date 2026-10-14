@@ -1,21 +1,18 @@
 from __future__ import annotations
 
+from beartype.typing import Dict, List, Optional, Tuple
 from PyQt6.QtCore import (
+    QAbstractItemModel,
     QAbstractProxyModel,
     QModelIndex,
     QObject,
     QPersistentModelIndex,
     Qt,
-    QAbstractItemModel,
-    QMetaObject,
     pyqtSignal,
 )
 
-from beartype.typing import Optional, List, Dict, Tuple
-
 
 class TreeToTableProxyModel(QAbstractProxyModel):
-
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self.flat: List[QPersistentModelIndex] = []
@@ -32,28 +29,29 @@ class TreeToTableProxyModel(QAbstractProxyModel):
         super().setSourceModel(model)
         if model is not None:
             for signal in (
-                    model.modelAboutToBeReset,
-                    model.layoutAboutToBeChanged,
-                    model.rowsAboutToBeInserted,
-                    model.rowsAboutToBeRemoved,
-                    model.rowsAboutToBeMoved,
-                    model.columnsAboutToBeInserted,
-                    model.columnsAboutToBeRemoved,
-                    model.columnsAboutToBeMoved,
+                model.modelAboutToBeReset,
+                model.layoutAboutToBeChanged,
+                model.rowsAboutToBeInserted,
+                model.rowsAboutToBeRemoved,
+                model.rowsAboutToBeMoved,
+                model.columnsAboutToBeInserted,
+                model.columnsAboutToBeRemoved,
+                model.columnsAboutToBeMoved,
             ):
                 signal.connect(self._on_source_structure_about_to_change)
                 self.connections.append(
-                    (signal, self._on_source_structure_about_to_change))
+                    (signal, self._on_source_structure_about_to_change)
+                )
 
             for signal in (
-                    model.modelReset,
-                    model.layoutChanged,
-                    model.rowsInserted,
-                    model.rowsRemoved,
-                    model.rowsMoved,
-                    model.columnsInserted,
-                    model.columnsRemoved,
-                    model.columnsMoved,
+                model.modelReset,
+                model.layoutChanged,
+                model.rowsInserted,
+                model.rowsRemoved,
+                model.rowsMoved,
+                model.columnsInserted,
+                model.columnsRemoved,
+                model.columnsMoved,
             ):
                 signal.connect(self._on_source_structure_changed)
                 self.connections.append((signal, self._on_source_structure_changed))
@@ -105,7 +103,8 @@ class TreeToTableProxyModel(QAbstractProxyModel):
                 raise ValueError(
                     f"Parent {parent_description} exposes {columns} columns "
                     f"but the root exposes {root_columns} columns; every level "
-                    f"must expose the same number of columns to be flattened")
+                    f"must expose the same number of columns to be flattened"
+                )
             for row in range(rows):
                 for column in range(columns):
                     cell = source.index(row, column, parent)
@@ -113,7 +112,8 @@ class TreeToTableProxyModel(QAbstractProxyModel):
                         raise ValueError(
                             f"Cell at row {row} column {column} under "
                             f"{parent_description} has nested rows; only column 0 "
-                            f"is allowed to carry nested rows")
+                            f"is allowed to carry nested rows"
+                        )
                 check(
                     source.index(row, 0, parent),
                     f"row {row} under {parent_description}",
@@ -157,10 +157,10 @@ class TreeToTableProxyModel(QAbstractProxyModel):
         return self.createIndex(self.positions[key], sourceIndex.column())
 
     def index(
-            self,
-            row: int,
-            column: int,
-            parent: QModelIndex = QModelIndex(),
+        self,
+        row: int,
+        column: int,
+        parent: QModelIndex = QModelIndex(),
     ) -> QModelIndex:
         if parent.isValid():
             return QModelIndex()

@@ -2,11 +2,11 @@ import ast
 import importlib.util
 from pathlib import Path
 
+import grimp
+import igraph
 from beartype import beartype
 from beartype.typing import Optional
 from graphviz import Digraph
-import grimp
-import igraph
 from py_repository.repo_tasks.common import get_script_root
 from py_repository.repo_tasks.workflow_utils import TaskContext
 from py_scriptutils.script_logging import log
@@ -20,15 +20,18 @@ class ImportStmt(BaseModel, frozen=True):
     Full description of the import statement as found in the source
     code of the module.
     """
-    qual_name: tuple[str, ...] = Field(default_factory=tuple,
-                                       description="Fully qualified import name")
+
+    qual_name: tuple[str, ...] = Field(
+        default_factory=tuple, description="Fully qualified import name"
+    )
     imported_names: tuple[str, ...] = Field(
         default_factory=tuple,
-        description="Name of the classes and functions imported from module")
+        description="Name of the classes and functions imported from module",
+    )
     toplevel: bool = Field(
         default=False,
-        description=
-        "Is the import statement on the top of the file, or it is conditionally executed")
+        description="Is the import statement on the top of the file, or it is conditionally executed",
+    )
 
     def get_name(self) -> str:
         """Get fully qualified name as a string"""
@@ -37,34 +40,41 @@ class ImportStmt(BaseModel, frozen=True):
 
 class ModuleDependencies(BaseModel):
     """Import relationships for a single module."""
-    internal: list[ImportStmt] = Field(default_factory=list,
-                                       description="Modules within the same package")
+
+    internal: list[ImportStmt] = Field(
+        default_factory=list, description="Modules within the same package"
+    )
     workspace: list[ImportStmt] = Field(
-        default_factory=list, description="Modules from other workspace packages")
-    external: list[ImportStmt] = Field(default_factory=list,
-                                       description="Modules from external packages")
+        default_factory=list, description="Modules from other workspace packages"
+    )
+    external: list[ImportStmt] = Field(
+        default_factory=list, description="Modules from external packages"
+    )
 
 
 class PackageAnalysis(BaseModel):
     """Analysis result for a single Python package."""
+
     modules: list[str] = Field(description="All modules discovered in this package")
     dependencies: dict[str, ModuleDependencies] = Field(
         default_factory=dict,
-        description=
-        "Per-module dependency information, keyed by fully qualified module name",
+        description="Per-module dependency information, keyed by fully qualified module name",
     )
 
 
 class PackageError(BaseModel):
     """Error encountered while analyzing a package."""
+
     error: str = Field(description="Error message describing what went wrong")
 
 
 class ImportGraph(BaseModel):
     """Complete import graph for a workspace."""
+
     packages: dict[str, PackageAnalysis | PackageError] = Field(
         default_factory=dict,
-        description="Analysis results keyed by 'package_name/module_name'")
+        description="Analysis results keyed by 'package_name/module_name'",
+    )
 
 
 @beartype
@@ -79,8 +89,9 @@ def _module_source_path(module_name: str) -> Path:
 
 
 @beartype
-def _resolve_from_import(current_module: str, level: int,
-                         imported_module: str | None) -> str:
+def _resolve_from_import(
+    current_module: str, level: int, imported_module: str | None
+) -> str:
     """
     Resolve module import name to absolute one
     """
@@ -111,9 +122,12 @@ def _find_fully_qualified_imports(module_name: str) -> set[ImportStmt]:
                 qual_name = tuple(alias.name.split("."))
                 imported_names = (alias.asname,) if alias.asname else ()
                 out.add(
-                    ImportStmt(qual_name=qual_name,
-                               imported_names=imported_names,
-                               toplevel=toplevel))
+                    ImportStmt(
+                        qual_name=qual_name,
+                        imported_names=imported_names,
+                        toplevel=toplevel,
+                    )
+                )
 
         elif isinstance(node, ast.ImportFrom):
             if node.level == 0 and node.module is None:
@@ -122,9 +136,12 @@ def _find_fully_qualified_imports(module_name: str) -> set[ImportStmt]:
             qual_name = tuple(resolved.split("."))
             imported_names = tuple(alias.name for alias in node.names)
             out.add(
-                ImportStmt(qual_name=qual_name,
-                           imported_names=imported_names,
-                           toplevel=toplevel))
+                ImportStmt(
+                    qual_name=qual_name,
+                    imported_names=imported_names,
+                    toplevel=toplevel,
+                )
+            )
 
     return out
 
@@ -172,10 +189,14 @@ def gen_import_graph(ctx: TaskContext) -> ImportGraph:
     for pyproject in get_script_root(ctx).rglob("pyproject.toml"):
         pkg_dir = pyproject.parent
         for src_candidate in [pkg_dir / "src", pkg_dir]:
-            if src_candidate.exists() and (any(src_candidate.glob("*.py")) or any(
+            if src_candidate.exists() and (
+                any(src_candidate.glob("*.py"))
+                or any(
                     d.is_dir() and (d / "__init__.py").exists()
                     for d in src_candidate.iterdir()
-                    if d.is_dir())):
+                    if d.is_dir()
+                )
+            ):
                 packages.append((pkg_dir.name, src_candidate))
                 break
 
@@ -199,7 +220,8 @@ def gen_import_graph(ctx: TaskContext) -> ImportGraph:
 
             module_deps: dict[str, ModuleDependencies] = {}
             own_modules = [
-                m for m in graph.modules
+                m
+                for m in graph.modules
                 if m == module_name or m.startswith(f"{module_name}.")
             ]
 
@@ -266,9 +288,11 @@ def import_graph_to_igraph(graph: ImportGraph) -> igraph.Graph:
     name_to_idx = {name: idx for idx, name in enumerate(module_names)}
 
     # Add edges as vertex indices
-    edge_indices = [(name_to_idx[src], name_to_idx[dst])
-                    for src, dst in edges
-                    if src in name_to_idx and dst in name_to_idx]
+    edge_indices = [
+        (name_to_idx[src], name_to_idx[dst])
+        for src, dst in edges
+        if src in name_to_idx and dst in name_to_idx
+    ]
 
     if edge_indices:
         g.add_edges(edge_indices)
@@ -304,29 +328,31 @@ def import_igraph_to_graphviz(g: igraph.Graph) -> Digraph:
         cluster_id = f"cluster_{pkg_name.replace('.', '_').replace('-', '_')}"
 
         with dot.subgraph(name=cluster_id) as cluster:
-            cluster.attr(label=pkg_name,
-                         style="rounded,filled",
-                         fillcolor="lightgrey",
-                         color="black",
-                         fontname="Helvetica")
+            cluster.attr(
+                label=pkg_name,
+                style="rounded,filled",
+                fillcolor="lightgrey",
+                color="black",
+                fontname="Helvetica",
+            )
 
             for idx in indices:
                 v = g.vs[idx]
-                cluster.node(v["name"],
-                             v["name"],
-                             shape="box",
-                             style="filled",
-                             fillcolor="white")
+                cluster.node(
+                    v["name"], v["name"], shape="box", style="filled", fillcolor="white"
+                )
 
     # Add external dependencies as dashed ellipses outside clusters
     for idx in external_indices:
         v = g.vs[idx]
-        dot.node(v["name"],
-                 v["name"],
-                 shape="ellipse",
-                 style="dashed,filled",
-                 fillcolor="lightyellow",
-                 fontsize="10")
+        dot.node(
+            v["name"],
+            v["name"],
+            shape="ellipse",
+            style="dashed,filled",
+            fillcolor="lightyellow",
+            fontsize="10",
+        )
 
     # Analyze edge directions between distinct internal packages
     edge_counts: dict[tuple[str, str], list[int]] = {}

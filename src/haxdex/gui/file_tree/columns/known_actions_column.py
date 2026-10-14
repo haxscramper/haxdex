@@ -1,17 +1,22 @@
 from pathlib import Path
 
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
-from beartype.typing import Any
+from beartype.typing import Any, Optional, cast
 from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
-from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction, VideoConvertActionHandler
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeInitArgs, FileTreeNode
-from beartype.typing import cast, Optional
-from loguru import logger
+from haxdex.gui.file_tree.actions.action_video_convert import (
+    VideoConvertAction,
+    VideoConvertActionHandler,
+)
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 
 
 class KnownActionData(BaseModel, extra="forbid"):
@@ -66,14 +71,22 @@ class KnownActionColumnSpec(FileTreeColumnSpec):
             return None
 
         match role:
-            case Qt.ItemDataRole.DisplayRole | Qt.ItemDataRole.EditRole | CustomModelRole.SortDataRole.value | CustomModelRole.FilterDataRole.value:
+            case (
+                Qt.ItemDataRole.DisplayRole
+                | Qt.ItemDataRole.EditRole
+                | CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
                 result: list[str] = list()
                 for act in node.actions:
                     match act:
                         case VideoConvertAction():
                             handler = cast(
-                                VideoConvertActionHandler, self.executor.handlers[
-                                    VideoConvertActionHandler.action_type.kind])
+                                VideoConvertActionHandler,
+                                self.executor.handlers[
+                                    VideoConvertActionHandler.action_type.kind
+                                ],
+                            )
                             result.append(
                                 f"{target_size_percent_of_original(act.file.path, handler.dest_path(act))}"
                             )

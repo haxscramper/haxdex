@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import enum
 import io
-from loguru import logger
+import json
+from dataclasses import dataclass, field
 
 from beartype import beartype
-from beartype.typing import Callable, List, Tuple, Any, Dict
-import json
+from beartype.typing import Any, Callable, Dict, List, Tuple
+from loguru import logger
 from pydantic import BaseModel, Field
-
-from PyQt6.QtCore import QAbstractItemModel, QAbstractProxyModel, QByteArray, QModelIndex, Qt
+from PyQt6.QtCore import (
+    QAbstractItemModel,
+    QAbstractProxyModel,
+    QByteArray,
+    QModelIndex,
+    Qt,
+)
 from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.measure import Measurement
@@ -262,7 +267,9 @@ _MEASURE_CONSOLE = Console(width=10000, file=io.StringIO())
 
 @beartype
 def _measure_width(renderable: object) -> int:
-    measurement = Measurement.get(_MEASURE_CONSOLE, _MEASURE_CONSOLE.options, renderable)
+    measurement = Measurement.get(
+        _MEASURE_CONSOLE, _MEASURE_CONSOLE.options, renderable
+    )
     return measurement.maximum
 
 
@@ -302,7 +309,8 @@ def _collect_proxy_chain(index: QModelIndex, state: BuildState) -> list[Snapshot
                 column=current_index.column(),
                 identity=_index_identity(current_index),
                 model_name=_resolve_model_name(current_model, state),
-            ))
+            )
+        )
         if not isinstance(current_model, QAbstractProxyModel):
             break
         mapped = current_model.mapToSource(current_index)
@@ -330,7 +338,9 @@ def _collect_roles(
     role_data = model.roleNames()
     records: list[SnapshotRole] = []
 
-    for role, role_name_raw in sorted(role_data.items(), key=lambda entry: int(entry[0])):
+    for role, role_name_raw in sorted(
+        role_data.items(), key=lambda entry: int(entry[0])
+    ):
         role_int = int(role)
         role_name = config.role_name(role_name_raw)
         if not config.accept_role(role_int, role_name):
@@ -342,14 +352,16 @@ def _collect_roles(
             SnapshotRole(
                 role_name=role_name,
                 role_value=config.format_value(value),
-            ))
+            )
+        )
 
     for extra in config.extra_roles(model=model, index=index):
         records.append(
             SnapshotRole(
                 role_name=extra.role_name,
                 role_value=extra.role_value,
-            ))
+            )
+        )
 
     return records
 
@@ -512,7 +524,8 @@ def _item_context(item: SnapshotItem, depth: int) -> ItemFormatContext:
                 column=proxy.column,
                 identity=proxy.identity,
                 model_name=proxy.model_name,
-            ) for proxy in item.proxies
+            )
+            for proxy in item.proxies
         ],
         roles=[
             IndexRoleRepr(role_name=role.role_name, role_value=role.role_value)
@@ -581,8 +594,9 @@ def _format_item_renderable(
 
 
 @beartype
-def _node_structure_context(node: SnapshotNode, depth: int,
-                            nested_in_cell_depth: int) -> StructureDetectContext:
+def _node_structure_context(
+    node: SnapshotNode, depth: int, nested_in_cell_depth: int
+) -> StructureDetectContext:
     return StructureDetectContext(
         depth=depth,
         nested_in_cell_depth=nested_in_cell_depth,
@@ -614,10 +628,9 @@ def _render_cell(
     root_model_name: str,
 ) -> RenderableType:
     if node.row_count <= 0 or config.max_nested_in_cells <= nested_in_cell_depth:
-        return _render_value(node=node,
-                             depth=depth,
-                             config=config,
-                             root_model_name=root_model_name)
+        return _render_value(
+            node=node, depth=depth, config=config, root_model_name=root_model_name
+        )
     return _render_node(
         node=node,
         depth=depth,
@@ -644,7 +657,8 @@ def _render_list(
     for row_idx, row in enumerate(node.rows):
         if len(row.cells) <= 0:
             raise ValueError(
-                f"Row {row_idx} has no cells while rendering list node at depth {depth}")
+                f"Row {row_idx} has no cells while rendering list node at depth {depth}"
+            )
         value = _render_cell(
             node=row.cells[0],
             depth=depth + 1,
@@ -656,11 +670,13 @@ def _render_list(
         item_width = max(item_width, _measure_width(value))
 
     table = config.create_list_table()
-    table.add_column("#",
-                     style=config.style_index,
-                     no_wrap=True,
-                     width=index_width,
-                     overflow="ignore")
+    table.add_column(
+        "#",
+        style=config.style_index,
+        no_wrap=True,
+        width=index_width,
+        overflow="ignore",
+    )
     table.add_column("item", no_wrap=True, width=item_width, overflow="ignore")
     for row, value in enumerate(values):
         table.add_row(str(row), value)
@@ -681,7 +697,8 @@ def _render_table(
     rows: list[list[RenderableType]] = []
     column_widths = [
         len(node.column_headers[column])
-        if column < len(node.column_headers) else len(f"C{column}")
+        if column < len(node.column_headers)
+        else len(f"C{column}")
         for column in range(column_count)
     ]
 
@@ -706,12 +723,14 @@ def _render_table(
 
     table = config.create_table()
     for column in range(column_count):
-        header = node.column_headers[column] if column < len(
-            node.column_headers) else f"C{column}"
-        table.add_column(header,
-                         width=column_widths[column],
-                         no_wrap=True,
-                         overflow="ignore")
+        header = (
+            node.column_headers[column]
+            if column < len(node.column_headers)
+            else f"C{column}"
+        )
+        table.add_column(
+            header, width=column_widths[column], no_wrap=True, overflow="ignore"
+        )
     for row_renderables in rows:
         table.add_row(*row_renderables)
     return table
@@ -725,16 +744,16 @@ def _render_tree(
     config: ModelRichDumpConfig,
     root_model_name: str,
 ) -> RenderableType:
-    root_label = _render_value(node=node,
-                               depth=depth,
-                               config=config,
-                               root_model_name=root_model_name)
+    root_label = _render_value(
+        node=node, depth=depth, config=config, root_model_name=root_model_name
+    )
     root_tree = config.create_tree(root_label)
 
     for row_idx, row in enumerate(node.rows):
         if len(row.cells) <= 0:
             raise ValueError(
-                f"Row {row_idx} has no cells while rendering tree node at depth {depth}")
+                f"Row {row_idx} has no cells while rendering tree node at depth {depth}"
+            )
         nested_node = row.cells[0]
         nested_label = _render_value(
             node=nested_node,
@@ -757,7 +776,8 @@ def _render_tree(
                 config=config,
                 root_model_name=root_model_name,
                 suppress_item_at_root=True,
-            ))
+            )
+        )
     return root_tree
 
 
@@ -784,8 +804,9 @@ def _tree_index_line(context: ItemFormatContext, config: ModelRichDumpConfig) ->
 
 
 @beartype
-def _tree_value_line(context: ItemFormatContext,
-                     config: ModelRichDumpConfig) -> list[str]:
+def _tree_value_line(
+    context: ItemFormatContext, config: ModelRichDumpConfig
+) -> list[str]:
     if config.include_final_repr and 0 < len(context.final_repr):
         return [context.final_repr]
 
@@ -809,7 +830,8 @@ def _tree_cell_lines(
     else:
         context = _item_context(item=node.item, depth=depth)
         return [_tree_index_line(context=context, config=config)] + _tree_value_line(
-            context=context, config=config)
+            context=context, config=config
+        )
 
 
 @beartype
@@ -834,7 +856,8 @@ def _max_table_tree_depth(node: SnapshotNode, column_count: int) -> int:
     for row_idx, row in enumerate(node.rows):
         if len(row.cells) <= 0:
             raise ValueError(
-                f"Row {row_idx} has no cells while computing table-tree depth")
+                f"Row {row_idx} has no cells while computing table-tree depth"
+            )
         first = row.cells[0]
         if first.row_count <= 0:
             continue
@@ -924,15 +947,19 @@ def _collect_tree_table_widths(
                 root_model_name=root_model_name,
             )
 
-            widths[column + 1] = max(widths[column + 1], len(index_line),
-                                     max([len(value_line) for value_line in value_lines]))
+            widths[column + 1] = max(
+                widths[column + 1],
+                len(index_line),
+                max([len(value_line) for value_line in value_lines]),
+            )
 
         if visible_columns <= 0:
             continue
 
         if len(row.cells) <= 0:
             raise ValueError(
-                f"Row {row_idx} has no cells while collecting tree-table widths")
+                f"Row {row_idx} has no cells while collecting tree-table widths"
+            )
 
         first = row.cells[0]
         if first.row_count <= 0:
@@ -983,7 +1010,8 @@ def _append_tree_table_rows(
                 leading_width=leading_width,
                 config=config,
                 root_model_name=root_model_name,
-            ))
+            )
+        )
         pending_flat_rows = []
 
     for row_idx in range(row_count):
@@ -1006,7 +1034,8 @@ def _append_tree_table_rows(
                 leading_width=leading_width,
                 config=config,
                 root_model_name=root_model_name,
-            ))
+            )
+        )
 
         if config.max_depth is not None and config.max_depth < depth:
             continue
@@ -1027,14 +1056,16 @@ def _append_tree_table_rows(
                     config=config,
                     root_model_name=root_model_name,
                     suppress_item_at_root=False,
-                ))
+                )
+            )
 
         if visible_columns <= 0:
             continue
 
         if len(row.cells) <= 0:
             raise ValueError(
-                f"Row {row_idx} has no cells while appending tree-table rows")
+                f"Row {row_idx} has no cells while appending tree-table rows"
+            )
         first = row.cells[0]
         if first.row_count <= 0:
             continue
@@ -1059,7 +1090,8 @@ def _append_tree_table_rows(
                     config=config,
                     root_model_name=root_model_name,
                     suppress_item_at_root=True,
-                ))
+                )
+            )
 
     flush_flat_rows()
 
@@ -1078,8 +1110,11 @@ def _make_header_table(
     parts: list[str] = [" " * first_col_width]
 
     for column in range(column_count):
-        header = node.column_headers[column] if column < len(
-            node.column_headers) else f"C{column}"
+        header = (
+            node.column_headers[column]
+            if column < len(node.column_headers)
+            else f"C{column}"
+        )
         parts.append(f"{header:^{widths[column + 1]}}")
 
     return Text("  " + sep.join(parts), style="bold")
@@ -1096,8 +1131,11 @@ def _render_tree_table(
 
     widths = [config.tree_column_min_width]
     for column in range(column_count):
-        header = node.column_headers[column] if column < len(
-            node.column_headers) else f"C{column}"
+        header = (
+            node.column_headers[column]
+            if column < len(node.column_headers)
+            else f"C{column}"
+        )
         widths.append(len(header))
 
     max_rel_depth = _max_table_tree_depth(node=node, column_count=column_count)
@@ -1117,8 +1155,10 @@ def _render_tree_table(
         widths = [min(width, config.tree_column_max_width) for width in widths]
 
     root_label = Group(
-        Text(root_model_name if node.item is None else node.item.model_name,
-             style=config.style_model_name),
+        Text(
+            root_model_name if node.item is None else node.item.model_name,
+            style=config.style_model_name,
+        ),
         _make_header_table(
             node=node,
             column_count=column_count,
@@ -1151,9 +1191,9 @@ def _render_node(
     root_model_name: str,
     suppress_item_at_root: bool,
 ) -> RenderableType:
-    context = _node_structure_context(node=node,
-                                      depth=depth,
-                                      nested_in_cell_depth=nested_in_cell_depth)
+    context = _node_structure_context(
+        node=node, depth=depth, nested_in_cell_depth=nested_in_cell_depth
+    )
     structure = config.infer_structure(context)
     logger.debug(
         f"structure {structure} at depth {depth} rows {context.row_count} "
@@ -1162,10 +1202,9 @@ def _render_node(
 
     match structure:
         case ModelStructure.VALUE:
-            return _render_value(node=node,
-                                 depth=depth,
-                                 config=config,
-                                 root_model_name=root_model_name)
+            return _render_value(
+                node=node, depth=depth, config=config, root_model_name=root_model_name
+            )
         case ModelStructure.TREE:
             return _render_tree(
                 node=node,
@@ -1208,10 +1247,9 @@ def _render_node(
         return body
 
     return Group(
-        _render_value(node=node,
-                      depth=depth,
-                      config=config,
-                      root_model_name=root_model_name),
+        _render_value(
+            node=node, depth=depth, config=config, root_model_name=root_model_name
+        ),
         body,
     )
 
@@ -1264,9 +1302,9 @@ def render_text(renderable: object, width: int = 220) -> str:
 
 
 @beartype
-def simple_dump(model: QAbstractItemModel,
-                indentation_step: str = "  ",
-                max_col: int = 256) -> str:
+def simple_dump(
+    model: QAbstractItemModel, indentation_step: str = "  ", max_col: int = 256
+) -> str:
 
     @beartype
     def format_display_value(value: object) -> str:
@@ -1281,8 +1319,9 @@ def simple_dump(model: QAbstractItemModel,
     lines: List[str] = []
 
     @beartype
-    def traverse(parent_index: QModelIndex, path: List[Tuple[int, int]],
-                 depth: int) -> None:
+    def traverse(
+        parent_index: QModelIndex, path: List[Tuple[int, int]], depth: int
+    ) -> None:
         row_count = model.rowCount(parent_index)
         column_count = min(model.columnCount(parent_index), max_col)
         for row in range(row_count):
@@ -1290,7 +1329,8 @@ def simple_dump(model: QAbstractItemModel,
                 nested_index = model.index(row, col, parent_index)
                 nested_path = [*path, (row, col)]
                 path_text = "".join(
-                    f"[{path_row}.{path_col}]" for path_row, path_col in nested_path)
+                    f"[{path_row}.{path_col}]" for path_row, path_col in nested_path
+                )
                 display_value = model.data(nested_index, Qt.ItemDataRole.DisplayRole)
                 lines.append(
                     f"{indentation_step * depth}{path_text} {format_display_value(display_value)}"
@@ -1326,8 +1366,9 @@ def simple_dump_rows_json(
 
     @beartype
     def column_key(parent_index: QModelIndex, col: int) -> str:
-        header = model.headerData(col, Qt.Orientation.Horizontal,
-                                  Qt.ItemDataRole.DisplayRole)
+        header = model.headerData(
+            col, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole
+        )
         key = format_display_value(header).strip() if header is not None else ""
         if not key:
             key = f"col_{col}"
@@ -1336,8 +1377,9 @@ def simple_dump_rows_json(
     entries: List[Tuple[str, Dict[str, Any]]] = []
 
     @beartype
-    def traverse(parent_index: QModelIndex, path: List[Tuple[int, int]],
-                 depth: int) -> None:
+    def traverse(
+        parent_index: QModelIndex, path: List[Tuple[int, int]], depth: int
+    ) -> None:
         row_count = model.rowCount(parent_index)
         column_count = min(model.columnCount(parent_index), max_col)
 
@@ -1345,7 +1387,8 @@ def simple_dump_rows_json(
             row_index = model.index(row, 0, parent_index)
             row_path = [*path, (row, 0)]
             path_text = "".join(
-                f"[{path_row}.{path_col}]" for path_row, path_col in row_path)
+                f"[{path_row}.{path_col}]" for path_row, path_col in row_path
+            )
 
             row_display = model.data(row_index, Qt.ItemDataRole.DisplayRole)
 
@@ -1359,24 +1402,30 @@ def simple_dump_rows_json(
                     key = f"{key}_{col}"
                 used_keys.add(key)
                 payload[key] = to_json_value(
-                    model.data(cell_index, Qt.ItemDataRole.DisplayRole))
+                    model.data(cell_index, Qt.ItemDataRole.DisplayRole)
+                )
 
-            prefix = (f"{indentation_step * depth}{path_text} "
-                      f"{format_display_value(row_display)}")
+            prefix = (
+                f"{indentation_step * depth}{path_text} "
+                f"{format_display_value(row_display)}"
+            )
             entries.append((prefix, payload))
 
             traverse(row_index, row_path, depth + 1)
 
     traverse(QModelIndex(), [], 0)
 
-    max_prefix_len = max((len(prefix) for prefix, payload in entries if payload),
-                         default=0)
+    max_prefix_len = max(
+        (len(prefix) for prefix, payload in entries if payload), default=0
+    )
 
     lines: List[str] = []
     for prefix, payload in entries:
         if payload:
             pad = " " * (max_prefix_len - len(prefix) + 1)
-            line = prefix + pad + json.dumps(payload, sort_keys=True, ensure_ascii=False)
+            line = (
+                prefix + pad + json.dumps(payload, sort_keys=True, ensure_ascii=False)
+            )
         else:
             line = prefix
         lines.append(line)

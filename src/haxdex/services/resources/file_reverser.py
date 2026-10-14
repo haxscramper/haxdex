@@ -1,5 +1,6 @@
-from haxdex.services.core.job_types import BaseResource
 from pydantic import BaseModel
+
+from haxdex.services.core.job_types import BaseResource
 
 
 class ReverseLinesRequest(BaseModel, extra="forbid"):

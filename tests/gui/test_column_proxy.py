@@ -1,15 +1,15 @@
 from dataclasses import dataclass
 
-import pandas as pd
-import pytest
 from beartype import beartype
 from beartype.typing import Any, Sequence
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
-from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import (
+    ColumnSortFilterProxyModel,
+)
 
 
 @beartype
@@ -22,7 +22,6 @@ class RowData:
 
 @beartype
 class CodeColumn(ColumnSpec):
-
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         row = index.internalPointer()
         match role:
@@ -61,7 +60,6 @@ class CodeColumn(ColumnSpec):
 
 @beartype
 class CategoryColumn(ColumnSpec):
-
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         row = index.internalPointer()
         match role:
@@ -100,7 +98,6 @@ class CategoryColumn(ColumnSpec):
 
 @beartype
 class AmountColumn(ColumnSpec):
-
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         row = index.internalPointer()
         match role:
@@ -139,7 +136,6 @@ class AmountColumn(ColumnSpec):
 
 @beartype
 class FlatRowsModel(AbstractColumnItemModel):
-
     def __init__(self, rows: Sequence[RowData]) -> None:
         super().__init__(columns=[CodeColumn(), CategoryColumn(), AmountColumn()])
         self.rows: tuple[RowData, ...] = tuple(rows)
@@ -150,10 +146,10 @@ class FlatRowsModel(AbstractColumnItemModel):
         return len(self.rows)
 
     def index(
-            self,
-            row: int,
-            column: int,
-            parent: QModelIndex = QModelIndex(),
+        self,
+        row: int,
+        column: int,
+        parent: QModelIndex = QModelIndex(),
     ) -> QModelIndex:
         if parent.isValid():
             return QModelIndex()

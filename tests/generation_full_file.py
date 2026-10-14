@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 
 import mistletoe
-from beartype.typing import Literal, Sequence, Union, TypeVar
+from beartype.typing import Literal, Sequence, TypeVar, Union
 from dominate import document as html_document
 from dominate import tags
 from ebooklib import epub
@@ -216,10 +216,10 @@ _fake_hash = "0" * 64
 
 
 def build(
-        cls: type[T],
-        *,
-        nested: Sequence[doc_types.DocumentBlock] = (),
-        **kwargs,
+    cls: type[T],
+    *,
+    nested: Sequence[doc_types.DocumentBlock] = (),
+    **kwargs,
 ) -> T:
     return doc_types.build(cls, file_hash=_fake_hash, nested=nested, **kwargs)
 
@@ -384,8 +384,8 @@ def _seed_to_file_spec(
 
 
 def seed_to_corpus_entry(
-        seed: int,
-        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
+    seed: int,
+    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
 ) -> CorpusFileEntry:
     unsupported = [mime for mime in mime_types if mime not in _MIME_SUFFIXES]
     if 0 < len(unsupported):
@@ -448,7 +448,9 @@ def _build_structured_document(
         blocks.append(_heading_block(f"Section {section_index + 1}", level=1))
         blocks.append(
             _paragraph_block(
-                _deterministic_words(rng.randint(0, 10_000_000), words_per_section)))
+                _deterministic_words(rng.randint(0, 10_000_000), words_per_section)
+            )
+        )
         if include_lists:
             blocks.append(_bullet_item("item one"))
             blocks.append(_bullet_item("item two"))
@@ -470,21 +472,28 @@ def _build_pdf_documents(seed: int, spec: PdfSpec) -> list[doc_types.Document]:
                 _heading_block(
                     f"Corpus PDF page {page_index + 1}/{spec.page_count}",
                     level=1,
-                ))
+                )
+            )
 
         for block_index in range(spec.selectable_text_blocks):
             blocks.append(
                 _paragraph_block(
                     _deterministic_words(
-                        rng.randint(0, 10_000_000) + page_index * 97 + block_index, 26)))
+                        rng.randint(0, 10_000_000) + page_index * 97 + block_index, 26
+                    )
+                )
+            )
 
         if spec.include_images:
             blocks.append(
-                build(doc_types.Div,
-                      props=doc_types.DivProps(
-                          identifier="embedded-image-placeholder",
-                          classes=["pdf-image"],
-                      )))
+                build(
+                    doc_types.Div,
+                    props=doc_types.DivProps(
+                        identifier="embedded-image-placeholder",
+                        classes=["pdf-image"],
+                    ),
+                )
+            )
 
         pages.append(build(doc_types.Document, nested=tuple(blocks)))
 
@@ -537,18 +546,21 @@ def _render_pdf_from_documents(
                         for line in block.content.splitlines():
                             canvas.drawString(50, y, line)
                             y -= 14
-                    elif isinstance(
-                            block, doc_types.Div
-                    ) and block.props.identifier == "embedded-image-placeholder":
+                    elif (
+                        isinstance(block, doc_types.Div)
+                        and block.props.identifier == "embedded-image-placeholder"
+                    ):
                         image = Image.new("RGB", (280, 120), (220, 230, 245))
                         draw = ImageDraw.Draw(image)
                         draw.rectangle((8, 8, 272, 112), outline=(20, 20, 20), width=2)
                         draw.text((16, 46), "embedded image", fill=(0, 0, 0))
-                        canvas.drawImage(ImageReader(image),
-                                         50,
-                                         max(80, y - 130),
-                                         width=280,
-                                         height=120)
+                        canvas.drawImage(
+                            ImageReader(image),
+                            50,
+                            max(80, y - 130),
+                            width=280,
+                            height=120,
+                        )
                         y -= 140
 
                     if y < 80:
@@ -577,11 +589,9 @@ def _render_pdf_from_documents(
                         break
 
                 draw.text((80, 1668), f"scanned page {page_index + 1}", fill=(0, 0, 0))
-                canvas.drawImage(ImageReader(raster),
-                                 0,
-                                 0,
-                                 width=page_width,
-                                 height=page_height)
+                canvas.drawImage(
+                    ImageReader(raster), 0, 0, width=page_width, height=page_height
+                )
 
         canvas.showPage()
 
@@ -614,8 +624,9 @@ def _document_to_markdown_source(document: doc_types.Document) -> str:
     return source if parsed is not None else source
 
 
-def _write_markdown_from_document(document: doc_types.Document,
-                                  output_path: Path) -> None:
+def _write_markdown_from_document(
+    document: doc_types.Document, output_path: Path
+) -> None:
     output_path.write_text(_document_to_markdown_source(document), encoding="utf-8")
 
 
@@ -709,8 +720,11 @@ def _split_document_for_epub(document: doc_types.Document) -> list[doc_types.Doc
     current: list[doc_types.DocumentBlock] = []
 
     for block in document.nested:
-        if isinstance(block,
-                      doc_types.Heading) and block.props.level == 1 and len(current) > 0:
+        if (
+            isinstance(block, doc_types.Heading)
+            and block.props.level == 1
+            and len(current) > 0
+        ):
             chapters.append(current)
             current = [block]
         else:
@@ -736,7 +750,9 @@ def _write_epub_from_document(
     book.set_language("en")
 
     chapters: list[epub.EpubHtml] = []
-    for index, chapter_document in enumerate(_split_document_for_epub(document), start=1):
+    for index, chapter_document in enumerate(
+        _split_document_for_epub(document), start=1
+    ):
         chapter_title = "Chapter {}".format(index)
         chapter_file = "chapter-{}.xhtml".format(index)
         chapter = epub.EpubHtml(title=chapter_title, file_name=chapter_file, lang="en")
@@ -761,10 +777,14 @@ def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
         case ImageKind.geometric:
             image = Image.new("RGB", (spec.width, spec.height), (245, 245, 245))
             draw = ImageDraw.Draw(image)
-            draw.rectangle((10, 10, spec.width - 10, spec.height - 10),
-                           outline=(20, 20, 20),
-                           width=3)
-            draw.ellipse((20, 20, spec.width // 2, spec.height // 2), fill=spec.color_rgb)
+            draw.rectangle(
+                (10, 10, spec.width - 10, spec.height - 10),
+                outline=(20, 20, 20),
+                width=3,
+            )
+            draw.ellipse(
+                (20, 20, spec.width // 2, spec.height // 2), fill=spec.color_rgb
+            )
             draw.polygon(
                 (
                     spec.width // 2,
@@ -791,8 +811,9 @@ def _write_png(spec: PngSpec, output_path: Path, hf_cache_root: Path) -> None:
                 filename=spec.hf_file_name,
                 cache_dir=str(hf_cache_root),
             )
-            image = Image.open(downloaded).convert("RGB").resize(
-                (spec.width, spec.height))
+            image = (
+                Image.open(downloaded).convert("RGB").resize((spec.width, spec.height))
+            )
             if spec.include_text:
                 draw = ImageDraw.Draw(image)
                 draw.text((12, 12), spec.text_value, fill=(255, 0, 0))
@@ -810,49 +831,55 @@ def _write_audio(spec: AudioSpec, output_path: Path) -> None:
 
         match spec.spoken_language:
             case SpokenLanguage.none:
-                _run_command([
-                    "ffmpeg",
-                    "-y",
-                    "-f",
-                    "lavfi",
-                    "-i",
-                    f"sine=frequency=440:duration={spec.duration_seconds}",
-                    "-b:a",
-                    f"{spec.bitrate_kbps}k",
-                    str(output_path),
-                ])
+                _run_command(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"sine=frequency=440:duration={spec.duration_seconds}",
+                        "-b:a",
+                        f"{spec.bitrate_kbps}k",
+                        str(output_path),
+                    ]
+                )
 
             case SpokenLanguage.english:
                 _run_command(
-                    ["espeak-ng", "-v", "en", "-w",
-                     str(speech_wav), spec.spoken_text])
-                _run_command([
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(speech_wav),
-                    "-t",
-                    str(spec.duration_seconds),
-                    "-b:a",
-                    f"{spec.bitrate_kbps}k",
-                    str(output_path),
-                ])
+                    ["espeak-ng", "-v", "en", "-w", str(speech_wav), spec.spoken_text]
+                )
+                _run_command(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(speech_wav),
+                        "-t",
+                        str(spec.duration_seconds),
+                        "-b:a",
+                        f"{spec.bitrate_kbps}k",
+                        str(output_path),
+                    ]
+                )
 
             case SpokenLanguage.non_english:
                 _run_command(
-                    ["espeak-ng", "-v", "es", "-w",
-                     str(speech_wav), spec.spoken_text])
-                _run_command([
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(speech_wav),
-                    "-t",
-                    str(spec.duration_seconds),
-                    "-b:a",
-                    f"{spec.bitrate_kbps}k",
-                    str(output_path),
-                ])
+                    ["espeak-ng", "-v", "es", "-w", str(speech_wav), spec.spoken_text]
+                )
+                _run_command(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(speech_wav),
+                        "-t",
+                        str(spec.duration_seconds),
+                        "-b:a",
+                        f"{spec.bitrate_kbps}k",
+                        str(output_path),
+                    ]
+                )
 
 
 def _write_video(spec: VideoSpec, output_path: Path) -> None:
@@ -869,44 +896,48 @@ def _write_video(spec: VideoSpec, output_path: Path) -> None:
             )
             _write_audio(audio_spec, speech_audio)
 
-            _run_command([
-                "ffmpeg",
-                "-y",
-                "-f",
-                "lavfi",
-                "-i",
-                f"testsrc2=size={spec.width}x{spec.height}:rate={spec.framerate}:duration={spec.duration_seconds}",
-                "-i",
-                str(speech_audio),
-                "-shortest",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-b:v",
-                f"{spec.bitrate_kbps}k",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "96k",
-                str(output_path),
-            ])
+            _run_command(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"testsrc2=size={spec.width}x{spec.height}:rate={spec.framerate}:duration={spec.duration_seconds}",
+                    "-i",
+                    str(speech_audio),
+                    "-shortest",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-b:v",
+                    f"{spec.bitrate_kbps}k",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "96k",
+                    str(output_path),
+                ]
+            )
         else:
-            _run_command([
-                "ffmpeg",
-                "-y",
-                "-f",
-                "lavfi",
-                "-i",
-                f"testsrc2=size={spec.width}x{spec.height}:rate={spec.framerate}:duration={spec.duration_seconds}",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-b:v",
-                f"{spec.bitrate_kbps}k",
-                str(output_path),
-            ])
+            _run_command(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    f"testsrc2=size={spec.width}x{spec.height}:rate={spec.framerate}:duration={spec.duration_seconds}",
+                    "-c:v",
+                    "libx264",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-b:v",
+                    f"{spec.bitrate_kbps}k",
+                    str(output_path),
+                ]
+            )
 
 
 def _write_text(spec: TextSpec, output_path: Path, seed: int) -> None:
@@ -914,8 +945,9 @@ def _write_text(spec: TextSpec, output_path: Path, seed: int) -> None:
         raw = hashlib.sha256(f"{seed}".encode("utf-8")).digest() * 30
         output_path.write_text(base64.b64encode(raw).decode("ascii"), encoding="utf-8")
     else:
-        output_path.write_text(_deterministic_words(seed + 101, spec.word_count),
-                               encoding="utf-8")
+        output_path.write_text(
+            _deterministic_words(seed + 101, spec.word_count), encoding="utf-8"
+        )
 
 
 def write_corpus_file(
@@ -994,15 +1026,17 @@ def write_corpus_file(
             )
 
         case _:
-            raise ValueError(f"Unsupported corpus file spec type '{type(spec).__name__}'")
+            raise ValueError(
+                f"Unsupported corpus file spec type '{type(spec).__name__}'"
+            )
 
     return output_path
 
 
 def initialize_persistent_corpus(
-        corpus_root: Path,
-        seeds: Sequence[int],
-        mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
+    corpus_root: Path,
+    seeds: Sequence[int],
+    mime_types: Sequence[str] = tuple(_MIME_SUFFIXES),
 ) -> CorpusManifest:
     hf_cache_root = corpus_root / ".hf_cache"
     manifest_path = corpus_root / "manifest.json"
@@ -1012,10 +1046,12 @@ def initialize_persistent_corpus(
 
     if manifest_path.exists():
         current = CorpusManifest.model_validate_json(
-            manifest_path.read_text(encoding="utf-8"))
+            manifest_path.read_text(encoding="utf-8")
+        )
         if current.model_dump(mode="json") == manifest.model_dump(mode="json"):
             all_exist = all(
-                (corpus_root / item.relative_path).exists() for item in current.entries)
+                (corpus_root / item.relative_path).exists() for item in current.entries
+            )
             if all_exist:
                 return current
 
@@ -1024,9 +1060,9 @@ def initialize_persistent_corpus(
     corpus_root.mkdir(parents=True, exist_ok=True)
 
     for entry in manifest.entries:
-        write_corpus_file(entry=entry,
-                          corpus_root=corpus_root,
-                          hf_cache_root=hf_cache_root)
+        write_corpus_file(
+            entry=entry, corpus_root=corpus_root, hf_cache_root=hf_cache_root
+        )
 
     manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
     return manifest

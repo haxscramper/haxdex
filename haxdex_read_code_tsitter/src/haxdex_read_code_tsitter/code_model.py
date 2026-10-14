@@ -12,7 +12,9 @@ class IndexEntry(Base):
     __tablename__ = "entries"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("entries.id"), nullable=True)
+    parent_id: Mapped[int | None] = mapped_column(
+        ForeignKey("entries.id"), nullable=True
+    )
 
     kind: Mapped[str] = mapped_column(nullable=False)
     language: Mapped[str | None] = mapped_column(nullable=True)

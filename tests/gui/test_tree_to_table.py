@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import pytest
-
-from PyQt6.QtCore import QCoreApplication, Qt, QSortFilterProxyModel
+from beartype.typing import Iterator, List, Tuple
+from PyQt6.QtCore import QCoreApplication, QSortFilterProxyModel, Qt
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from beartype.typing import List, Iterator, Tuple
 
-from hstd_py_qt.src.hstd_py_qt.signal_logger import QtTrace
 from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 
 
@@ -69,8 +67,9 @@ def test_flatten_order_and_row_count(proxy: TreeToTableProxyModel) -> None:
     assert flat_column0(proxy) == ["item0", "n0", "n1", "nn0", "item1"]
 
 
-def test_data_access_matches_source(proxy: TreeToTableProxyModel,
-                                    tree: QStandardItemModel) -> None:
+def test_data_access_matches_source(
+    proxy: TreeToTableProxyModel, tree: QStandardItemModel
+) -> None:
     proxy_index = proxy.index(2, 1)
     source_index = proxy.mapToSource(proxy_index)
     assert proxy.data(proxy_index) == "a2"
@@ -92,8 +91,9 @@ def test_map_roundtrip(proxy: TreeToTableProxyModel) -> None:
             assert mapped_back.column() == column
 
 
-def test_data_change_propagates(proxy: TreeToTableProxyModel,
-                                tree: QStandardItemModel) -> None:
+def test_data_change_propagates(
+    proxy: TreeToTableProxyModel, tree: QStandardItemModel
+) -> None:
     emitted: List[Tuple[int, int]] = []
 
     def on_data_changed(top, bottom, roles=None) -> None:
@@ -107,8 +107,9 @@ def test_data_change_propagates(proxy: TreeToTableProxyModel,
     assert (1, 0) in emitted
 
 
-def test_structure_rebuilds_on_insert(proxy: TreeToTableProxyModel,
-                                      tree: QStandardItemModel) -> None:
+def test_structure_rebuilds_on_insert(
+    proxy: TreeToTableProxyModel, tree: QStandardItemModel
+) -> None:
     tree.appendRow(make_row("item2", "a5", "b5"))
     assert proxy.rowCount() == 6
     assert flat_column0(proxy)[-1] == "item2"

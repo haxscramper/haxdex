@@ -2,9 +2,7 @@ from abc import ABC, abstractmethod
 
 from beartype import beartype
 from beartype.typing import Any, Sequence
-from loguru import logger
-
-from PyQt6.QtCore import QModelIndex, QObject, Qt, QAbstractItemModel
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex, QObject, Qt
 from PyQt6.QtWidgets import QAbstractItemDelegate, QAbstractItemView
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
@@ -12,7 +10,6 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 @beartype
 class ColumnSpec(ABC):
-
     @abstractmethod
     def data(
         self,
@@ -49,7 +46,6 @@ class ColumnSpec(ABC):
 
 @beartype
 class AbstractColumnItemModel(QAbstractItemModel):
-
     def __init__(
         self,
         columns: Sequence[ColumnSpec],
@@ -59,7 +55,8 @@ class AbstractColumnItemModel(QAbstractItemModel):
         super().__init__(parent)
         self.columns: tuple[ColumnSpec, ...] = tuple(columns)
         self.delegates: tuple[QAbstractItemDelegate | None, ...] = tuple(
-            column.getDelegate() for column in self.columns)
+            column.getDelegate() for column in self.columns
+        )
 
         if view is not None:
             self.configureView(view)

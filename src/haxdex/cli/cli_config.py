@@ -1,19 +1,18 @@
-import os
 import json
 from pathlib import Path
+
 from arango import Optional
 from beartype import beartype
 from beartype.typing import Any, Literal, Mapping
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig
 from haxdex.gui.generation_explorer.models import ExplorerSettings
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig
+from haxdex.services.core.job_types import BaseIndexerConfig
 from haxdex.services.default_job_types import (
     DEFAULT_INDEXER_TYPES,
     DEFAULT_RESOURCE_TYPES,
 )
-from pydantic import BaseModel, field_validator, Field, ConfigDict, model_validator
-
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.indexers.comfy_input_indexer import ComfyInputIndexer
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
@@ -25,7 +24,7 @@ from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 from haxdex.services.indexers.pdf_indexer import PdfIndexer
 from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
 from haxdex.services.indexers.wd_indexer import WdTagIndexer
-from haxdex.services.pydantic_utils import OutputFile, ExistingDir, ExistingPath
+from haxdex.services.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from haxdex.services.resources.flm_server import FlmServerResource
 from haxdex.services.resources.pdf.pdf_extractor import PdfExtractor
 from haxdex.services.resources.wd_tagger import WdTagger
@@ -67,11 +66,14 @@ def _validate_plugin_config_map(
     for name, cfg in raw.items():
         if name not in registry:
             raise ValueError(
-                f"Unknown {kind} '{name}', expected names: {sorted(registry.keys())}")
+                f"Unknown {kind} '{name}', expected names: {sorted(registry.keys())}"
+            )
 
         cls = registry[name]
         config_model = getattr(cls, "config_model", None)
-        if not isinstance(config_model, type) or not issubclass(config_model, BaseModel):
+        if not isinstance(config_model, type) or not issubclass(
+            config_model, BaseModel
+        ):
             raise TypeError(f"{kind.capitalize()} '{name}' has invalid config_model")
 
         if cfg is None:
@@ -164,14 +166,17 @@ class AppConfig(BaseModel, extra="forbid"):
     db: DatabaseConfig
     hash_cache: OutputFile = Field(
         description="DB location for the file hash cache",
-        default_factory=lambda: get_xdg_cache_dir([]).joinpath("file_hash_cache.sqlite"),
+        default_factory=lambda: get_xdg_cache_dir([]).joinpath(
+            "file_hash_cache.sqlite"
+        ),
     )
 
     common_ignore_prefix: list[str] = Field(default_factory=list)
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     action_file: OutputFile = Field(
-        description="JSONL file to write all collected actions")
+        description="JSONL file to write all collected actions"
+    )
 
     act: ActionConfig | None = None
 
@@ -209,7 +214,8 @@ class AppConfig(BaseModel, extra="forbid"):
 
         if not isinstance(value, dict):
             raise TypeError(
-                f"Indexers config must be an object, got {type(value).__name__}")
+                f"Indexers config must be an object, got {type(value).__name__}"
+            )
 
         return _validate_plugin_config_map(
             raw=value,
@@ -224,7 +230,8 @@ class AppConfig(BaseModel, extra="forbid"):
             value = {}
         if not isinstance(value, dict):
             raise TypeError(
-                f"Resources config must be an object, got {type(value).__name__}")
+                f"Resources config must be an object, got {type(value).__name__}"
+            )
         return _validate_plugin_config_map(
             raw=value,
             registry=_RESOURCE_BY_NAME,

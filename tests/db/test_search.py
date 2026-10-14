@@ -1,26 +1,32 @@
 import json
 from pathlib import Path
 
+from loguru import logger
+
 from haxdex.cli.cli_config import IndexConfig, IndexPathConfig
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
-from haxdex.services.core.job_types import RunContext
-from haxdex.services.core.types import FileRef
 from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.core.job_types import RunContext
 from haxdex.services.file_iteration import DirConfig
-from haxdex.services.indexers.chunk_indexing.file_embedding import EmbeddingChunk, FileEmbeddingIndexerResult
-from haxdex.services.indexers.chunk_indexing.full_text import FullTextChunk, FullTextIndexer
+from haxdex.services.indexers.chunk_indexing.file_embedding import (
+    EmbeddingChunk,
+    FileEmbeddingIndexerResult,
+)
+from haxdex.services.indexers.chunk_indexing.full_text import (
+    FullTextChunk,
+    FullTextIndexer,
+)
 from haxdex.services.indexers.full_document.full_document_types import Heading
 from haxdex.services.pydantic_utils import first_by_field_value
-from loguru import logger
-
 from haxdex.services.utils import dump_with_type
 
 corpus = Path(__file__).parent.joinpath("corpus")
 
 
-def test_full_text_search(db: IndexDatabase, runtime: IndexRuntime,
-                          stable_test_dir: Path) -> None:
+def test_full_text_search(
+    db: IndexDatabase, runtime: IndexRuntime, stable_test_dir: Path
+) -> None:
     path = stable_test_dir / "a.txt"
     path.write_text("alpha beta gamma")
 
@@ -44,8 +50,9 @@ def test_full_text_search(db: IndexDatabase, runtime: IndexRuntime,
     assert hit0.file_hash == ref.hash.hash
 
 
-def test_vector_search(db: IndexDatabase, runtime: IndexRuntime,
-                       stable_test_dir: Path) -> None:
+def test_vector_search(
+    db: IndexDatabase, runtime: IndexRuntime, stable_test_dir: Path
+) -> None:
     a = stable_test_dir / "a.txt"
     b = stable_test_dir / "b.txt"
     a.write_text("cat cat cat")
@@ -79,7 +86,7 @@ def test_vector_search(db: IndexDatabase, runtime: IndexRuntime,
         emb_name,
         chunk1.vector,
         limit=1,
-        indexer=runtime.get_indexer(emb_name),  #type: ignore
+        indexer=runtime.get_indexer(emb_name),  # type: ignore
     )
 
     assert len(hits) == 1
@@ -98,9 +105,11 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
         runner=runtime,
         ctx=ctx,
         cfg=IndexConfig(
-            paths=(IndexPathConfig(name="root",
-                                   root_path=corpus,
-                                   paths=[DirConfig(path=corpus)]),),
+            paths=(
+                IndexPathConfig(
+                    name="root", root_path=corpus, paths=[DirConfig(path=corpus)]
+                ),
+            ),
             limit_total=10,
             limit_per_path=10,
         ),
@@ -120,8 +129,8 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
     logger.debug(aql)
 
     for document in db.execute_query_with_conversion(
-            aql,
-            idx,
+        aql,
+        idx,
         ("doc.result",),
     ):
         docs.append(document)
@@ -135,9 +144,9 @@ def test_corpus_full_text_search(db: IndexDatabase, runtime: IndexRuntime) -> No
     parent_of = db.get_inbound(doc0.spans[0].source_hash, doc_idx)
     assert len(parent_of) == 1
 
-    graph = db.render_indexer_graphviz(doc_idx,
-                                       max_outgoing_edges=5,
-                                       start_vertex_ids=set(parent_of))
+    graph = db.render_indexer_graphviz(
+        doc_idx, max_outgoing_edges=5, start_vertex_ids=set(parent_of)
+    )
     graph.attr("graph", rankdir="LR")
     graph.render("/tmp/full_asbestos", format="png")
     graph.render("/tmp/full_asbestos", format="svg")

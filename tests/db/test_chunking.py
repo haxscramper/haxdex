@@ -1,12 +1,11 @@
+import haxdex.services.indexers.full_document.full_document_types as fd
 from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkConfig,
-    ChunkUnit,
-    Chunker,
     ChunkDocument,
+    Chunker,
+    ChunkUnit,
     chunks_to_multidoc,
 )
-
-import haxdex.services.indexers.full_document.full_document_types as fd
 
 
 def _build_docs(blocks, file_hash):
@@ -19,24 +18,30 @@ def _build_docs(blocks, file_hash):
 
 
 def _para(text: str, file_hash: str) -> fd.Paragraph:
-    return fd.build(fd.Paragraph,
-                    file_hash=file_hash,
-                    content=fd.inline_nodes_to_content([fd.StyledText(text=text)]))
+    return fd.build(
+        fd.Paragraph,
+        file_hash=file_hash,
+        content=fd.inline_nodes_to_content([fd.StyledText(text=text)]),
+    )
 
 
 def _heading(text: str, file_hash: str, level: int = 1) -> fd.Heading:
-    return fd.build(fd.Heading,
-                    file_hash=file_hash,
-                    props=fd.HeadingProps(level=level),
-                    content=fd.inline_nodes_to_content([fd.StyledText(text=text)]))
+    return fd.build(
+        fd.Heading,
+        file_hash=file_hash,
+        props=fd.HeadingProps(level=level),
+        content=fd.inline_nodes_to_content([fd.StyledText(text=text)]),
+    )
 
 
 def test_flat_text_splits_and_overlaps():
-    cfg = ChunkConfig(unit=ChunkUnit.CHARS,
-                      max_size=100,
-                      min_size=20,
-                      start_overlap_min=1,
-                      start_overlap_max=10)
+    cfg = ChunkConfig(
+        unit=ChunkUnit.CHARS,
+        max_size=100,
+        min_size=20,
+        start_overlap_min=1,
+        start_overlap_max=10,
+    )
     chunker = Chunker(cfg)
     text = "".join(f"sentence number {i}. " for i in range(80))
     chunks = chunker.chunk_text(text, "filehash")
@@ -48,8 +53,10 @@ def test_flat_text_splits_and_overlaps():
         assert c.spans
         # core span reconstructs its slice of the original text
         core = next(s for s in c.spans if s.kind == "core")
-        assert text[core.source_start:core.source_end] == \
-            c.text[core.chunk_start:core.chunk_end]
+        assert (
+            text[core.source_start : core.source_end]
+            == c.text[core.chunk_start : core.chunk_end]
+        )
     assert any(any(s.kind == "start_overlap" for s in c.spans) for c in chunks[1:])
 
 
@@ -106,8 +113,9 @@ def test_oversized_block_is_split():
 def test_chunks_to_multidoc_shape():
     fh = "AF" * 32
     documents, edges = _build_docs([_para(f"p{i}", fh) for i in range(4)], fh)
-    chunks = Chunker(ChunkConfig(unit=ChunkUnit.CHARS,
-                                 max_size=50)).chunk_blocks(documents, edges, fh)
+    chunks = Chunker(ChunkConfig(unit=ChunkUnit.CHARS, max_size=50)).chunk_blocks(
+        documents, edges, fh
+    )
 
     docs, links = chunks_to_multidoc(chunks, fh, ChunkDocument)
     assert docs[0].hash == fh  # file anchor

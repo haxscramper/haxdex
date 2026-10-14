@@ -2,11 +2,11 @@ import logging
 from pathlib import Path
 from tempfile import gettempdir
 
+import pytest
 from py_scriptutils.files import get_haxorg_repo_root_path
 from py_scriptutils.script_logging import log
 from py_scriptutils.toml_config_profiler import interpolate_dictionary
 from py_scriptutils.tracer import TraceCollector
-import pytest
 
 log("refl.nim").setLevel(logging.DEBUG)
 
@@ -14,8 +14,8 @@ log("refl.nim").setLevel(logging.DEBUG)
 @pytest.mark.skip()
 def test_libgit2_conv(stable_test_dir: Path) -> None:
     import py_codegen.tu_collector as tu_collector
-
     import tests.python.refl.refl_test_driver as refl_test_driver
+
     code_dir = stable_test_dir
     code_dir = Path(gettempdir()) / "libgit_wrap_test_dir"
     root = get_haxorg_repo_root_path()
@@ -44,12 +44,15 @@ def test_libgit2_conv(stable_test_dir: Path) -> None:
     if dep.joinpath("build").joinpath(comp).exists():
         dep.joinpath("build").joinpath(comp).unlink()
 
-    conf = tu_collector.TuOptions(**interpolate_dictionary(
-        start,
-        dict(
-            config_dir=str(root.joinpath("thirdparty/libgit2")),
-            tool_dir=str(root),
-        )))
+    conf = tu_collector.TuOptions(
+        **interpolate_dictionary(
+            start,
+            dict(
+                config_dir=str(root.joinpath("thirdparty/libgit2")),
+                tool_dir=str(root),
+            ),
+        )
+    )
 
     trace = TraceCollector()
     tu_collector.run_wrap_for_config(conf, trace)
@@ -60,7 +63,7 @@ def test_libgit2_conv(stable_test_dir: Path) -> None:
         for file in code_dir.joinpath("git2").glob("*.nim")
     ]
 
-    importall = "\n".join(f"import \"{it}\"" for it in relative)
+    importall = "\n".join(f'import "{it}"' for it in relative)
     assert "git2/commit.nim" in relative
     assert "git2/refspec.nim" in relative
     assert "git2/revert.nim" in relative

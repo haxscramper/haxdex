@@ -1,31 +1,31 @@
 #!/usr/bin/env python
 
 import concurrent.futures
-from dataclasses import dataclass
 import functools
 import multiprocessing
-from pathlib import Path
 import re
 import sys
+from dataclasses import dataclass
+from pathlib import Path
 
+import dominate.tags as tags
+import dominate.util as util
+import py_repository.code_analysis.gen_coverage_cxx as cov_docxx
+import py_repository.repo_docgen.gen_coverage_data as docdata
+import py_scriptutils.tracer
 from beartype import beartype
 from beartype.typing import Any, Dict, Iterable, List, Optional, Tuple, TypeVar
 from dominate import document
-import dominate.tags as tags
-import dominate.util as util
 from py_ci.util_scripting import get_threading_count
-import py_repository.code_analysis.gen_coverage_cxx as cov_docxx
-import py_repository.repo_docgen.gen_coverage_data as docdata
 from py_scriptutils.files import get_haxorg_repo_root_path
 from py_scriptutils.script_logging import log
 from py_scriptutils.toml_config_profiler import (
-    apply_options,
     BaseModel,
+    apply_options,
     options_from_model,
 )
-import py_scriptutils.tracer
 from py_scriptutils.tracer import GlobCompleteEvent, GlobExportJson
-from pydantic import ConfigDict, Field
+from pydantic import Field
 from sqlalchemy.orm import Session
 
 T = TypeVar("T")
@@ -52,15 +52,17 @@ def lerp_html_color(
 
     interpolated = tuple(
         int(255 * (r * (1 - value) + g * value))
-        for r, g in zip([float(n) for n in start], [float(n) for n in end]))
+        for r, g in zip([float(n) for n in start], [float(n) for n in end])
+    )
 
     return f"#{interpolated[0]:02x}{interpolated[1]:02x}{interpolated[2]:02x}"
 
 
 @beartype
 @dataclass
-class SidebarRes():
+class SidebarRes:
     "Coverage sidebar documentation"
+
     tag: tags.ul
     "nodoc"
     total_entries: int
@@ -70,8 +72,9 @@ class SidebarRes():
 
 
 @beartype
-def _generate_tree_sidebar(directory: docdata.DocDirectory,
-                           html_out_path: Path) -> SidebarRes:
+def _generate_tree_sidebar(
+    directory: docdata.DocDirectory, html_out_path: Path
+) -> SidebarRes:
     """
     Generate sidebar for the HTML coverage output
     """
@@ -93,7 +96,9 @@ def _generate_tree_sidebar(directory: docdata.DocDirectory,
         documented_entries: int = 0
 
         item = tags.li(_class="sidebar-code")
-        link = tags.a(href=docdata.get_html_path(code_file, html_out_path=html_out_path))
+        link = tags.a(
+            href=docdata.get_html_path(code_file, html_out_path=html_out_path)
+        )
         link.add(util.text(code_file.RelPath.name))
         item.add(link)
         directory_list.add(item)
@@ -104,11 +109,13 @@ def _generate_tree_sidebar(directory: docdata.DocDirectory,
     for text_file in directory.TextFiles:
         directory_list.add(
             tags.li(
-                tags.a("Text File",
-                       href=docdata.get_html_path(text_file,
-                                                  html_out_path=html_out_path)),
+                tags.a(
+                    "Text File",
+                    href=docdata.get_html_path(text_file, html_out_path=html_out_path),
+                ),
                 _class="sidebar-text",
-            ))
+            )
+        )
 
     return SidebarRes(
         tag=directory_list,
@@ -142,14 +149,18 @@ def get_html_page_tabs(tab_order: List[str]) -> tags.div:
 
 
 css_path = get_haxorg_repo_root_path().joinpath(
-    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css")
+    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css"
+)
 
 
 class DocGenerationOptions(BaseModel, extra="forbid"):
     """
     Configuration options for the custom HTML documentation.
     """
-    html_out_path: Path = Field(description="Root directory to output generated HTML to")
+
+    html_out_path: Path = Field(
+        description="Root directory to output generated HTML to"
+    )
 
     profile_out_path: Optional[Path] = Field(
         default=None,
@@ -184,14 +195,12 @@ class DocGenerationOptions(BaseModel, extra="forbid"):
     )
 
     coverage_file_whitelist: List[str] = Field(
-        description=
-        "List of regular expressions to whitelist absolute file paths for coverage",
+        description="List of regular expressions to whitelist absolute file paths for coverage",
         default_factory=lambda: [".*"],
     )
 
     coverage_file_blacklist: List[str] = Field(
-        description=
-        "List of regular expressions to blacklist absolute file paths for coverage",
+        description="List of regular expressions to blacklist absolute file paths for coverage",
         default_factory=list,
     )
 
@@ -203,10 +212,11 @@ def cli_options(f: Any) -> Any:
 
 @beartype
 @dataclass
-class FileGenParams():
+class FileGenParams:
     """
     Input configuration to generate HTML for the file
     """
+
     file: docdata.DocCodeFile
     """
     Parsed documentable input file
@@ -219,10 +229,11 @@ class FileGenParams():
 
 @beartype
 @dataclass
-class FileGenResult():
+class FileGenResult:
     """
     Output information about the generated file
     """
+
     trace: List[py_scriptutils.tracer.TraceEvent]
     """
     Time tracing tracker for the file
@@ -249,7 +260,9 @@ def _worker_decorator(func: Any) -> Any:
 
 @beartype
 @_worker_decorator
-def _generate_code_file(gen: FileGenParams, opts: DocGenerationOptions) -> FileGenResult:
+def _generate_code_file(
+    gen: FileGenParams, opts: DocGenerationOptions
+) -> FileGenResult:
     """
     Generate HTML for the documentable source code file.
     """
@@ -257,9 +270,9 @@ def _generate_code_file(gen: FileGenParams, opts: DocGenerationOptions) -> FileG
     assert opts.cxx_coverage_path
     cxx_coverage_session = cov_docxx.open_coverage(opts.cxx_coverage_path)
     path = docdata.get_html_path(gen.file, html_out_path=gen.html_out_path)
-    with GlobCompleteEvent("Get annotated files",
-                           "cov",
-                           args=dict(path=str(gen.file.RelPath))):
+    with GlobCompleteEvent(
+        "Get annotated files", "cov", args=dict(path=str(gen.file.RelPath))
+    ):
         file = cov_docxx.get_annotated_file_for_session(
             cxx_session=cxx_coverage_session,
             root_path=opts.root_path,
@@ -267,9 +280,9 @@ def _generate_code_file(gen: FileGenParams, opts: DocGenerationOptions) -> FileG
             use_highlight=False,
         )
 
-    with GlobCompleteEvent("Generate annotated file",
-                           "cov",
-                           args=dict(path=str(gen.file.RelPath))):
+    with GlobCompleteEvent(
+        "Generate annotated file", "cov", args=dict(path=str(gen.file.RelPath))
+    ):
         data = cov_docxx.get_file_annotation_html(file)
         doc = document(title=str(gen.file.RelPath))
         doc.head.add(tags.link(rel="stylesheet", href=cov_docxx.css_path))
@@ -328,7 +341,8 @@ def _generate_html_for_directory(
         "nodoc"
         path_str = str(path)
         return any(it.search(path_str) for it in coverage_whitelist) and not any(
-            it.search(path_str) for it in coverage_blacklist)
+            it.search(path_str) for it in coverage_blacklist
+        )
 
     target_code_files: List[FileGenParams] = []
 
@@ -344,7 +358,8 @@ def _generate_html_for_directory(
                     continue
 
                 target_code_files.append(
-                    FileGenParams(html_out_path=html_out_path, file=code_file))
+                    FileGenParams(html_out_path=html_out_path, file=code_file)
+                )
 
             for text_file in directory.TextFiles:
                 path = docdata.get_html_path(text_file, html_out_path=html_out_path)
@@ -359,12 +374,13 @@ def _generate_html_for_directory(
 
     aux(directory, html_out_path)
 
-    assert 0 < len(
-        target_code_files
-    ), f"No target files detected for HTML coverage generation. Filtered on whitelist:{opts.coverage_file_whitelist} blacklist:{opts.coverage_file_blacklist}"
+    assert 0 < len(target_code_files), (
+        f"No target files detected for HTML coverage generation. Filtered on whitelist:{opts.coverage_file_whitelist} blacklist:{opts.coverage_file_blacklist}"
+    )
 
     with concurrent.futures.ProcessPoolExecutor(
-            max_workers=get_threading_count()) as executor:
+        max_workers=get_threading_count()
+    ) as executor:
         futures = [
             executor.submit(
                 functools.partial(
@@ -372,7 +388,8 @@ def _generate_html_for_directory(
                     opts=opts,
                 ),
                 item,
-            ) for item in target_code_files
+            )
+            for item in target_code_files
         ]
 
         for future in futures:
@@ -414,11 +431,11 @@ def _parse_dir(
     result = docdata.DocDirectory(RelPath=dir.relative_to(conf.root_path))
     for file in sorted(dir.glob("*")):
         if file.name in [
-                "base_lexer_gen.cpp",
-                "profdata_merger.cpp",
-                "pyhaxorg.cpp",
-                "__init__.py",
-                "__pycache__",
+            "base_lexer_gen.cpp",
+            "profdata_merger.cpp",
+            "pyhaxorg.cpp",
+            "__init__.py",
+            "__pycache__",
         ] or file.name.startswith("."):
             continue
 
@@ -429,9 +446,11 @@ def _parse_dir(
                         file,
                         conf,
                         rel_path_to_code_file=rel_path_to_code_file,
-                        is_test=is_test or
-                        file.suffix == ".cpp",  # FIXME replace `is_test` with `is_impl`
-                    ))
+                        is_test=is_test
+                        or file.suffix
+                        == ".cpp",  # FIXME replace `is_test` with `is_impl`
+                    )
+                )
 
             case "*.org":
                 result.TextFiles.append(_parse_text_file(file))
@@ -466,7 +485,8 @@ def gen_coverage(conf: DocGenerationOptions) -> None:
 
     with GlobCompleteEvent("Get file tree", "cov"):
         full_root = docdata.DocDirectory(
-            RelPath=conf.root_path.relative_to(conf.root_path))
+            RelPath=conf.root_path.relative_to(conf.root_path)
+        )
         for subdir in conf.test_path:
             full_root.Subdirs.append(
                 _parse_dir(
@@ -475,7 +495,8 @@ def gen_coverage(conf: DocGenerationOptions) -> None:
                     rel_path_to_code_file=rel_path_to_code_file,
                     py_coverage_session=None,
                     is_test=True,
-                ))
+                )
+            )
 
         for subdir in conf.src_path:
             full_root.Subdirs.append(
@@ -485,7 +506,8 @@ def gen_coverage(conf: DocGenerationOptions) -> None:
                     rel_path_to_code_file=rel_path_to_code_file,
                     py_coverage_session=py_coverage_session,
                     is_test=False,
-                ))
+                )
+            )
 
     with GlobCompleteEvent("Generate HTML for root", "cov"):
         _generate_html_for_directory(

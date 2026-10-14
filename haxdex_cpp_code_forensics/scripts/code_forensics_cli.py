@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import rich_click as click
 from beartype.typing import Any
 from cxx_repository import burndown, orm_model
 from cxx_repository.code_forensics import run_forensics
@@ -11,7 +12,6 @@ from py_scriptutils.toml_config_profiler import (
     pack_context,
 )
 from pydantic import BaseModel
-import rich_click as click
 
 
 class CodeForensicsCLI(BaseModel, extra="forbid"):
@@ -32,16 +32,18 @@ def main_impl(cli: CodeForensicsCLI):
     burndown.run_for(
         engine,
         burndown.BurndownConfiguration(
-            output_path=Path(cli.result_dir).joinpath("burndown.png")))
+            output_path=Path(cli.result_dir).joinpath("burndown.png")
+        ),
+    )
 
 
 @click.command()
 @get_wrap_options(CodeForensicsCLI)
 @click.pass_context
 def main(ctx: click.Context, **kwargs: Any):
-    cli: CodeForensicsCLI = pack_context(ctx,
-                                         CodeForensicsCLI,
-                                         cli_kwargs=get_user_provided_params(ctx))
+    cli: CodeForensicsCLI = pack_context(
+        ctx, CodeForensicsCLI, cli_kwargs=get_user_provided_params(ctx)
+    )
 
     main_impl(cli)
 

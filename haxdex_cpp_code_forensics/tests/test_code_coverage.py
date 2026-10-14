@@ -1,32 +1,26 @@
-from collections import defaultdict
-from dataclasses import dataclass, field, replace
-from pathlib import Path
 import re
-from tempfile import TemporaryDirectory
+from collections import defaultdict
+from dataclasses import dataclass, field
+from pathlib import Path
 
-from beartype import beartype
-from beartype.typing import Any, Dict, List, Optional, Tuple, Union
-from dominate import document
-import dominate.tags as tags
 import pandas as pd
-from plumbum import local
 import py_repository.code_analysis.gen_coverage_cxx as cov
 import py_scriptutils.json_utils as ju
+import pytest
+from beartype import beartype
+from beartype.typing import Any, Dict, List, Optional, Tuple, Union
+from plumbum import local
 from py_scriptutils.os_utils import gettempdir
 from py_scriptutils.pandas_utils import assert_frame, dataframe_to_rich_table
 from py_scriptutils.repo_files import get_haxorg_repo_root_path
 from py_scriptutils.rich_utils import render_rich, render_rich_pprint
-from py_scriptutils.script_logging import log, pprint_to_file, to_debug_json
+from py_scriptutils.script_logging import pprint_to_file, to_debug_json
 from py_scriptutils.sqlalchemy_utils import (
-    dump_db_all,
+    Session,
     dump_flat_table,
     format_db_all,
-    format_rich_query,
     open_sqlite_session,
-    Session,
 )
-import pytest
-import rich.box
 from sqlalchemy import select
 
 
@@ -59,7 +53,9 @@ def assert_subtable(
         )
 
     ju.assert_subset(
-        value, subset, "Subset:\n{}\nMain:\n{}".format(
+        value,
+        subset,
+        "Subset:\n{}\nMain:\n{}".format(
             render_rich_pprint(
                 subset,
                 width=120,
@@ -70,12 +66,13 @@ def assert_subtable(
                 width=200,
                 color=False,
             ),
-        ))
+        ),
+    )
 
 
 @beartype
 @dataclass
-class ProfileRunParams():
+class ProfileRunParams:
     dir: Path
     main: str
     files: Dict[str, str]
@@ -113,32 +110,39 @@ class ProfileRunParams():
         for name, text in self.files.items():
             self.get_code(name).write_text(text)
 
-        cmd.run([
-            *[self.get_code(it) for it in self.files.keys() if it.endswith(".cpp")],
-            "-fprofile-instr-generate",
-            "-fcoverage-mapping",
-            "-o",
-            self.get_binary(),
-        ])
+        cmd.run(
+            [
+                *[self.get_code(it) for it in self.files.keys() if it.endswith(".cpp")],
+                "-fprofile-instr-generate",
+                "-fcoverage-mapping",
+                "-o",
+                self.get_binary(),
+            ]
+        )
 
     def run_binary(self) -> None:
         for context, run_params in self.run_contexts.items():
             cmd = local[self.get_binary()].with_env(
-                LLVM_PROFILE_FILE=str(self.get_profraw(context)))
+                LLVM_PROFILE_FILE=str(self.get_profraw(context))
+            )
             self.run_results[context] = cmd.run(run_params)
             assert self.get_profraw(context).exists()
 
     def run_profmerge(self) -> None:
         self.get_summary().write_text(
-            cov.ProfdataFullProfile(runs=[
-                cov.ProfdataCookie(
-                    test_binary=str(self.get_binary()),
-                    test_name=context,
-                    test_class="class",
-                    test_profile=str(self.get_profraw(context)),
-                    test_params=run_params,
-                ) for context, run_params in self.run_contexts.items()
-            ]).model_dump_json(indent=2))
+            cov.ProfdataFullProfile(
+                runs=[
+                    cov.ProfdataCookie(
+                        test_binary=str(self.get_binary()),
+                        test_name=context,
+                        test_class="class",
+                        test_profile=str(self.get_profraw(context)),
+                        test_params=run_params,
+                    )
+                    for context, run_params in self.run_contexts.items()
+                ]
+            ).model_dump_json(indent=2)
+        )
 
         cmd = local[reflection_tool].with_env(LD_PRELOAD="")
         if self.coverage_mapping_dump:
@@ -151,12 +155,13 @@ class ProfileRunParams():
                     # perf_trace=str(self.get_perf()),
                     file_whitelist=self.file_whitelist,
                     file_blacklist=self.file_blacklist,
-                    coverage_mapping_dump=self.coverage_mapping_dump and
-                    str(self.coverage_mapping_dump),
+                    coverage_mapping_dump=self.coverage_mapping_dump
+                    and str(self.coverage_mapping_dump),
                 ),
                 output=str(self.get_sqlite()),
                 mode=cov.Mode.RunProfileMerge,
-            ).model_dump_json(indent=2))
+            ).model_dump_json(indent=2)
+        )
 
         code, stdout, stderr = cmd.run([str(self.get_params())])
         if self.show_merger_run:
@@ -191,12 +196,15 @@ def test_base_run(stable_test_dir: Path) -> None:
     cmd = ProfileRunParams(
         dir=dir,
         main="main.cpp",
-        files={"main.cpp": """
+        files={
+            "main.cpp": """
 int main() {
   int a = 1 + 2;
   int b = a + 3;
 }
-"""})
+"""
+        },
+    )
     cmd.run()
     assert cmd.get_sqlite().exists()
 
@@ -219,7 +227,8 @@ def test_coverage_regions_multiple_contexts(stable_test_dir: Path) -> None:
             "function_3": [],
             "function_1": ["2"],
             "function_2": ["3", "3"],
-        })
+        },
+    )
 
     cmd.run()
 
@@ -235,24 +244,22 @@ def test_coverage_regions_multiple_contexts(stable_test_dir: Path) -> None:
         session=session,
         table=functions,
         subset={
-            "main":
-                dict(
-                    Parsed=None,
-                    Mangled="main",
-                ),
-            "function_1()":
-                dict(),
-            "function_2()":
-                dict(),
-            "function_3(char const*)":
-                dict(Parsed=dict(
+            "main": dict(
+                Parsed=None,
+                Mangled="main",
+            ),
+            "function_1()": dict(),
+            "function_2()": dict(),
+            "function_3(char const*)": dict(
+                Parsed=dict(
                     Name=dict(Name="function_3"),
                     Params=[
                         dict(Name="char"),
                     ],
-                )),
-            "function_3(char const*)":
-                dict(Parsed=dict(
+                )
+            ),
+            "function_3(char const*)": dict(
+                Parsed=dict(
                     Name=dict(Name="function_3"),
                     Params=[
                         dict(
@@ -263,7 +270,8 @@ def test_coverage_regions_multiple_contexts(stable_test_dir: Path) -> None:
                             ),
                         )
                     ],
-                ))
+                )
+            ),
         },
     )
 
@@ -275,9 +283,11 @@ def test_region_types(stable_test_dir: Path) -> None:
         dir=dir,
         main="main.cpp",
         files={
-            "main.cpp":
-                corpus_base.joinpath("test_instantiation_regions.cpp").read_text()
-        })
+            "main.cpp": corpus_base.joinpath(
+                "test_instantiation_regions.cpp"
+            ).read_text()
+        },
+    )
     cmd.run()
     assert cmd.get_sqlite().exists()
     session = open_sqlite_session(cmd.get_sqlite(), cov.CoverageSchema)
@@ -289,7 +299,10 @@ def test_region_types(stable_test_dir: Path) -> None:
     cmd = ProfileRunParams(
         dir=dir,
         main="main.cpp",
-        files={"main.cpp": corpus_base.joinpath("test_macro_expansions.cpp").read_text()})
+        files={
+            "main.cpp": corpus_base.joinpath("test_macro_expansions.cpp").read_text()
+        },
+    )
 
     cmd.run()
     assert cmd.get_sqlite().exists()
@@ -304,12 +317,9 @@ def test_file_coverage_filter(stable_test_dir: Path) -> None:
         main="main.cpp",
         file_whitelist=["main.cpp", "file1.cpp"],
         files={
-            "file1.cpp":
-                "void file_1_function() {}",
-            "file2.cpp":
-                "void file_2_function() {}",
-            "main.cpp":
-                """
+            "file1.cpp": "void file_1_function() {}",
+            "file2.cpp": "void file_2_function() {}",
+            "main.cpp": """
 void file_1_function();
 void file_2_function();
 
@@ -317,7 +327,7 @@ int main() {
   file_1_function();
   file_2_function();
 }
-"""
+""",
         },
     )
 
@@ -333,10 +343,13 @@ int main() {
     df["Path"] = df["Path"].map(lambda it: Path(it).name)
 
     assert len(df) == 2
-    assert_frame(df, [
-        dict(LineStart=1, LineEnd=1, Path="file1.cpp"),
-        dict(LineStart=5, LineEnd=8, Path="main.cpp"),
-    ])
+    assert_frame(
+        df,
+        [
+            dict(LineStart=1, LineEnd=1, Path="file1.cpp"),
+            dict(LineStart=5, LineEnd=8, Path="main.cpp"),
+        ],
+    )
 
 
 @beartype
@@ -345,9 +358,9 @@ def cleanup_test_code(code: str) -> str:
 
 
 @beartype
-def add_cov_segment_text(df: pd.DataFrame,
-                         lines: List[str],
-                         for_test: bool = True) -> None:
+def add_cov_segment_text(
+    df: pd.DataFrame, lines: List[str], for_test: bool = True
+) -> None:
 
     def get_row(row: Dict[str, Any]) -> str:
         code = cov.extract_text(
@@ -377,9 +390,12 @@ def test_file_segmentation_1(stable_test_dir: Path) -> None:
 
     df = pd.read_sql(main_cov, session.get_bind())
     add_cov_segment_text(df, lines)
-    assert_frame(df[df["LineStart"] == 1], [
-        dict(Text="{}", ColumnStart=15, ColumnEnd=17),
-    ])
+    assert_frame(
+        df[df["LineStart"] == 1],
+        [
+            dict(Text="{}", ColumnStart=15, ColumnEnd=17),
+        ],
+    )
 
 
 @pytest.mark.test_release
@@ -398,59 +414,66 @@ def test_file_segmentation_2(stable_test_dir: Path) -> None:
     df = pd.read_sql(select(cov.CovFileRegion), session.get_bind())
     add_cov_segment_text(df, lines)
 
-    assert_frame(df, [
-        dict(
-            LineStart=1,
-            LineEnd=1,
-            Text="{}",
-        ),
-        dict(
-            LineStart=3,
-            LineEnd=5,
-            Id=2,
-            Text="{ if (true || false) { action(); } }",
-        ),
-        dict(
-            LineStart=4,
-            LineEnd=4,
-            Text="true",
-            ColumnStart=9,
-            ColumnEnd=13,
-        ),
-        dict(
-            LineStart=4,
-            LineEnd=4,
-            Text="true || false",
-            ColumnStart=9,
-            ColumnEnd=22,
-        ),
-        dict(),
-        dict(
-            LineStart=4,
-            LineEnd=4,
-            Text="false",
-            ColumnStart=17,
-            ColumnEnd=22,
-        ),
-        dict(RegionKind="CovRegionKind.GapRegion",),
-        dict(
-            LineStart=4,
-            Text="{ action(); }",
-        ),
-    ])
+    assert_frame(
+        df,
+        [
+            dict(
+                LineStart=1,
+                LineEnd=1,
+                Text="{}",
+            ),
+            dict(
+                LineStart=3,
+                LineEnd=5,
+                Id=2,
+                Text="{ if (true || false) { action(); } }",
+            ),
+            dict(
+                LineStart=4,
+                LineEnd=4,
+                Text="true",
+                ColumnStart=9,
+                ColumnEnd=13,
+            ),
+            dict(
+                LineStart=4,
+                LineEnd=4,
+                Text="true || false",
+                ColumnStart=9,
+                ColumnEnd=22,
+            ),
+            dict(),
+            dict(
+                LineStart=4,
+                LineEnd=4,
+                Text="false",
+                ColumnStart=17,
+                ColumnEnd=22,
+            ),
+            dict(
+                RegionKind="CovRegionKind.GapRegion",
+            ),
+            dict(
+                LineStart=4,
+                Text="{ action(); }",
+            ),
+        ],
+    )
 
 
 @pytest.mark.test_release
 @pytest.mark.test_coverage_annotation_file_cxx
 def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
     dir = stable_test_dir
-    code = "\n".join([
-        "",
-        "int main() {",
-        "  int a = 1 + 2;",
-        "  int b = a + 3;",
-        "}",
-    ])
+    code = "\n".join(
+        [
+            "",
+            "int main() {",
+            "  int a = 1 + 2;",
+            "  int b = a + 3;",
+            "}",
+        ]
+    )
     cmd = ProfileRunParams(dir=dir, main="main.cpp", files={"main.cpp": code})
     cmd.run()
     assert cmd.get_sqlite().exists()
@@ -496,13 +519,15 @@ def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
 
     ju.assert_subset(
         line_annotated_file.model_dump(),
-        dict(Lines=[
-            dict(Segments=[dict(Text="\n")]),
-            dict(Segments=[dict(Text="int main() {\n")]),
-            dict(Segments=[dict(Text="  int a = 1 + 2;\n")]),
-            dict(Segments=[dict(Text="  int b = a + 3;\n")]),
-            dict(Segments=[dict(Text="}")]),
-        ],),
+        dict(
+            Lines=[
+                dict(Segments=[dict(Text="\n")]),
+                dict(Segments=[dict(Text="int main() {\n")]),
+                dict(Segments=[dict(Text="  int a = 1 + 2;\n")]),
+                dict(Segments=[dict(Text="  int b = a + 3;\n")]),
+                dict(Segments=[dict(Text="}")]),
+            ],
+        ),
     )
 
     assert len(line_segmented) == 5
@@ -526,14 +551,15 @@ def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
 
     ju.assert_subset(
         join_annotated_file.model_dump(),
-        dict(Lines=[
-            dict(Segments=[dict(Text="\n")]),
-            dict(Segments=[dict(
-                Text="int main() "), dict(Text="{\n")]),
-            dict(Segments=[dict(Text="  int a = 1 + 2;\n")]),
-            dict(Segments=[dict(Text="  int b = a + 3;\n")]),
-            dict(Segments=[dict(Text="}")]),
-        ],),
+        dict(
+            Lines=[
+                dict(Segments=[dict(Text="\n")]),
+                dict(Segments=[dict(Text="int main() "), dict(Text="{\n")]),
+                dict(Segments=[dict(Text="  int a = 1 + 2;\n")]),
+                dict(Segments=[dict(Text="  int b = a + 3;\n")]),
+                dict(Segments=[dict(Text="}")]),
+            ],
+        ),
     )
 
     token_dict = defaultdict(lambda: len(token_dict))
@@ -545,7 +571,8 @@ def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
 
     token_segmented = cov.org.annotateSequence(
         groups=cov.org.HstdVecOfSequenceSegmentGroup(
-            [line_group, flat_group, token_group]),
+            [line_group, flat_group, token_group]
+        ),
         first=0,
         last=len(code),
     )
@@ -555,32 +582,59 @@ def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
         annotations=[it for it in token_segmented],
         line_group_kind=line_group.kind,
         token_group_kind=token_group.kind,
-        token_kind_mapping={
-            kind: key for key, kind in token_dict.items()
-        },
+        token_kind_mapping={kind: key for key, kind in token_dict.items()},
         coverage_group_kind=flat_group.kind,
     )
 
     ju.assert_subset(
         to_debug_json(token_annotated_file.model_dump()),
         to_debug_json(
-            dict(Lines=[
-                dict(Segments=[dict(TokenKind="Token.Text.Whitespace")]),
-                dict(Segments=[
-                    dict(Text="int", Annotations={}, TokenKind="Token.Keyword.Type"),
-                    dict(Text=" ", Annotations={}, TokenKind="Token.Text.Whitespace"),
-                    dict(Text="main", Annotations={}, TokenKind="Token.Name.Function"),
-                    dict(Text="()", Annotations={}, TokenKind="Token.Punctuation"),
-                    dict(Text=" ", Annotations={}, TokenKind="Token.Text.Whitespace"),
-                    dict(Text="{", CoverageSegmentIdx=[0], TokenKind="Token.Punctuation"),
-                    dict(Text="\n",
-                         CoverageSegmentIdx=[0],
-                         TokenKind="Token.Text.Whitespace"),
-                ]),
-                dict(),
-                dict(),
-                dict(Segments=[dict(TokenKind="Token.Punctuation")]),
-            ])),
+            dict(
+                Lines=[
+                    dict(Segments=[dict(TokenKind="Token.Text.Whitespace")]),
+                    dict(
+                        Segments=[
+                            dict(
+                                Text="int",
+                                Annotations={},
+                                TokenKind="Token.Keyword.Type",
+                            ),
+                            dict(
+                                Text=" ",
+                                Annotations={},
+                                TokenKind="Token.Text.Whitespace",
+                            ),
+                            dict(
+                                Text="main",
+                                Annotations={},
+                                TokenKind="Token.Name.Function",
+                            ),
+                            dict(
+                                Text="()", Annotations={}, TokenKind="Token.Punctuation"
+                            ),
+                            dict(
+                                Text=" ",
+                                Annotations={},
+                                TokenKind="Token.Text.Whitespace",
+                            ),
+                            dict(
+                                Text="{",
+                                CoverageSegmentIdx=[0],
+                                TokenKind="Token.Punctuation",
+                            ),
+                            dict(
+                                Text="\n",
+                                CoverageSegmentIdx=[0],
+                                TokenKind="Token.Text.Whitespace",
+                            ),
+                        ]
+                    ),
+                    dict(),
+                    dict(),
+                    dict(Segments=[dict(TokenKind="Token.Punctuation")]),
+                ]
+            )
+        ),
     )
 
     recombine = ""
@@ -596,13 +650,15 @@ def test_coverage_annotation_single_run(stable_test_dir: Path) -> None:
 def test_coverage_annotation_multiple_run_single_segment(stable_test_dir: Path) -> None:
 
     dir = stable_test_dir
-    code = "\n".join([
-        "",
-        "int main() {",
-        "  int a = 1 + 2;",
-        "  int b = a + 3;",
-        "}",
-    ])
+    code = "\n".join(
+        [
+            "",
+            "int main() {",
+            "  int a = 1 + 2;",
+            "  int b = a + 3;",
+            "}",
+        ]
+    )
 
     cmd = ProfileRunParams(
         dir=dir,
@@ -634,15 +690,19 @@ def test_coverage_annotation_multiple_run_single_segment(stable_test_dir: Path) 
 
 
 css_path = get_haxorg_repo_root_path().joinpath(
-    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css")
+    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.css"
+)
 
 js_path = get_haxorg_repo_root_path().joinpath(
-    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.js")
+    "scripts/py_repository/py_repository/repo_docgen/gen_coverage.js"
+)
 
 
 @pytest.mark.test_release
 @pytest.mark.test_coverage_annotation_file_cxx
-def test_coverage_annotation_multiple_run_multiple_segment(stable_test_dir: Path) -> None:
+def test_coverage_annotation_multiple_run_multiple_segment(
+    stable_test_dir: Path,
+) -> None:
     dir = stable_test_dir
     code = corpus_base.joinpath("test_coverage_regions_2.cpp").read_text()
 
@@ -663,8 +723,10 @@ def test_coverage_annotation_multiple_run_multiple_segment(stable_test_dir: Path
 
     session = open_sqlite_session(cmd.get_sqlite(), cov.CoverageSchema)
 
-    db_debug_path = Path(
-        gettempdir()) / "test_coverage_annotation_multiple_run_multiple_segment.txt"
+    db_debug_path = (
+        Path(gettempdir())
+        / "test_coverage_annotation_multiple_run_multiple_segment.txt"
+    )
     db_debug_path.write_text(format_db_all(session, style=False))
 
     file = cov.get_annotated_file_for_session(
@@ -706,15 +768,18 @@ def test_coverage_annotation_multiple_run_multiple_segment(stable_test_dir: Path
 
     assert recombine == code
 
-    debug_path = Path(
-        gettempdir()) / "test_coverage_annotation_multiple_run_multiple_segment.html"
+    debug_path = (
+        Path(gettempdir())
+        / "test_coverage_annotation_multiple_run_multiple_segment.html"
+    )
 
     debug_path.write_text(
         cov.get_file_annotation_document(
             cxx_session=session,
             root_path=dir,
             abs_path=dir.joinpath("main.cpp"),
-        ).render())
+        ).render()
+    )
 
     session = open_sqlite_session(cmd.get_sqlite(), cov.CoverageSchema)
     main_cov = cov.get_coverage_of(session, cmd.get_code("main.cpp"))
@@ -731,20 +796,21 @@ def test_coverage_annotation_multiple_run_multiple_segment(stable_test_dir: Path
                 show_lines=True,
             ),
             color=False,
-        ))
+        )
+    )
 
 
 @beartype
 def run_common(
-        cmd: ProfileRunParams,
-        dir: Path,
-        path_pprint: Optional[Path] = Path("annotated.py"),
-        path_genhtml: Optional[Path] = Path(""),
-        path_dbdump: Optional[Path] = Path("dbdump.txt"),
-        path_format_segments: Optional[Path] = Path("annotated_segments.txt"),
-        path_merger_run: Optional[Path] = Path("show_merger_run.txt"),
-        path_coverage_mapping_dump: Optional[Path] = Path("mapping_dump"),
-        filename: Path = Path("main.cpp"),
+    cmd: ProfileRunParams,
+    dir: Path,
+    path_pprint: Optional[Path] = Path("annotated.py"),
+    path_genhtml: Optional[Path] = Path(""),
+    path_dbdump: Optional[Path] = Path("dbdump.txt"),
+    path_format_segments: Optional[Path] = Path("annotated_segments.txt"),
+    path_merger_run: Optional[Path] = Path("show_merger_run.txt"),
+    path_coverage_mapping_dump: Optional[Path] = Path("mapping_dump"),
+    filename: Path = Path("main.cpp"),
 ) -> None:
     "Shared logic for the custom code documentation generation in tests."
 
@@ -788,10 +854,12 @@ def run_common(
                     cxx_session=session,
                     root_path=dir,
                     abs_path=dir.joinpath(code_in),
-                ).render())
+                ).render()
+            )
 
             pass_path(path_genhtml).with_suffix(".json").write_text(
-                file.model_dump_json(indent=2))
+                file.model_dump_json(indent=2)
+            )
             pass_path(path_genhtml).with_suffix(".txt").write_text(file.get_debug())
 
 
@@ -831,11 +899,11 @@ def test_macro_coverage1(stable_test_dir: Path) -> None:
 @pytest.mark.test_coverage_annotation_file_cxx
 def test_exporter_tcc_coverage(stable_test_dir: Path) -> None:
     dir = stable_test_dir
-    cmd = ProfileRunParams(dir=dir,
-                           main="main.cpp",
-                           files={
-                               "exporter.hpp":
-                                   """
+    cmd = ProfileRunParams(
+        dir=dir,
+        main="main.cpp",
+        files={
+            "exporter.hpp": """
 #pragma once
 template <typename T>
 struct Exporter {
@@ -843,8 +911,7 @@ struct Exporter {
     void impl_2();
 };
                 """,
-                               "exporter.tcc":
-                                   """
+            "exporter.tcc": """
 #include "exporter.hpp"
 
 template <typename T>
@@ -854,15 +921,13 @@ template <typename T>
 void Exporter<T>::impl_2() {}
 
                 """,
-                               "exporter.cpp":
-                                   """
+            "exporter.cpp": """
 #include "exporter.hpp"
 #include "exporter.tcc"
 
 template class Exporter<int>;
                 """,
-                               "main.cpp":
-                                   """
+            "main.cpp": """
 #include "exporter.hpp"
 
 int main() {
@@ -872,7 +937,8 @@ int main() {
     exp.impl_2();
 }
                 """,
-                           },
-                           run_contexts={"1": []})
+        },
+        run_contexts={"1": []},
+    )
 
     run_common(cmd, dir)

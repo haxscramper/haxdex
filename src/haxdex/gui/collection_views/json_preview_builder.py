@@ -1,17 +1,16 @@
 import json
 
 from arango import DocumentGetError
+from PyQt6.QtWidgets import QWidget
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-from PyQt6.QtWidgets import QWidget
 
 
 class JsonWidgetBuilder(WidgetBuilder):
-
     def __init__(self, collection_name: str) -> None:
         self._collection_name = collection_name
 

@@ -13,13 +13,18 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import ColumnSortFilterProxyModel
-from hstd_py_qt.src.hstd_py_qt.filterable_table_view import FilterableTableView, FilterColumnConfig
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.file_tree.actions.action_handler import BaseAction
 from haxdex.gui.file_tree.actions.action_list_model import ActionListModel
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
+from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import (
+    ColumnSortFilterProxyModel,
+)
+from hstd_py_qt.src.hstd_py_qt.filterable_table_view import (
+    FilterableTableView,
+    FilterColumnConfig,
+)
 
 
 @beartype
@@ -80,7 +85,9 @@ class ActionListView(QWidget):
         self.tableWidget.configure_filters(filter_columns or default_filters)
 
         self.saveActionsButton = QPushButton("save actions", self)
-        self.saveActionsButton.clicked.connect(lambda *_: self.on_save_actions_clicked())
+        self.saveActionsButton.clicked.connect(
+            lambda *_: self.on_save_actions_clicked()
+        )
 
         self.overwriteActionsButton = QPushButton("overwrite actions", self)
         self.overwriteActionsButton.clicked.connect(lambda *_: self.overwrite_actions())
@@ -101,8 +108,9 @@ class ActionListView(QWidget):
             self.proxyModel.setFilterRule(column, None)
             return
 
-        rule: Callable[
-            [Any], bool] = lambda value, search=needle: search in str(value).casefold()
+        rule: Callable[[Any], bool] = lambda value, search=needle: (
+            search in str(value).casefold()
+        )
         self.proxyModel.setFilterRule(column, rule)
 
     def on_tree_item_double_clicked(self, index: QModelIndex) -> None:

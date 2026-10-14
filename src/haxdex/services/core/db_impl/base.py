@@ -1,4 +1,3 @@
-from loguru import logger
 from pathlib import Path
 from typing import cast
 
@@ -12,7 +11,6 @@ from haxdex.services.core.types import FileRef
 
 
 class DatabaseBase:
-
     def __init__(
         self,
         host: str,
@@ -88,9 +86,10 @@ class DatabaseBase:
 
                 collection = self._db.collection(name)
                 for index in collection.indexes():
-                    if (index.get("type") == "vector" and
-                        (index.get("inBackground", False) or
-                         index.get("isBuilding", False))):
+                    if index.get("type") == "vector" and (
+                        index.get("inBackground", False)
+                        or index.get("isBuilding", False)
+                    ):
                         all_ready = False
                         break
 
@@ -103,7 +102,8 @@ class DatabaseBase:
             time.sleep(interval)
 
         raise TimeoutError(
-            f"Timed out waiting for vector indexes in database {self._db_name}")
+            f"Timed out waiting for vector indexes in database {self._db_name}"
+        )
 
     @staticmethod
     def _view_name(asset_name: str, base: type, full_text_index) -> str:

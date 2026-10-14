@@ -1,13 +1,12 @@
-from PyQt6.QtCore import QModelIndex, Qt
 from beartype import beartype
 from beartype.typing import Any
+from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec
 
 
 @beartype
 class WdTagsColumnSpec(FileTreeColumnSpec):
-
     def __init__(self) -> None:
         super().__init__("WD Tags")
 

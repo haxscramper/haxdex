@@ -1,19 +1,15 @@
 import glom
 from beartype import beartype
 from beartype.typing import Any
-
 from PyQt6.QtCore import QModelIndex, Qt
 
-from hstd_py_qt.src.hstd_py_qt.tree_column_model import AbstractTreeColumnModel
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from loguru import logger
-
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from hstd_py_qt.src.hstd_py_qt.tree_column_model import AbstractTreeColumnModel
 
 
 @beartype
 class FileTreeModel(AbstractTreeColumnModel[FileTreeNode]):
-
     def getNestedNodes(self, node: FileTreeNode) -> list[FileTreeNode]:
         return node.nested
 

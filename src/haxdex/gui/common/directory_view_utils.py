@@ -25,9 +25,9 @@ DIRECTORY_STRUCTURE = {
 
 
 def _generate_monotone_image(
-        path: Path,
-        size: tuple[int, int] = (512, 512),
-        color: tuple[int, int, int] = (128, 128, 128),
+    path: Path,
+    size: tuple[int, int] = (512, 512),
+    color: tuple[int, int, int] = (128, 128, 128),
 ):
     """Generate a monotone color image and save it to the given path."""
     img = Image.new("RGB", size, color)
@@ -46,13 +46,13 @@ def _count_specified_images(structure: dict) -> int:
 
 
 def _populate_template_directory(
-        template_dir: Path,
-        num_images: int = 32,
-        size: tuple[int, int] = (512, 512),
+    template_dir: Path,
+    num_images: int = 32,
+    size: tuple[int, int] = (512, 512),
 ):
     """Populate the template directory with monotone color images."""
-    import shutil
     import colorsys
+    import shutil
 
     if template_dir.exists():
         shutil.rmtree(template_dir)
@@ -90,5 +90,6 @@ def _populate_template_directory(
         dest.mkdir(parents=True, exist_ok=True)
         hue = i / num_images
         color = tuple(int(c * 255) for c in colorsys.hsv_to_rgb(hue, 1.0, 1.0))
-        _generate_monotone_image(dest / f"image_{color[0]}_{color[1]}_{color[2]}.png",
-                                 size, color)
+        _generate_monotone_image(
+            dest / f"image_{color[0]}_{color[1]}_{color[2]}.png", size, color
+        )

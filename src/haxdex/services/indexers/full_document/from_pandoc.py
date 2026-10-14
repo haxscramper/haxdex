@@ -1,9 +1,8 @@
 import json
-from loguru import logger
 from pathlib import Path
 
 import plumbum
-from beartype.typing import Literal, Sequence, cast
+from beartype.typing import Sequence, cast
 
 from haxdex.services.indexers.full_document.full_document_types import (
     BulletListItem,
@@ -67,28 +66,34 @@ def _convert_inlines(
                 out += _convert_inlines(il["c"], styles.extend(Markup.UNDERLINE))
 
             case {"t": "Code"}:
-                out.append(StyledText(
-                    text=il["c"][1],
-                    styles=styles.extend(Markup.CODE),
-                ))
+                out.append(
+                    StyledText(
+                        text=il["c"][1],
+                        styles=styles.extend(Markup.CODE),
+                    )
+                )
 
             case {"t": "Link"}:
                 _, link_inlines, target = il["c"]
                 label_nodes = _convert_inlines(link_inlines)
                 label = [n for n in label_nodes if isinstance(n, StyledText)]
-                out.append(Link(
-                    href=target[0],
-                    content=label,
-                ))
+                out.append(
+                    Link(
+                        href=target[0],
+                        content=label,
+                    )
+                )
 
             case {"t": "Image"}:
                 _, link_inlines, target = il["c"]
                 label_nodes = _convert_inlines(link_inlines)
                 label = [n for n in label_nodes if isinstance(n, StyledText)]
-                out.append(Link(
-                    href=target[0],
-                    content=label,
-                ))
+                out.append(
+                    Link(
+                        href=target[0],
+                        content=label,
+                    )
+                )
 
             case {"t": "Superscript" | "Subscript" | "SmallCaps" | "Span" | "Quoted"}:
                 payload = il["c"]
@@ -96,11 +101,14 @@ def _convert_inlines(
                 out += _convert_inlines(nested, styles)
 
             case {"t": "Math"}:
-                out.append(StyledText(text=il["c"][1], styles=styles.extend(Markup.MATH)))
+                out.append(
+                    StyledText(text=il["c"][1], styles=styles.extend(Markup.MATH))
+                )
 
             case {"t": "RawInline"}:
                 out.append(
-                    StyledText(text="".join(il["c"]), styles=styles.extend(Markup.RAW)))
+                    StyledText(text="".join(il["c"]), styles=styles.extend(Markup.RAW))
+                )
 
             case str():
                 out.append(StyledText(text=il))
@@ -142,8 +150,9 @@ def _attach_caption(block: DocumentBlock, caption: str) -> None:
     props.caption = caption
 
 
-def _convert_list_items(items: list, item_type: str,
-                        file_hash: str) -> Sequence[DocumentBlock]:
+def _convert_list_items(
+    items: list, item_type: str, file_hash: str
+) -> Sequence[DocumentBlock]:
     cls = {
         "bulletListItem": BulletListItem,
         "numberedListItem": NumberedListItem,
@@ -157,7 +166,9 @@ def _convert_list_items(items: list, item_type: str,
             continue
         head = blocks[0]
         content = getattr(head, "content", InlineContent())
-        result.append(build(cls, content=content, nested=blocks[1:], file_hash=file_hash))
+        result.append(
+            build(cls, content=content, nested=blocks[1:], file_hash=file_hash)
+        )
     return result
 
 
@@ -233,7 +244,8 @@ def _row_to_table_row(row_obj: list, *, is_header: bool, file_hash: str) -> Tabl
                     isHeader=is_header,
                 ),
                 content=_blocks_to_inline_content(blocks),
-            ))
+            )
+        )
 
     return cast(
         TableRow,
@@ -287,7 +299,8 @@ def _convert_block(pb: dict, file_hash: str) -> Sequence[DocumentBlock]:
                     Paragraph,
                     file_hash=file_hash,
                     content=inline_nodes_to_content(
-                        _convert_inlines(pb["c"], TextStyles())),
+                        _convert_inlines(pb["c"], TextStyles())
+                    ),
                 )
             ]
 
@@ -304,7 +317,8 @@ def _convert_block(pb: dict, file_hash: str) -> Sequence[DocumentBlock]:
                     file_hash=file_hash,
                     props=props,
                     content=inline_nodes_to_content(
-                        _convert_inlines(inlines, TextStyles())),
+                        _convert_inlines(inlines, TextStyles())
+                    ),
                     nested=[],
                 )
             ]
@@ -326,9 +340,9 @@ def _convert_block(pb: dict, file_hash: str) -> Sequence[DocumentBlock]:
             return _convert_list_items(pb["c"], "bulletListItem", file_hash=file_hash)
 
         case "OrderedList":
-            return _convert_list_items(pb["c"][1],
-                                       "numberedListItem",
-                                       file_hash=file_hash)
+            return _convert_list_items(
+                pb["c"][1], "numberedListItem", file_hash=file_hash
+            )
 
         case "DefinitionList":
             blocks: list[DocumentBlock] = []
@@ -345,14 +359,16 @@ def _convert_block(pb: dict, file_hash: str) -> Sequence[DocumentBlock]:
                                 blocks += _convert_block(db, file_hash=file_hash)
 
                     if definition_inlines:
-                        merged = merge_text(term + [StyledText(text=" :: ")] +
-                                            definition_inlines)
+                        merged = merge_text(
+                            term + [StyledText(text=" :: ")] + definition_inlines
+                        )
                         blocks.append(
                             build(
                                 Paragraph,
                                 file_hash=file_hash,
                                 content=inline_nodes_to_content(merged),
-                            ))
+                            )
+                        )
 
             return blocks
 
@@ -412,9 +428,7 @@ def _convert_block(pb: dict, file_hash: str) -> Sequence[DocumentBlock]:
                     props=DivProps(
                         identifier=identifier,
                         classes=classes,
-                        attributes={
-                            k: v for k, v in keyvals
-                        },
+                        attributes={k: v for k, v in keyvals},
                     ),
                     file_hash=file_hash,
                     nested=nested,

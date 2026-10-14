@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-from loguru import logger
 import os
 import re
 import threading
@@ -10,7 +9,6 @@ import time as _time
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from accelerate.commands.config.default import description
 from beartype import beartype
 from beartype.typing import Any, ClassVar, Optional, ParamSpec, TypeVar
 from pydantic import BaseModel, Field
@@ -18,11 +16,11 @@ from sqlalchemy import (
     JSON,
     Column,
     DateTime,
+    Engine,
     Float,
     MetaData,
     String,
     Table,
-    Engine,
 )
 
 from haxdex.services.core.db import IndexDatabase
@@ -33,11 +31,11 @@ from haxdex.services.core.types import (
     MultiDocumentModel,
 )
 from haxdex.services.pydantic_utils import (
-    to_json_safe,)
+    to_json_safe,
+)
 
 
 class TraceWriter:
-
     def __init__(self):
         self.events = []
         self.lock = threading.Lock()
@@ -71,7 +69,6 @@ class TraceWriter:
 
 @beartype
 class RunContext:
-
     def __init__(self, db: IndexDatabase) -> None:
         self._db = db
         self.writer = None
@@ -125,7 +122,8 @@ R = TypeVar("R", bound="IndexerOutput")
 class BaseIndexerConfig(BaseModel, extra="forbid"):
     use_cache: bool = True
     reset_db_collection: bool = Field(
-        default=False, description="Reset the indexer collecitions in arango DB")
+        default=False, description="Reset the indexer collecitions in arango DB"
+    )
 
 
 def indexer_cache_table_name(asset_name: str) -> str:

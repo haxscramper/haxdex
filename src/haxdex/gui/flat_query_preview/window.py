@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from loguru import logger
 from typing import List, Optional, Sequence
 
 from beartype import beartype
+from loguru import logger
 from PyQt6.QtCore import QModelIndex, QSize, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -36,7 +36,6 @@ DEFAULT_QUERY = """FOR f IN files
 
 @beartype
 class FlatQueryViewWindow(QMainWindow):
-
     def __init__(
         self,
         db: IndexDatabase,
@@ -83,7 +82,9 @@ class FlatQueryViewWindow(QMainWindow):
 
         self._cache = ThumbnailCache(TILE_SIZE)
         self._cache.updated.connect(self._list.viewport().update)
-        self._list.setItemDelegate(FilePreviewDelegate(self._cache, TILE_SIZE),)
+        self._list.setItemDelegate(
+            FilePreviewDelegate(self._cache, TILE_SIZE),
+        )
 
         self._preview = FilePreviewPane(
             db=db,
@@ -113,7 +114,9 @@ class FlatQueryViewWindow(QMainWindow):
 
         self._cache = ThumbnailCache(TILE_SIZE)
         self._cache.updated.connect(self._list.viewport().update)
-        self._list.setItemDelegate(FilePreviewDelegate(self._cache, TILE_SIZE),)
+        self._list.setItemDelegate(
+            FilePreviewDelegate(self._cache, TILE_SIZE),
+        )
 
     def _on_clicked(self, index: QModelIndex) -> None:
         hash_str = index.data(QueryResultModel.HashRole)

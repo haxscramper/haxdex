@@ -1,11 +1,11 @@
-from dataclasses import dataclass, field
 import enum
 import importlib
 import inspect
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, cast, Dict, Iterator, List, Mapping, Optional, Tuple
+from beartype.typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, cast
 from docutils import nodes
 from pydantic import BaseModel, Field
 from sphinx import addnodes
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class DomainObject(BaseModel, extra="forbid"):
     """Base exported domain object with Sphinx location metadata."""
+
     name: str  # nodoc
     full_name: str  # nodoc
     display_name: str  # nodoc
@@ -34,22 +35,26 @@ class DomainObject(BaseModel, extra="forbid"):
 
 class FunctionObject(DomainObject, extra="forbid"):
     """Module-level or class-level callable (function/method)."""
+
     pass
 
 
 class AttributeObject(DomainObject, extra="forbid"):
     """Module-level or class-level attribute/data."""
+
     pass
 
 
 class ClassObject(DomainObject, extra="forbid"):
     """Class-like object with nested members."""
+
     methods: List[FunctionObject] = Field(default_factory=list)  # nodoc
     attributes: List[AttributeObject] = Field(default_factory=list)  # nodoc
 
 
 class ModuleMeta(BaseModel, extra="forbid"):
     """Sphinx module entry metadata from the Python domain."""
+
     full_name: str  # nodoc
     docname: str  # nodoc
     anchor: str  # nodoc
@@ -60,6 +65,7 @@ class ModuleMeta(BaseModel, extra="forbid"):
 
 class ModuleNode(BaseModel, extra="forbid"):
     """Module/package tree node with nested content."""
+
     name: str  # nodoc
     full_name: str  # nodoc
     meta: Optional[ModuleMeta] = None  # nodoc
@@ -74,6 +80,7 @@ class ModuleNode(BaseModel, extra="forbid"):
 
 class StructJSONPayload(BaseModel, extra="forbid"):
     """Top-level structured API export."""
+
     project: str  # nodoc
     version: str  # nodoc
     release: str  # nodoc
@@ -83,6 +90,7 @@ class StructJSONPayload(BaseModel, extra="forbid"):
 @dataclass
 class _ModuleAcc:
     "Mutable module accessor"
+
     name: str
     "Unqualified name for the module"
     full_name: str
@@ -103,8 +111,9 @@ class _ModuleAcc:
 
 
 @beartype
-def _ensure_module(root: _ModuleAcc, full_name: str,
-                   index: Dict[str, _ModuleAcc]) -> _ModuleAcc:
+def _ensure_module(
+    root: _ModuleAcc, full_name: str, index: Dict[str, _ModuleAcc]
+) -> _ModuleAcc:
     "Find or create a new module accessor for fully qualified name"
     parts: List[str] = full_name.split(".") if full_name else []
     node = root
@@ -122,8 +131,8 @@ def _ensure_module(root: _ModuleAcc, full_name: str,
 
 @beartype
 def _find_module_prefix(
-        name: str,
-        module_index: Mapping[str, _ModuleAcc]) -> Tuple[_ModuleAcc | None, List[str]]:
+    name: str, module_index: Mapping[str, _ModuleAcc]
+) -> Tuple[_ModuleAcc | None, List[str]]:
     "Get the module accessor and split qualified name"
     parts: List[str] = name.split(".")
     for i in range(len(parts), 0, -1):
@@ -154,6 +163,7 @@ def _freeze(node: _ModuleAcc) -> ModuleNode:
 
 class _SphinxObjType(str, enum.Enum):
     "Types of entires parsed by the sphinx python domain"
+
     _function = "function"  # nodoc
     _class = "class"  # nodoc
     _exception = "exception"  # nodoc
@@ -165,8 +175,9 @@ class _SphinxObjType(str, enum.Enum):
 
 @beartype
 @dataclass
-class _SphinxPyDomainObject():
+class _SphinxPyDomainObject:
     "Typed representation of the sphinx python domain object"
+
     full_name: str
     "Fully qualified name."
     dispname: str
@@ -191,6 +202,7 @@ class _SphinxPyDomainObject():
 @dataclass
 class _SphinxDescribedPyObject:
     "Typed representation of the documented python object"
+
     domain: str  # nodoc
     objtype: _SphinxObjType  # nodoc
     fullname: str  # often a fully-qualified name
@@ -250,7 +262,9 @@ def _get_py_location(obj: Any) -> tuple[Optional[str], Optional[int]]:
 
 
 @beartype
-def _iter_py_descriptions(doctree: nodes.document) -> Iterator[_SphinxDescribedPyObject]:
+def _iter_py_descriptions(
+    doctree: nodes.document,
+) -> Iterator[_SphinxDescribedPyObject]:
     "Iterate over a flat list of described python objects"
     for desc in doctree.findall(addnodes.desc):
         if desc.get("domain") != "py":
@@ -334,8 +348,9 @@ def _mk_attr(name: str, full: str, obj: _SphinxPyDomainObject) -> AttributeObjec
 
 
 @beartype
-def _get_or_create_class(class_full: str, class_short: str, obj: _SphinxPyDomainObject,
-                         mod_node: _ModuleAcc) -> ClassObject:
+def _get_or_create_class(
+    class_full: str, class_short: str, obj: _SphinxPyDomainObject, mod_node: _ModuleAcc
+) -> ClassObject:
     "Create documented new documented class entry or return existing"
     existing = mod_node.classes.get(class_full)
     if existing is not None:
@@ -382,18 +397,22 @@ def _get_or_create_exception(
 @beartype
 def _iterate_py_objects(py: PythonDomain) -> Iterator[_SphinxPyDomainObject]:
     "Iterate over flat list of the python domain entires"
-    return (_SphinxPyDomainObject(
-        full_name,
-        dispname,
-        _SphinxObjType(objtype),
-        docname,
-        anchor,
-        priority,
-    ) for full_name, dispname, objtype, docname, anchor, priority in py.get_objects())
+    return (
+        _SphinxPyDomainObject(
+            full_name,
+            dispname,
+            _SphinxObjType(objtype),
+            docname,
+            anchor,
+            priority,
+        )
+        for full_name, dispname, objtype, docname, anchor, priority in py.get_objects()
+    )
 
 
 class StructJSONBuilder(Builder):
     """Structured JSON backend builder for Sphinx."""
+
     name = "structjson"  # nodoc
     format = "json"  # nodoc
     epilog = "Wrote api.json"  # nodoc
@@ -481,14 +500,16 @@ class StructJSONBuilder(Builder):
                 case _SphinxObjType._class if 1 <= len(remainder):
                     # Classes/exceptions: pkg.mod.Class
                     class_short = remainder[-1]
-                    _class = _get_or_create_class(obj.full_name, class_short, obj,
-                                                  mod_node)
+                    _class = _get_or_create_class(
+                        obj.full_name, class_short, obj, mod_node
+                    )
                     update_docs(_class)
 
                 case _SphinxObjType._exception if 1 <= len(remainder):
                     exc_short = remainder[-1]
-                    _exc = _get_or_create_exception(obj.full_name, exc_short, obj,
-                                                    mod_node)
+                    _exc = _get_or_create_exception(
+                        obj.full_name, exc_short, obj, mod_node
+                    )
                     update_docs(_exc)
 
                 case _SphinxObjType._method if 2 <= len(remainder):
@@ -496,12 +517,15 @@ class StructJSONBuilder(Builder):
                     class_parts = remainder[:-1]
                     method_short = remainder[-1]
                     class_full = f"{mod_node.full_name}." + ".".join(class_parts)
-                    cls = _get_or_create_class(class_full, class_parts[-1], obj, mod_node)
+                    cls = _get_or_create_class(
+                        class_full, class_parts[-1], obj, mod_node
+                    )
                     update_docs(cls)
                     cls.methods.append(_mk_function(method_short, obj.full_name, obj))
 
                 case _SphinxObjType._attribute | _SphinxObjType._data if 1 <= len(
-                    remainder):
+                    remainder
+                ):
                     # Attributes/data: module-level or class-level
                     attr_short = remainder[-1]
                     if len(remainder) == 1:
@@ -511,8 +535,9 @@ class StructJSONBuilder(Builder):
                     else:
                         class_parts = remainder[:-1]
                         class_full = f"{mod_node.full_name}." + ".".join(class_parts)
-                        cls = _get_or_create_class(class_full, class_parts[-1], obj,
-                                                   mod_node)
+                        cls = _get_or_create_class(
+                            class_full, class_parts[-1], obj, mod_node
+                        )
                         _attr = _mk_attr(attr_short, obj.full_name, obj)
                         update_docs(_attr)
                         cls.attributes.append(_attr)

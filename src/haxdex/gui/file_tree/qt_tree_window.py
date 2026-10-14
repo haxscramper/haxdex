@@ -1,8 +1,8 @@
-from PyQt6.QtCore import QCoreApplication, QModelIndex, Qt
-from PyQt6.QtGui import QCloseEvent
 from beartype import beartype
 from beartype.typing import Sequence, cast
 from loguru import logger
+from PyQt6.QtCore import QCoreApplication, QModelIndex, Qt
+from PyQt6.QtGui import QCloseEvent
 from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.cli.cli_config import AppConfig
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.common.qt_model_roles import CustomModelRole
@@ -22,14 +21,19 @@ from haxdex.gui.file_tree.actions.action_list_view import ActionListView
 from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
 from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
 from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
 from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
 from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
 from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
 from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertColumnSpec
 from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
-from haxdex.gui.file_tree.columns.video_resolution_column import VideoResolutionColumnSpec
+from haxdex.gui.file_tree.columns.video_resolution_column import (
+    VideoResolutionColumnSpec,
+)
 from haxdex.gui.file_tree.model.tree_model_build import build_file_tree
 from haxdex.gui.file_tree.model.tree_model_user_edits import store_user_column_edit
 from haxdex.gui.file_tree.python_code_editor import QueryError
@@ -38,11 +42,11 @@ from haxdex.gui.file_tree.qt_tree_region import FileTreeRegion
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
+from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
 
 
 @beartype
 class FileTreeQueryCore:
-
     @staticmethod
     def build_reference_tree(
         ctx: RunContext,
@@ -100,14 +104,17 @@ class FileTreeQueryCore:
                 FileDuplicateColumnSpec(
                     "file_duplicates",
                     reference_tree=reference_tree[0],
-                ))
+                )
+            )
 
-        columns.extend([
-            VideoBitrateColumnSpec("bitrate"),
-            VideoResolutionColumnSpec("resolution"),
-            VideoFramerateColumnSpec("framerate"),
-            VideoConvertColumnSpec("convert"),
-        ])
+        columns.extend(
+            [
+                VideoBitrateColumnSpec("bitrate"),
+                VideoResolutionColumnSpec("resolution"),
+                VideoFramerateColumnSpec("framerate"),
+                VideoConvertColumnSpec("convert"),
+            ]
+        )
 
         if cfg.act and cfg.act.execution.sqlite_path.exists():
             executor = ActionExecutor(cfg.act.execution)
@@ -180,7 +187,6 @@ class FileTreeQueryCore:
 
 @beartype
 class FileTreeQueryWindow(QMainWindow):
-
     def __init__(
         self,
         ctx: RunContext,
@@ -314,16 +320,21 @@ class FileTreeQueryWindow(QMainWindow):
         tree_header_state = settings.value("tree/headerState")
         if tree_header_state is not None and self.regions:
             self.regions[0].modelViewer.treeViewer.treeView.header().restoreState(
-                tree_header_state)
+                tree_header_state
+            )
 
         table_header_state = settings.value("table/headerState")
         if table_header_state is not None and self.regions:
-            self.regions[0].modelViewer.tableViewer.tableView.horizontalHeader(
-            ).restoreState(table_header_state)
+            self.regions[
+                0
+            ].modelViewer.tableViewer.tableView.horizontalHeader().restoreState(
+                table_header_state
+            )
 
         main_splitter_state = settings.value("splitter/main")
         if main_splitter_state is not None and not self.main_splitter.restoreState(
-                main_splitter_state):
+            main_splitter_state
+        ):
             self.main_splitter.setSizes([800, 400])
         elif main_splitter_state is None:
             self.main_splitter.setSizes([800, 400])
@@ -346,8 +357,9 @@ class FileTreeQueryWindow(QMainWindow):
             )
             settings.setValue(
                 "table/headerState",
-                self.regions[0].modelViewer.tableViewer.tableView.horizontalHeader().
-                saveState(),
+                self.regions[0]
+                .modelViewer.tableViewer.tableView.horizontalHeader()
+                .saveState(),
             )
 
     def closeEvent(self, event: QCloseEvent) -> None:

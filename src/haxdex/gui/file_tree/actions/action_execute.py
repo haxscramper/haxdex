@@ -1,24 +1,26 @@
 from __future__ import annotations
 
-import importlib
 import json
-from loguru import logger
 from datetime import datetime, timezone
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Optional, Sequence, TypeVar
+from beartype.typing import Optional, Sequence, TypeVar
+from loguru import logger
 from pydantic import BaseModel, field_validator
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from haxdex.gui.file_tree.actions.action_db import OperationRow
 from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import BaseAction, to_action_handler_map
+from haxdex.gui.file_tree.actions.action_list_model import (
+    BaseAction,
+    to_action_handler_map,
+)
 from haxdex.gui.file_tree.actions.action_move_file import MoveActionHandler
 from haxdex.gui.file_tree.actions.action_trash_file import TrashActionHandler
 from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertActionHandler
-from haxdex.services.pydantic_utils import model_to_json_data, model_from_json_data
+from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex.services.utils import dump_with_type
 
 T = TypeVar("T", bound=BaseModel)
@@ -63,27 +65,32 @@ def _now() -> datetime:
 
 @beartype
 class ActionExecutor:
-
     def __init__(self, config: ActionExecutionConfig) -> None:
         self.config = config
-        self.engine = create_engine(f"sqlite+pysqlite:///{self.config.sqlite_path}",
-                                    future=True)
+        self.engine = create_engine(
+            f"sqlite+pysqlite:///{self.config.sqlite_path}", future=True
+        )
 
         self.config.output_directory.mkdir(parents=True, exist_ok=True)
-        self.handlers: dict[str, ActionHandler] = to_action_handler_map([
-            MoveActionHandler(dry_run=self.config.dry_run,),
-            TrashActionHandler(
-                trash_root=self.config.trash_root,
-                dry_run=self.config.dry_run,
-            ),
-            VideoConvertActionHandler(
-                dry_run=self.config.dry_run,
-                output_directory=self.config.output_directory,
-            )
-        ])
+        self.handlers: dict[str, ActionHandler] = to_action_handler_map(
+            [
+                MoveActionHandler(
+                    dry_run=self.config.dry_run,
+                ),
+                TrashActionHandler(
+                    trash_root=self.config.trash_root,
+                    dry_run=self.config.dry_run,
+                ),
+                VideoConvertActionHandler(
+                    dry_run=self.config.dry_run,
+                    output_directory=self.config.output_directory,
+                ),
+            ]
+        )
 
     def init_db(self) -> None:
         from haxdex.gui.file_tree.actions.action_db import Base
+
         Base.metadata.create_all(self.engine)
 
     def verify_actions_consistency(self, actions: Sequence[BaseAction]) -> None:
@@ -126,21 +133,26 @@ class ActionExecutor:
         for src, count in move_counts.items():
             if 1 < count:
                 raise ValueError(
-                    f"Multiple move actions from the same source path: {src}")
+                    f"Multiple move actions from the same source path: {src}"
+                )
             if src in trash_paths:
                 raise ValueError(
-                    f"Conflicting move and trash action for source path: {src}")
+                    f"Conflicting move and trash action for source path: {src}"
+                )
             if src in convert_counts:
                 raise ValueError(
-                    f"Conflicting move and video_convert action for source path: {src}")
+                    f"Conflicting move and video_convert action for source path: {src}"
+                )
 
         for src, count in convert_counts.items():
             if 1 < count:
                 raise ValueError(
-                    f"Multiple video_convert actions from the same source path: {src}")
+                    f"Multiple video_convert actions from the same source path: {src}"
+                )
             if src in trash_paths:
                 raise ValueError(
-                    f"Conflicting video_convert and trash action for source path: {src}")
+                    f"Conflicting video_convert and trash action for source path: {src}"
+                )
 
     def register_actions(self, actions: Sequence[BaseAction]) -> None:
         self.verify_actions_consistency(actions)
@@ -157,7 +169,8 @@ class ActionExecutor:
                 if existing_kind != action.kind:
                     raise ValueError(
                         f"Conflicting action types for hash '{execution_hash}': "
-                        f"'{existing_kind}' vs '{action.kind}'")
+                        f"'{existing_kind}' vs '{action.kind}'"
+                    )
                 continue
 
             incoming_by_hash[execution_hash] = (action, action.kind, kind)
@@ -168,8 +181,9 @@ class ActionExecutor:
         with Session(self.engine) as session:
             existing_rows = session.execute(
                 select(OperationRow.execution_hash, OperationRow.kind).where(
-                    OperationRow.execution_hash.in_(list(
-                        incoming_by_hash.keys())))).all()
+                    OperationRow.execution_hash.in_(list(incoming_by_hash.keys()))
+                )
+            ).all()
             existing_by_hash = {row.execution_hash: row.kind for row in existing_rows}
 
             for execution_hash, existing_kind in existing_by_hash.items():
@@ -177,7 +191,8 @@ class ActionExecutor:
                 if existing_kind != incoming_kind:
                     raise ValueError(
                         f"Hash '{execution_hash}' already exists with kind '{existing_kind}', "
-                        f"cannot register action of kind '{incoming_kind}'")
+                        f"cannot register action of kind '{incoming_kind}'"
+                    )
 
             for execution_hash, (action, action_kind, kind) in incoming_by_hash.items():
                 if execution_hash in existing_by_hash:
@@ -191,16 +206,22 @@ class ActionExecutor:
                         execution_hash=execution_hash,
                         started_at=None,
                         finished_at=None,
-                    ))
+                    )
+                )
 
             session.commit()
 
     def _load_action(self, row: OperationRow) -> BaseAction:
-        result = model_from_json_data(row.action_data,
-                                      self.handlers[row.kind].action_type)
-        assert (isinstance(result, BaseAction) and type(result) is not BaseAction and
-                type(result) is not BaseModel), "type {}\n{}".format(
-                    type(result), json.dumps(dump_with_type(result), indent=2))
+        result = model_from_json_data(
+            row.action_data, self.handlers[row.kind].action_type
+        )
+        assert (
+            isinstance(result, BaseAction)
+            and type(result) is not BaseAction
+            and type(result) is not BaseModel
+        ), "type {}\n{}".format(
+            type(result), json.dumps(dump_with_type(result), indent=2)
+        )
 
         return result
 
@@ -218,9 +239,11 @@ class ActionExecutor:
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
-                    select(OperationRow).where(
-                        OperationRow.status == _PENDING_STR).order_by(
-                            OperationRow.id.asc())))
+                    select(OperationRow)
+                    .where(OperationRow.status == _PENDING_STR)
+                    .order_by(OperationRow.id.asc())
+                )
+            )
             for row in rows:
                 if max_operations is not None and max_operations <= executed:
                     break
@@ -251,8 +274,11 @@ class ActionExecutor:
         with Session(self.engine) as session:
             rows = list(
                 session.scalars(
-                    select(OperationRow).where(OperationRow.status == _DONE_STR).order_by(
-                        OperationRow.id.desc())))
+                    select(OperationRow)
+                    .where(OperationRow.status == _DONE_STR)
+                    .order_by(OperationRow.id.desc())
+                )
+            )
             for row in rows:
                 action = self._load_action(row)
 

@@ -1,14 +1,11 @@
+import enum
 import hashlib
 import json
-from loguru import logger
-from beartype import beartype
-from beartype.typing import Any, Literal, Annotated, Sequence, TypeVar, Union
+
+from beartype.typing import Annotated, Any, Literal, Sequence, TypeVar, Union
 from pydantic import BaseModel, Field, TypeAdapter, field_serializer, field_validator
-import enum
-from pydantic_core import core_schema
 
 from haxdex.services.core.types import IndexDocument, IndexEdge, IndexMultiDocument
-from haxdex.services.utils import dump_with_type, dumps_with_type
 
 T = TypeVar("T")
 
@@ -202,15 +199,15 @@ class Table(DocumentBlock):
 
 
 for _cls in (
-        Document,
-        Paragraph,
-        Heading,
-        Code,
-        BulletListItem,
-        NumberedListItem,
-        Quote,
-        Div,
-        Table,
+    Document,
+    Paragraph,
+    Heading,
+    Code,
+    BulletListItem,
+    NumberedListItem,
+    Quote,
+    Div,
+    Table,
 ):
     _cls.model_rebuild()
 
@@ -218,11 +215,11 @@ _fake_hash = "0" * 64
 
 
 def build(
-        cls: type[T],
-        *,
-        file_hash: str,
-        nested: Sequence[DocumentBlock] = (),
-        **kwargs,
+    cls: type[T],
+    *,
+    file_hash: str,
+    nested: Sequence[DocumentBlock] = (),
+    **kwargs,
 ) -> T:
     nested = list(nested)
     block = cls.model_validate(  # type: ignore
@@ -231,7 +228,8 @@ def build(
             file_hash=file_hash,
             nested=nested,
             **kwargs,
-        ))
+        )
+    )
     payload = block.model_dump(exclude={"id", "nested", "hash"})
     hasher = hashlib.sha256()
     hasher.update(json.dumps(payload, sort_keys=True).encode())
@@ -244,8 +242,12 @@ def build(
 def merge_text(nodes: list[InlineNode]) -> list[InlineNode]:
     merged: list[InlineNode] = []
     for node in nodes:
-        if (isinstance(node, StyledText) and merged and
-                isinstance(merged[-1], StyledText) and merged[-1].styles == node.styles):
+        if (
+            isinstance(node, StyledText)
+            and merged
+            and isinstance(merged[-1], StyledText)
+            and merged[-1].styles == node.styles
+        ):
             merged[-1] = StyledText(
                 text=merged[-1].text + node.text,
                 styles=node.styles,
@@ -312,7 +314,8 @@ def _flatten(
                 to_=block.hash,
                 order=order,
                 file_hash=block.file_hash,
-            ))
+            )
+        )
 
     for i, nested in enumerate(block.nested):
         _flatten(nested, documents, links, block.hash, i)

@@ -1,9 +1,11 @@
 from pathlib import Path
 
-from PyQt6.QtWidgets import QWidget, QPlainTextEdit
 from beartype import beartype
+from PyQt6.QtWidgets import QPlainTextEdit, QWidget
 
-from haxdex.gui.collection_views.file_content_view.file_content_builder import FileContentViewBuilder
+from haxdex.gui.collection_views.file_content_view.file_content_builder import (
+    FileContentViewBuilder,
+)
 
 
 @beartype

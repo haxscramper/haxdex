@@ -1,11 +1,10 @@
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-from arango.database import StandardDatabase
-from beartype.typing import Any, cast
-from beartype import beartype
-
 from arango import DocumentInsertError
+from arango.database import StandardDatabase
+from beartype import beartype
+from beartype.typing import Any, cast
 from pydantic import TypeAdapter
 
 from haxdex.services.core.db_impl.contracts import BaseIndexProtocol
@@ -15,8 +14,8 @@ from haxdex.services.core.types import (
     FileRef,
     IndexDocument,
     IndexEdge,
-    IndexMultiDocument,
     IndexerOutput,
+    IndexMultiDocument,
     MultiDocumentModel,
 )
 from haxdex.services.pydantic_utils import (
@@ -43,7 +42,8 @@ class StorageMixin:
             end = min(len(text), error.pos + 120)
             raise RuntimeError(
                 f"Invalid JSON at line {error.lineno}, column {error.colno}, "
-                f"pos {error.pos}\n{text[start:end]}") from error
+                f"pos {error.pos}\n{text[start:end]}"
+            ) from error
 
         return text
 
@@ -76,7 +76,8 @@ class StorageMixin:
     ) -> None:
         assert isinstance(result, IndexDocument), (
             "Final documents inserted into the arango collection must be "
-            f"derived from IndexDocument, but got {type(result)}")
+            f"derived from IndexDocument, but got {type(result)}"
+        )
 
         document = {
             "_key": key,
@@ -101,10 +102,10 @@ class StorageMixin:
         indexer_id: str,
         result: AnyModel,
     ) -> None:
-        assert isinstance(
-            result,
-            IndexEdge), ("Final edges inserted into the arango collection must be "
-                         f"derived from IndexEdge, but got {type(result)}")
+        assert isinstance(result, IndexEdge), (
+            "Final edges inserted into the arango collection must be "
+            f"derived from IndexEdge, but got {type(result)}"
+        )
 
         from_id = f"{indexer_id}/{result.from_}"
         to_id = f"{indexer_id}/{result.to_}"
@@ -128,10 +129,7 @@ class StorageMixin:
             try:
                 cursor = self._db.aql.execute(
                     query,
-                    bind_vars={
-                        "_from": from_id,
-                        "_to": to_id
-                    },
+                    bind_vars={"_from": from_id, "_to": to_id},
                 )
                 existing_key = next(cursor, None)
 
@@ -171,10 +169,14 @@ class StorageMixin:
         result: dict[str, Any],
         indexer: BaseIndexProtocol,
     ) -> Any:
-        model_type = (indexer.result_model.document_type if issubclass(
-            indexer.result_model, MultiDocumentModel) else indexer.result_model)
+        model_type = (
+            indexer.result_model.document_type
+            if issubclass(indexer.result_model, MultiDocumentModel)
+            else indexer.result_model
+        )
         return TypeAdapter(model_type).validate_python(
-            model_from_json_data(result, model_type))
+            model_from_json_data(result, model_type)
+        )
 
     def get_indexer_one_document(
         self,
@@ -188,13 +190,15 @@ class StorageMixin:
         """
 
         for document in self._db.aql.execute(  # type: ignore
-                query,
-                bind_vars={"hash": document_id},
+            query,
+            bind_vars={"hash": document_id},
         ):
             return self.validate_indexer_result_document(document, indexer)
 
-        raise KeyError(f"Could not find document with ID {document_id} in the indexer "
-                       f"collection {indexer.asset_name}")
+        raise KeyError(
+            f"Could not find document with ID {document_id} in the indexer "
+            f"collection {indexer.asset_name}"
+        )
 
     def get_indexer_result(
         self,
@@ -232,7 +236,7 @@ class StorageMixin:
         else:
             chunk_size = (len(unique_hashes) + max_workers - 1) // max_workers
             chunks = [
-                unique_hashes[index:index + chunk_size]
+                unique_hashes[index : index + chunk_size]
                 for index in range(0, len(unique_hashes), chunk_size)
             ]
 
@@ -246,7 +250,8 @@ class StorageMixin:
                 )
 
             results = {
-                file_hash: result for chunk in chunk_results
+                file_hash: result
+                for chunk in chunk_results
                 for file_hash, result in chunk.items()
             }
 
@@ -264,7 +269,7 @@ class StorageMixin:
             results: dict[str, Any] = {}
 
             for document in self._db.aql.execute(  # type: ignore
-                    f"""
+                f"""
                 FOR doc IN {indexer_id}
                     FILTER doc._key IN @hashes
                     RETURN {{
@@ -272,10 +277,11 @@ class StorageMixin:
                         result: doc.result,
                     }}
                 """,
-                    bind_vars={"hashes": hashes},
+                bind_vars={"hashes": hashes},
             ):
                 results[document["file_hash"]] = model_type.model_validate(
-                    model_from_json_data(document["result"], model_type),)
+                    model_from_json_data(document["result"], model_type),
+                )
 
             return results
 
@@ -288,35 +294,37 @@ class StorageMixin:
         edges_by_hash: dict[str, list[IndexEdge]] = {hash: [] for hash in hashes}
 
         for document in self._db.aql.execute(  # type: ignore
-                f"""
+            f"""
             FOR doc IN {indexer_id}
                 FILTER doc.result.file_hash IN @hashes
                 RETURN doc.result
             """,
-                bind_vars={"hashes": hashes},
+            bind_vars={"hashes": hashes},
         ):
             validated = self.validate_indexer_result_document(document, indexer)
             documents_by_hash[document["file_hash"]].append(validated)
 
         for edge in self._db.aql.execute(  # type: ignore
-                f"""
+            f"""
             FOR edge IN {self.get_edge_name(indexer_id)}
                 FILTER edge.result.file_hash IN @hashes
                 RETURN edge.result
             """,
-                bind_vars={"hashes": hashes},
+            bind_vars={"hashes": hashes},
         ):
             file_hash = edge["file_hash"]
             edges_by_hash[file_hash].append(
                 edge_adapter.validate_python(
-                    model_from_json_data(edge, model_type.edge_type),),)
+                    model_from_json_data(edge, model_type.edge_type),
+                ),
+            )
 
         return {
-            hash:
-                model_type(
-                    documents=documents_by_hash[hash],
-                    edges=edges_by_hash[hash],
-                ) for hash in hashes
+            hash: model_type(
+                documents=documents_by_hash[hash],
+                edges=edges_by_hash[hash],
+            )
+            for hash in hashes
         }
 
     def store_derivation(
@@ -326,10 +334,12 @@ class StorageMixin:
         config: dict[str, object],
         return_value: AnyModel,
     ) -> str:
-        metadata = self._db.collection("derivations").insert({
-            "input_hashes": [file.hash.hash for file in input],
-            "output_files": output_files,
-            "config": config,
-            "return_value": return_value.model_dump(),
-        })
+        metadata = self._db.collection("derivations").insert(
+            {
+                "input_hashes": [file.hash.hash for file in input],
+                "output_files": output_files,
+                "config": config,
+                "return_value": return_value.model_dump(),
+            }
+        )
         return metadata["_key"]
