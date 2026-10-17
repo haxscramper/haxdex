@@ -69,7 +69,7 @@ def _decode_gps_info(gps_info: Any) -> Any:
 
 def _collect_all_embedded_metadata(img: Image.Image) -> dict[str, Any]:
     info_parsed = {
-        key: _parse_embedded_text(value) if isinstance(value, str) else value
+        key: (_parse_embedded_text(value) if isinstance(value, str) else value)
         for key, value in img.info.items()
     }
 
@@ -149,7 +149,7 @@ def _metadata_json_value(value: Any) -> Any:
         return [_metadata_json_value(item) for item in value]
 
     if isinstance(value, dict):
-        result = {}
+        result: dict[str, Any] = {}
 
         for key, item in value.items():
             if not isinstance(key, (str, int)):
@@ -304,9 +304,18 @@ class SDGenParams(BaseModel):
     ClipSkip: str = Field(alias="Clip skip")
     Model: str
     LoRA: str | None = None
-    HiresResize: str | None = Field(alias="Hires resize", default=None)
-    HiresSteps: str | None = Field(alias="Hires steps", default=None)
-    HiresUpscaler: str | None = Field(alias="Hires upscaler", default=None)
+    HiresResize: str | None = Field(
+        alias="Hires resize",
+        default=None,
+    )
+    HiresSteps: str | None = Field(
+        alias="Hires steps",
+        default=None,
+    )
+    HiresUpscaler: str | None = Field(
+        alias="Hires upscaler",
+        default=None,
+    )
 
 
 def parse_parameters(param_string: str) -> SDGenParams | None:
@@ -384,7 +393,10 @@ class PromptParser:
 
         return [
             token
-            for token in re.split(r"(\n+|,|BREAK|<[^>]+>|[()])", prompt)
+            for token in re.split(
+                r"(\n+|,|BREAK|<[^>]+>|[()])",
+                prompt,
+            )
             if token != "," and token.strip()
         ]
 
@@ -441,9 +453,11 @@ class PromptParser:
                     parsed_amplifier = try_float(amplifier)
                     add_tag(
                         text,
-                        parsed_amplifier
-                        if isinstance(parsed_amplifier, float)
-                        else 1.0,
+                        (
+                            parsed_amplifier
+                            if isinstance(parsed_amplifier, float)
+                            else 1.0
+                        ),
                     )
             else:
                 add_tag(token)
@@ -628,7 +642,12 @@ EXIF_METADATA_LORAS_TABLE = Table(
         ForeignKey("exif_metadata.hash"),
         primary_key=True,
     ),
-    Column("position", Integer, primary_key=True, autoincrement=False),
+    Column(
+        "position",
+        Integer,
+        primary_key=True,
+        autoincrement=False,
+    ),
     Column("name", String, nullable=False),
     Column("weight", Float, nullable=False),
 )
@@ -643,7 +662,12 @@ EXIF_METADATA_PROMPT_TAGS_TABLE = Table(
         primary_key=True,
     ),
     Column("polarity", String, primary_key=True),
-    Column("position", Integer, primary_key=True, autoincrement=False),
+    Column(
+        "position",
+        Integer,
+        primary_key=True,
+        autoincrement=False,
+    ),
     Column("kind", String, nullable=False),
     Column("text", String),
     Column("amplifier", Float),
@@ -797,8 +821,8 @@ class ExifMetadataIndexer(BaseIndexer):
                 "hash": file_hash,
                 "error": error,
             }
-            lora_rows = []
-            prompt_rows = []
+            lora_rows: list[dict[str, Any]] = []
+            prompt_rows: list[dict[str, Any]] = []
         else:
             document_row = _image_params_row(file_hash, params)
             lora_rows = [
@@ -813,8 +837,6 @@ class ExifMetadataIndexer(BaseIndexer):
             prompt_rows = _prompt_tag_rows(file_hash, params)
 
         with self.database.transaction() as connection:
-            # Another path with identical content may have completed while
-            # this worker was extracting metadata.
             existing = connection.execute(
                 select(EXIF_METADATA_TABLE.c.hash).where(
                     EXIF_METADATA_TABLE.c.hash == file_hash
