@@ -1,67 +1,65 @@
 from pathlib import Path
 
 import imagehash
+from haxdex_core.database import IndexerDatabase
+from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex_core.types import IndexerRequest
 from loguru import logger
 from PIL import Image
-from sqlalchemy import Engine
+from sqlalchemy import Column, MetaData, String, Table, select
 
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
+_metadata = MetaData()
 
-
-class ImageHashIndexerResult(IndexDocument, extra="forbid"):
-    average: str
-    perceptual: str
-    difference: str
-    wavelet: str
+_image_hash = Table(
+    "image_hash",
+    _metadata,
+    Column("hash", String(64), primary_key=True),
+    Column("average", String(16), nullable=False),
+    Column("perceptual", String(16), nullable=False),
+    Column("difference", String(16), nullable=False),
+    Column("wavelet", String(16), nullable=False),
+)
 
 
 class ImageHashIndexer(BaseIndexer):
     asset_name = "image_hash"
-    result_model = ImageHashIndexerResult
+    result_schema = _metadata
     max_parallel = 16
 
-    def __init__(self, config: BaseIndexerConfig, database: Engine) -> None:
-        super().__init__(config=config, database=database)
-
     def can_run(self, path: Path) -> bool:
-        return path.suffix.lower() in [".png", ".webp", ".jpg", ".jpeg"]
+        return path.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"}
 
     def run(
         self,
         ctx: RunContext,
         request: IndexerRequest,
-        resources: dict[str, object],
-        assets: dict[str, object],
-    ) -> IndexerOutput:
+        resources: dict[str, BaseResource],
+        assets: dict[str, IndexerDatabase],
+    ) -> None:
+        file_hash = request.get_hash_str()
+
+        if self.database.has_file(file_hash):
+            return
+
         path = ctx.get_path(request.file_ref)
-        assert path.exists(), path
-        logger.debug(f"Image hash for '{path}'")
-        try:
-            image = Image.open(path)
+        logger.debug("Image hash for '{}'", path)
+
+        with Image.open(path) as image:
             image.load()
+            values = {
+                "hash": file_hash,
+                "average": str(imagehash.average_hash(image)),
+                "perceptual": str(imagehash.phash(image)),
+                "difference": str(imagehash.dhash(image)),
+                "wavelet": str(imagehash.whash(image)),
+            }
 
-            return IndexerOutput(
-                indexer_id=self.asset_name,
-                result=ImageHashIndexerResult(
-                    average=str(imagehash.average_hash(image)),
-                    perceptual=str(imagehash.phash(image)),
-                    difference=str(imagehash.dhash(image)),
-                    wavelet=str(imagehash.whash(image)),
-                    hash=request.get_hash_str(),
-                ),
-            )
+        with self.database.transaction() as connection:
+            existing = connection.execute(
+                select(_image_hash.c.hash).where(_image_hash.c.hash == file_hash)
+            ).first()
 
-        except OSError:
-            return IndexerOutput(
-                indexer_id=self.asset_name,
-                result=ImageHashIndexerResult(
-                    average="",
-                    perceptual="",
-                    difference="",
-                    wavelet="",
-                    hash=request.get_hash_str(),
-                ),
-            )
+            if existing is not None:
+                return
 
-            pass
+            connection.execute(_image_hash.insert().values(**values))

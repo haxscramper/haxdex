@@ -1,45 +1,68 @@
 from datetime import datetime
 
-from pydantic import Field
-from sqlalchemy import Engine
+from haxdex_core.database import IndexerDatabase
+from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex_core.types import IndexerRequest
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    DateTime,
+    Float,
+    MetaData,
+    String,
+    Table,
+    select,
+)
 
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
+result_schema = MetaData()
 
-
-class FileStatsIndexerResult(IndexDocument, extra="forbid"):
-    size_bytes: int = Field(ge=0)
-    mode: int = Field(ge=0)
-    mtime: float = Field(ge=0)
-    ctime: float = Field(ge=0)
-    modification_time: str = Field(
-        pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?$"
-    )
+file_stats = Table(
+    "file_stats",
+    result_schema,
+    Column("hash", String(64), primary_key=True),
+    Column("size_bytes", BigInteger, nullable=False),
+    Column("mode", BigInteger, nullable=False),
+    Column("mtime", Float, nullable=False),
+    Column("ctime", Float, nullable=False),
+    Column("modification_time", DateTime, nullable=False),
+)
 
 
 class FileStatsIndexer(BaseIndexer):
     asset_name = "file_stats"
-    result_model = FileStatsIndexerResult
-
-    def __init__(self, config: BaseIndexerConfig, database: Engine) -> None:
-        super().__init__(config=config, database=database)
+    result_schema = result_schema
 
     def run(
         self,
         ctx: RunContext,
         request: IndexerRequest,
-        resources: dict[str, object],
-        assets: dict[str, object],
-    ) -> IndexerOutput:
-        st = ctx.get_path(request.file_ref).stat()
-        return IndexerOutput(
-            indexer_id=self.asset_name,
-            result=FileStatsIndexerResult(
-                hash=request.get_hash_str(),
-                size_bytes=st.st_size,
-                mode=st.st_mode,
-                mtime=st.st_mtime,
-                ctime=st.st_ctime,
-                modification_time=datetime.fromtimestamp(st.st_mtime).isoformat(),
-            ),
-        )
+        resources: dict[str, BaseResource],
+        assets: dict[str, IndexerDatabase],
+    ) -> None:
+        stat = ctx.get_path(request.file_ref).stat()
+        file_hash = request.get_hash_str()
+        values = {
+            "size_bytes": stat.st_size,
+            "mode": stat.st_mode,
+            "mtime": stat.st_mtime,
+            "ctime": stat.st_ctime,
+            "modification_time": datetime.fromtimestamp(stat.st_mtime),
+        }
+
+        with self.database.transaction() as connection:
+            condition = file_stats.c.hash == file_hash
+            existing = connection.execute(
+                select(file_stats.c.hash).where(condition)
+            ).first()
+
+            if existing is None:
+                connection.execute(
+                    file_stats.insert().values(
+                        hash=file_hash,
+                        **values,
+                    )
+                )
+            else:
+                connection.execute(
+                    file_stats.update().where(condition).values(**values)
+                )
