@@ -9,7 +9,7 @@ from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.core.types import AnyModel, FileHash
-from hstd_py_qt.src.hstd_py_qt.column_model import ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.file_view.column_model import ColumnSpec
 
 
 class FilePathResult(BaseModel):

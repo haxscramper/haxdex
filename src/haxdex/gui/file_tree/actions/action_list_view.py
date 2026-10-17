@@ -18,7 +18,7 @@ from haxdex.gui.file_tree.actions.action_handler import BaseAction
 from haxdex.gui.file_tree.actions.action_list_model import ActionListModel
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
-from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import (
+from hstd_py_qt.src.hstd_py_qt.file_view.column_sort_filter_proxy import (
     ColumnSortFilterProxyModel,
 )
 from hstd_py_qt.src.hstd_py_qt.filterable_table_view import (

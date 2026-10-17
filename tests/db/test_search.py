@@ -3,7 +3,6 @@ from pathlib import Path
 
 from loguru import logger
 
-from haxdex.cli.cli_config import IndexConfig, IndexPathConfig
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
@@ -11,6 +10,7 @@ from haxdex.services.core.job_types import RunContext
 from haxdex.services.file_iteration import DirConfig
 from haxdex.services.pydantic_utils import first_by_field_value
 from haxdex.services.utils import dump_with_type
+from haxdex_cli.src.haxdex_cli.cli_config import IndexConfig, IndexPathConfig
 from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.file_embedding import (
     EmbeddingChunk,
     FileEmbeddingIndexerResult,

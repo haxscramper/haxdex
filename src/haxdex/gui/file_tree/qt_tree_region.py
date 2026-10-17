@@ -43,15 +43,17 @@ from haxdex.gui.file_tree.query_filter import (
     QueryResult,
 )
 from haxdex.services.core.types import FileHash
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
-from hstd_py_qt.src.hstd_py_qt.column_sort_filter_proxy import (
+from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
+from hstd_py_qt.src.hstd_py_qt.file_view.column_sort_filter_proxy import (
     ColumnSortFilterProxyModel,
+)
+from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (
+    TreeToTableProxyModel,
 )
 from hstd_py_qt.src.hstd_py_qt.filterable_table_view import (
     FilterableTableView,
     FilterColumnConfig,
 )
-from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 
 
 @beartype

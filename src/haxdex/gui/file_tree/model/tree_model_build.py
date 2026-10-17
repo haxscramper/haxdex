@@ -15,7 +15,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.engine import Engine
 
-from haxdex.cli.cli_config import DirConfig
 from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
@@ -32,6 +31,7 @@ from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
 from haxdex.services.file_iteration import RootFilter, match_root, prepare_root_filters
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
+from haxdex_cli.src.haxdex_cli.cli_config import DirConfig
 
 
 def _load_flat_file_nodes(

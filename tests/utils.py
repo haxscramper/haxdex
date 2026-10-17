@@ -13,16 +13,6 @@ from beartype.typing import Any, Iterator, cast
 from loguru import logger
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 
-from haxdex.cli.cli import IndexService
-from haxdex.cli.cli_config import (
-    ActionConfig,
-    AppConfig,
-    DatabaseConfig,
-    FileTreeViewConfig,
-    IndexConfig,
-    IndexPathConfig,
-    LoggingConfig,
-)
 from haxdex.gui.file_tree.actions.action_execute import (
     ActionExecutionConfig,
     ActionExecutor,
@@ -44,6 +34,16 @@ from haxdex.gui.file_tree.columns.video_resolution_column import (
     VideoResolutionColumnSpec,
 )
 from haxdex.services.file_iteration import DirConfig
+from haxdex_cli.src.haxdex_cli.cli import IndexService
+from haxdex_cli.src.haxdex_cli.cli_config import (
+    ActionConfig,
+    AppConfig,
+    DatabaseConfig,
+    FileTreeViewConfig,
+    IndexConfig,
+    IndexPathConfig,
+    LoggingConfig,
+)
 from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )

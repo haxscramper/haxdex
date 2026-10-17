@@ -20,14 +20,6 @@ from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from haxdex.cli.cli import IndexService, main_impl
-from haxdex.cli.cli_config import (
-    AppConfig,
-    DatabaseConfig,
-    IndexConfig,
-    IndexPathConfig,
-    LoggingConfig,
-)
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
 from haxdex.gui.file_tree.actions.action_db import OperationRow
@@ -68,6 +60,14 @@ from haxdex.services.pydantic_utils import (
     model_from_json_data,
     to_json_safe,
 )
+from haxdex_cli.src.haxdex_cli.cli import IndexService, main_impl
+from haxdex_cli.src.haxdex_cli.cli_config import (
+    AppConfig,
+    DatabaseConfig,
+    IndexConfig,
+    IndexPathConfig,
+    LoggingConfig,
+)
 from haxdex_core.src.haxdex_core.hash_cache import HashCache
 from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
@@ -83,12 +83,14 @@ from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
 )
 from hstd_py_qt.src.hstd_py_qt import model_dump
+from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (
+    TreeToTableProxyModel,
+)
 from hstd_py_qt.src.hstd_py_qt.model_dump import (
     render_text,
     simple_dump,
     simple_dump_rows_json,
 )
-from hstd_py_qt.src.hstd_py_qt.tree_to_table_model import TreeToTableProxyModel
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,

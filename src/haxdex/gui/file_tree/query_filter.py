@@ -22,7 +22,7 @@ from haxdex.gui.file_tree.python_code_editor import (
     as_query_error,
 )
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
+from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
 
 FilterFn = Callable[[list[FileTreeNode]], list[FileTreeNode]]
 TraverseFn = Callable[["ActionProvider", list[FileTreeNode]], object]

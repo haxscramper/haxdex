@@ -13,12 +13,6 @@ from beartype import beartype
 from loguru import logger
 from PyQt6.QtWidgets import QApplication
 
-from haxdex.cli.cli_config import (
-    _INDEXER_TYPES,
-    _RESOURCE_TYPES,
-    AppConfig,
-    LoggingConfig,
-)
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.comfy_input_builder import (
     ComfyInputWidgetBuilder,
@@ -31,8 +25,6 @@ from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
 from haxdex.gui.file_tree.actions.action_list_model import load_actions
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryWindow
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.gui.generation_explorer.image_search_window import ImageSearchWindow
-from haxdex.gui.generation_explorer.image_table_window import GenerationExplorerWindow
 from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
@@ -45,6 +37,12 @@ from haxdex.services.utils import (
     stfu_logs,
 )
 from haxdex.visual.trash_action_visual import visualize_trash_actions
+from haxdex_cli.src.haxdex_cli.cli_config import (
+    _INDEXER_TYPES,
+    _RESOURCE_TYPES,
+    AppConfig,
+    LoggingConfig,
+)
 from haxdex_core.src.haxdex_core.hash_cache import HashCache
 from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,
@@ -59,6 +57,12 @@ from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import 
     SafetensorIndexer,
 )
 from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
+from haxdex_view_generation.src.haxdex_view_generation.image_search_window import (
+    ImageSearchWindow,
+)
+from haxdex_view_generation.src.haxdex_view_generation.image_table_window import (
+    GenerationExplorerWindow,
+)
 
 logging.basicConfig(
     level=logging.DEBUG,

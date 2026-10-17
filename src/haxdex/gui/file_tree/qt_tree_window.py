@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.cli.cli_config import AppConfig
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.common.qt_model_roles import CustomModelRole
@@ -42,7 +41,8 @@ from haxdex.gui.file_tree.qt_tree_region import FileTreeRegion
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel
+from haxdex_cli.src.haxdex_cli.cli_config import AppConfig
+from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
 
 
 @beartype

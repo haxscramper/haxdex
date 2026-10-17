@@ -18,26 +18,26 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.file_content_view.file_content_builder import (
-    FileContentViewBuilder,
-)
-from haxdex.gui.collection_views.file_content_view.image_content_view_builder import (
-    ImageFileContentViewBuilder,
-)
-from haxdex.gui.collection_views.file_content_view.pdf_content_view_builder import (
-    PdfFileContentViewBuilder,
-)
-from haxdex.gui.collection_views.file_content_view.text_content_view_builder import (
-    TextFileContentViewBuilder,
-)
-from haxdex.gui.collection_views.file_content_view.video_content_view_builder import (
-    VideoFileContentViewBuilder,
-)
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
 from haxdex.services.utils import format_timestamp_relative
+from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (
+    FileContentViewBuilder,
+)
+from hstd_py_qt.src.hstd_py_qt.file_view.image_content_view_builder import (
+    ImageFileContentViewBuilder,
+)
+from hstd_py_qt.src.hstd_py_qt.file_view.pdf_content_view_builder import (
+    PdfFileContentViewBuilder,
+)
+from hstd_py_qt.src.hstd_py_qt.file_view.text_content_view_builder import (
+    TextFileContentViewBuilder,
+)
+from hstd_py_qt.src.hstd_py_qt.file_view.video_content_view_builder import (
+    VideoFileContentViewBuilder,
+)
 
 ABSOLUTE_PATHS_QUERY = """
 LET file = DOCUMENT("files", @file_key)

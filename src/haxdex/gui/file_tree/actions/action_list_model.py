@@ -17,7 +17,10 @@ from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertAction
 from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
 from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertData
 from haxdex.services.pydantic_utils import model_from_json_data
-from hstd_py_qt.src.hstd_py_qt.column_model import AbstractColumnItemModel, ColumnSpec
+from hstd_py_qt.src.hstd_py_qt.file_view.column_model import (
+    AbstractColumnItemModel,
+    ColumnSpec,
+)
 
 
 def to_action_handler_map(handlers: list[ActionHandler]) -> dict[str, ActionHandler]:
