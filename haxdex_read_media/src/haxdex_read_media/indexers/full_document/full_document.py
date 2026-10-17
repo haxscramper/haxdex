@@ -1,14 +1,13 @@
 from functools import cached_property
 from pathlib import Path
 from typing import ClassVar
-from uuid import UUID, uuid4
 
-import magic
 import plumbum
 from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from loguru import logger
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 import haxdex_read_media.indexers.full_document.full_document_types as doc_types
@@ -22,6 +21,12 @@ from haxdex_read_media.indexers.full_document.full_document_tables import (
     FullDocumentFile,
 )
 
+type PendingNesting = tuple[
+    DocumentFragment,
+    DocumentFragment | None,
+    int,
+]
+
 
 def _fragment_plaintext(block: doc_types.DocumentBlock) -> str:
     content = getattr(block, "content", None)
@@ -33,50 +38,40 @@ def _fragment_plaintext(block: doc_types.DocumentBlock) -> str:
         return content.plaintext
 
     return "\n".join(
-        text for child in block.nested if (text := _fragment_plaintext(child))
+        text for nested in block.nested if (text := _fragment_plaintext(nested))
     )
 
 
 def _flatten(
     block: doc_types.DocumentBlock,
     *,
-    file_hash: str,
-    parent_id: UUID | None,
+    file_id: int,
+    parent: DocumentFragment | None,
     order: int,
     fragments: list[DocumentFragment],
-    nesting: list[DocumentNesting],
+    nesting: list[PendingNesting],
 ) -> None:
-    fragment_id = uuid4()
     structured_element = block.model_dump(
         mode="json",
         exclude={"nested"},
         serialize_as_any=True,
     )
 
-    fragments.append(
-        DocumentFragment(
-            id=fragment_id,
-            file_hash=file_hash,
-            type=structured_element["type"],
-            plaintext=_fragment_plaintext(block),
-            structured_element=structured_element,
-        )
+    fragment = DocumentFragment(
+        file_id=file_id,
+        type=structured_element["type"],
+        plaintext=_fragment_plaintext(block),
+        structured_element=structured_element,
     )
-    nesting.append(
-        DocumentNesting(
-            child_id=fragment_id,
-            file_hash=file_hash,
-            parent_id=parent_id,
-            order=order,
-        )
-    )
+    fragments.append(fragment)
+    nesting.append((fragment, parent, order))
 
-    for child_order, child in enumerate(block.nested):
+    for nested_order, nested in enumerate(block.nested):
         _flatten(
-            child,
-            file_hash=file_hash,
-            parent_id=fragment_id,
-            order=child_order,
+            nested,
+            file_id=file_id,
+            parent=fragment,
+            order=nested_order,
             fragments=fragments,
             nesting=nesting,
         )
@@ -131,41 +126,45 @@ class DocumentBlockIndexer(BaseIndexer):
             self.database.transaction() as connection,
             Session(bind=connection) as session,
         ):
-            if session.get(FullDocumentFile, file_hash) is not None:
+            existing = session.scalar(
+                select(FullDocumentFile).where(FullDocumentFile.hash == file_hash)
+            )
+            if existing is not None:
                 return
 
-            mime_type = magic.from_file(str(path.resolve()), mime=True)
-            logger.info(f"Converting {path} to full document, using mime {mime_type}")
+            logger.info(f"Converting {path} to full document")
 
             root = pandoc_to_document(
                 path,
                 reader=self.extension_to_reader[path.suffix.lower()],
             )
 
+            document_file = FullDocumentFile(hash=file_hash)
+            session.add(document_file)
+            session.flush()
+
             fragments: list[DocumentFragment] = []
-            nesting: list[DocumentNesting] = []
+            nesting: list[PendingNesting] = []
 
             for order, block in enumerate(root.nested):
                 _flatten(
                     block,
-                    file_hash=file_hash,
-                    parent_id=None,
+                    file_id=document_file.id,
+                    parent=None,
                     order=order,
                     fragments=fragments,
                     nesting=nesting,
                 )
 
-            session.add(
-                FullDocumentFile(
-                    hash=file_hash,
-                    path=str(path),
-                    mime_type=mime_type,
-                )
-            )
-            session.flush()
-
             session.add_all(fragments)
             session.flush()
 
-            session.add_all(nesting)
+            session.add_all(
+                DocumentNesting(
+                    nested_id=fragment.id,
+                    parent_id=parent.id if parent is not None else None,
+                    order=order,
+                )
+                for fragment, parent, order in nesting
+            )
             session.flush()
