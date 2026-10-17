@@ -2,10 +2,10 @@ from abc import ABC, abstractmethod
 
 from PyQt6.QtWidgets import QWidget
 
-from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.core.types import FileHash
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
 
 
 class WidgetBuilder(ABC):

@@ -4,16 +4,16 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Optional, Sequence
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeNode,
-)
 from pydantic import BaseModel
 from sqlalchemy import Column, MetaData, Table, Text, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex.services.utils import create_cache_engine
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
 
 CACHE_USER_EDIT_TABLE = "file_tree_user_edits"
 

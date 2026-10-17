@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
-from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
@@ -28,6 +27,7 @@ from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexerResult,
     ImageParams,
 )
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
 
 
 class ExifPreviewrWidgetBuilder(WidgetBuilder):

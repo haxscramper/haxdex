@@ -6,7 +6,6 @@ from beartype import beartype
 from beartype.typing import Any, Literal, Mapping
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutionConfig
 from haxdex.services.core.job_types import BaseIndexerConfig
 from haxdex.services.default_job_types import (
     DEFAULT_INDEXER_TYPES,
@@ -51,6 +50,9 @@ from haxdex_read_media.src.haxdex_read_media.resources.whisper_transcribe import
     WhisperTranscribeResource,
 )
 from haxdex_view_generation.src.haxdex_view_generation.models import ExplorerSettings
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
+    ActionExecutionConfig,
+)
 
 _INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     WdTagIndexer,

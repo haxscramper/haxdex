@@ -1,29 +1,5 @@
 from beartype import beartype
 from beartype.typing import Sequence, cast
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
-from haxdex.gui.file_tree.actions.action_list_model import ActionListModel
-from haxdex.gui.file_tree.actions.action_list_view import ActionListView
-from haxdex.gui.file_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
-from haxdex.gui.file_tree.columns.file_mime_column import FileMimeColumnSpec
-from haxdex.gui.file_tree.columns.file_name_column import FileNameColumnSpec
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeNode,
-)
-from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
-from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
-from haxdex.gui.file_tree.columns.size_share_column import SizeShareColumnSpec
-from haxdex.gui.file_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
-from haxdex.gui.file_tree.columns.video_convert_column import VideoConvertColumnSpec
-from haxdex.gui.file_tree.columns.video_framerate_column import VideoFramerateColumnSpec
-from haxdex.gui.file_tree.columns.video_resolution_column import (
-    VideoResolutionColumnSpec,
-)
-from haxdex.gui.file_tree.model.tree_model_build import build_file_tree
-from haxdex.gui.file_tree.model.tree_model_user_edits import store_user_column_edit
-from haxdex.gui.file_tree.python_code_editor import QueryError
-from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
-from haxdex.gui.file_tree.qt_tree_region import FileTreeRegion
 from loguru import logger
 from PyQt6.QtCore import QCoreApplication, QModelIndex, Qt
 from PyQt6.QtGui import QCloseEvent
@@ -42,6 +18,54 @@ from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
 from haxdex_cli.src.haxdex_cli.cli_config import AppConfig
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import ActionExecutor
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+    ActionListModel,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_view import (
+    ActionListView,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
+    FileDuplicateColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_mime_column import (
+    FileMimeColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_name_column import (
+    FileNameColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.known_actions_column import (
+    KnownActionColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.size_column import (
+    EntrySizeColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.size_share_column import (
+    SizeShareColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.video_bitrate_columns import (
+    VideoBitrateColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.video_convert_column import (
+    VideoConvertColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.video_framerate_column import (
+    VideoFramerateColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.video_resolution_column import (
+    VideoResolutionColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_build import build_file_tree
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_user_edits import (
+    store_user_column_edit,
+)
+from haxdex_view_tree.src.haxdex_view_tree.python_code_editor import QueryError
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_model import FileTreeModel
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_region import FileTreeRegion
 from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
 
 

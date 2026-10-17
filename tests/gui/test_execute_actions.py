@@ -6,15 +6,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_execute import (
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
     ActionExecutionConfig,
     ActionExecutor,
 )
-from haxdex.gui.file_tree.actions.action_handler import BaseAction
-from haxdex.gui.file_tree.actions.action_move_file import MoveAction
-from haxdex.gui.file_tree.actions.action_trash_file import TrashAction
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import BaseAction
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_move_file import MoveAction
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_trash_file import TrashAction
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
 
 
 @pytest.fixture

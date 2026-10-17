@@ -4,11 +4,6 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, Literal, Optional, cast
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-    FileTreeNode,
-)
 from pydantic import BaseModel
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QPainter
@@ -25,6 +20,11 @@ from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import (
     FileStatsIndexer,
     FileStatsIndexerResult,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
 )
 
 

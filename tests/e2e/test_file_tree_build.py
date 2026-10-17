@@ -2,9 +2,11 @@ from pathlib import Path
 
 from PyQt6.QtCore import QModelIndex
 
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
-from haxdex.gui.file_tree.columns.size_column import EntrySizeColumnSpec
-from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
+from haxdex_view_tree.src.haxdex_view_tree.columns.size_column import (
+    EntrySizeColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_window import FileTreeQueryCore
 from tests.utils import (
     init_file_tree_columns,
     init_file_tree_config,

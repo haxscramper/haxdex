@@ -7,17 +7,6 @@ from pprint import pformat
 from typing import Optional
 
 from beartype import beartype
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-    FileTreeNode,
-)
-from haxdex.gui.file_tree.model.tree_model_cache import initialize_cache, populate_cache
-from haxdex.gui.file_tree.model.tree_model_fetch import fetch_file_paths
-from haxdex.gui.file_tree.model.tree_model_user_edits import (
-    apply_user_edits,
-    load_user_edits,
-)
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import (
@@ -32,6 +21,22 @@ from haxdex.services.core.types import FileHash
 from haxdex.services.file_iteration import RootFilter, match_root, prepare_root_filters
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex_cli.src.haxdex_cli.cli_config import DirConfig
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_cache import (
+    initialize_cache,
+    populate_cache,
+)
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_fetch import (
+    fetch_file_paths,
+)
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_user_edits import (
+    apply_user_edits,
+    load_user_edits,
+)
 
 
 def _load_flat_file_nodes(

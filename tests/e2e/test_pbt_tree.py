@@ -22,38 +22,6 @@ from sqlalchemy.orm import Session
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
-from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_execute import _DONE_STR, ActionExecutor
-from haxdex.gui.file_tree.actions.action_list_model import (
-    ActionListModel,
-    ActionProvider,
-    TrashAction,
-    load_actions,
-)
-from haxdex.gui.file_tree.actions.action_list_view import ActionListView
-from haxdex.gui.file_tree.columns.file_duplicate_column import (
-    FileDuplicateColumnSpec,
-    FileDuplicateData,
-)
-from haxdex.gui.file_tree.columns.file_mime_column import (
-    FileMimeColumnSpec,
-    FileMimeData,
-)
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeNode,
-)
-from haxdex.gui.file_tree.columns.known_actions_column import KnownActionColumnSpec
-from haxdex.gui.file_tree.columns.trivial_data_column import (
-    TrivialDataColumnSpec,
-    TrivialEntryData,
-)
-from haxdex.gui.file_tree.model.tree_model_fetch import (
-    AQL_FILE_PATHS,
-    _fetch_file_paths_impl,
-)
-from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
-from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
-from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.file_iteration import DirConfig, prepare_root_filters
 from haxdex.services.pydantic_utils import (
     format_json_with_fjson,
@@ -81,6 +49,48 @@ from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_documen
 )
 from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
+    _DONE_STR,
+    ActionExecutor,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+    TrashAction,
+    load_actions,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_view import (
+    ActionListView,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
+    FileDuplicateColumnSpec,
+    FileDuplicateData,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_mime_column import (
+    FileMimeColumnSpec,
+    FileMimeData,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeNode,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.known_actions_column import (
+    KnownActionColumnSpec,
+)
+from haxdex_view_tree.src.haxdex_view_tree.columns.trivial_data_column import (
+    TrivialDataColumnSpec,
+    TrivialEntryData,
+)
+from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_fetch import (
+    AQL_FILE_PATHS,
+    _fetch_file_paths_impl,
+)
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_model import FileTreeModel
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_window import FileTreeQueryCore
+from haxdex_view_tree.src.haxdex_view_tree.query_filter import (
+    QueryFilterEvaluator,
+    QueryProgram,
 )
 from hstd_py_qt.src.hstd_py_qt import model_dump
 from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (

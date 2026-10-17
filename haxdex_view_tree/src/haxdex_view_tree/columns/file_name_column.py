@@ -1,14 +1,14 @@
 from beartype import beartype
 from beartype.typing import Any, cast
-from haxdex.gui.file_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-    FileTreeNode,
-)
 from pydantic import BaseModel
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 
 
 class FileNameData(BaseModel, extra="forbid"):

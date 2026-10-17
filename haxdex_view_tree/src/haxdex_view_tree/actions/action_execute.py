@@ -6,15 +6,6 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Optional, Sequence, TypeVar
-from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.actions.action_handler import ActionHandler
-from haxdex.gui.file_tree.actions.action_list_model import (
-    BaseAction,
-    to_action_handler_map,
-)
-from haxdex.gui.file_tree.actions.action_move_file import MoveActionHandler
-from haxdex.gui.file_tree.actions.action_trash_file import TrashActionHandler
-from haxdex.gui.file_tree.actions.action_video_convert import VideoConvertActionHandler
 from loguru import logger
 from pydantic import BaseModel, field_validator
 from sqlalchemy import create_engine, select
@@ -22,6 +13,21 @@ from sqlalchemy.orm import Session
 
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex.services.utils import dump_with_type
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionHandler
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+    BaseAction,
+    to_action_handler_map,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_move_file import (
+    MoveActionHandler,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_trash_file import (
+    TrashActionHandler,
+)
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_video_convert import (
+    VideoConvertActionHandler,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -89,7 +95,7 @@ class ActionExecutor:
         )
 
     def init_db(self) -> None:
-        from haxdex.gui.file_tree.actions.action_db import Base
+        from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import Base
 
         Base.metadata.create_all(self.engine)
 
