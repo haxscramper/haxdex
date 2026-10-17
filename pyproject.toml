@@ -3,57 +3,9 @@ name = "haxdex"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "haxscramper", email = "haxscramper@gmail.com" }
-]
+authors = [{ name = "haxscramper", email = "haxscramper@gmail.com" }]
 requires-python = ">=3.13"
-dependencies = [
-    "beartype>=0.22.9",
-    "coloraide>=8.10",
-    "commentjson>=0.9.0",
-    "docling>=2.107.0",
-    "dominate>=2.9.1",
-    "ebooklib>=0.20",
-    "einops>=0.8.2",
-    "flax>=0.12.7",
-    "glom>=25.12.0",
-    "graphviz>=0.21",
-    "hstd-py-lib",
-    "huggingface-hub>=1.21.0",
-    "hypothesis>=6.161.2",
-    "imagehash>=4.3.2",
-    "jax[rocm7-local]>=0.10.2",
-    "jedi>=0.20.0",
-    "langchain-text-splitters>=1.1.2",
-    "loguru>=0.7.3",
-    "mistletoe>=1.6.0",
-    "msgpack>=1.2.1",
-    "numpy>=2.5.0",
-    "onnxruntime>=1.27.0",
-    "openai>=2.44.0",
-    "opencv-python>=4.13.0.92",
-    "pandas>=3.0.3",
-    "pathspec>=1.1.1",
-    "pillow>=12.2.0",
-    "platformdirs>=4.10.0",
-    "plotly>=6.9.0",
-    "plumbum>=2.0.1",
-    "py-spy>=0.4.2",
-    "pybktree>=1.1",
-    "pykka>=4.4.2",
-    "pymupdf4llm>=1.27.2.3",
-    "pyqt6>=6.11.0",
-    "pyqt6-qscintilla>=2.14.1",
-    "pyqt6-sip>=13.11.1",
-    "pytest>=9.1.1",
-    "pytest-qt>=4.5.0",
-    "python-arango==8.1.6",
-    "python-magic>=0.4.27",
-    "reportlab>=5.0.0",
-    "rich>=15.0.0",
-    "sqlalchemy>=2.0.51",
-    "tiktoken>=0.13.0",
-]
+dependencies = []
 
 [project.scripts]
 index-service = "haxdex:main"
@@ -76,5 +28,13 @@ multi_line_output = 3
 line_length = 90
 include_trailing_comma = true
 
+
+[tool.uv.workspace]
+members = [
+    "haxdex_core",
+    "haxdex_read_media",
+]
+
 [tool.uv.sources]
-hstd-py-lib = { path = "../../haxorg/dist/hstd_py_lib-0.1.0-py3-none-any.whl" }
+haxdex_core = { workspace = true }
+haxdex_read_media = { workspace = true }

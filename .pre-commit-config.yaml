@@ -1,12 +1,12 @@
 repos:
-  - repo: local
-    hooks:
-      - id: fix-ai-qt
-        name: Fix AI Qt stubs
-        entry: ./pre_commit_fix_qt.py
-        language: system
-        types: [python]
-        pass_filenames: true
+  # - repo: local
+  #   hooks:
+  #     - id: fix-ai-qt
+  #       name: Fix AI Qt stubs
+  #       entry: ./pre_commit_fix_qt.py
+  #       language: system
+  #       types: [python]
+  #       pass_filenames: true
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.6
     hooks:
