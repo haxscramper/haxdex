@@ -1,15 +1,7 @@
 import enum
-import hashlib
-import json
 
 from beartype.typing import Annotated, Any, Literal, Sequence, Union
 from pydantic import BaseModel, Field, TypeAdapter, field_serializer, field_validator
-
-
-class DocumentLink(BaseModel, extra="forbid"):
-    order: int
-    relation: Literal["nested"] = "nested"  # type: ignore
-
 
 TextAlignment = Literal["left", "center", "right", "justify"]
 
@@ -25,7 +17,7 @@ class Markup(str, enum.Enum):
 
 
 class TextStyles(BaseModel, extra="forbid"):
-    markup: set[Markup] = set()
+    markup: set[Markup] = Field(default_factory=set)
     textColor: str | None = None
     backgroundColor: str | None = None
 
@@ -41,7 +33,7 @@ class TextStyles(BaseModel, extra="forbid"):
         return value
 
     def extend(self, value: Markup) -> "TextStyles":
-        return TextStyles().model_copy(update=dict(markup=self.markup | {value}))
+        return self.model_copy(update={"markup": self.markup | {value}})
 
 
 class StyledText(BaseModel, extra="forbid"):
@@ -77,6 +69,7 @@ class SliceValue(BaseModel):
 
 class InlineContent(BaseModel, extra="forbid"):
     text: str = ""
+    plaintext: str = ""
     annotations: list[tuple[SliceValue, InlineStructure]] = Field(default_factory=list)
 
 
@@ -106,7 +99,7 @@ class DivProps(CaptionProps, extra="forbid"):
 
 
 class DocumentBlock(BaseModel, extra="forbid"):
-    nested: Sequence["DocumentBlock"] = Field(default_factory=list)
+    nested: list["DocumentBlock"] = Field(default_factory=list)
 
 
 class File(DocumentBlock):
@@ -195,48 +188,41 @@ class Table(DocumentBlock):
 
 
 for _cls in (
+    File,
     Document,
     Paragraph,
+    Math,
     Heading,
     Code,
+    RawBlock,
     BulletListItem,
     NumberedListItem,
     Quote,
     Div,
+    TableCell,
+    TableRow,
     Table,
 ):
     _cls.model_rebuild()
 
-_fake_hash = "0" * 64
 
-
-def build[T](
+def build[T: DocumentBlock](
     cls: type[T],
     *,
-    file_hash: str,
     nested: Sequence[DocumentBlock] = (),
-    **kwargs,
+    **kwargs: Any,
 ) -> T:
-    nested = list(nested)
-    block = cls.model_validate(  # type: ignore
-        dict(
-            hash=_fake_hash,
-            file_hash=file_hash,
-            nested=nested,
+    return cls.model_validate(
+        {
+            "nested": list(nested),
             **kwargs,
-        )
+        }
     )
-    payload = block.model_dump(exclude={"id", "nested", "hash"})
-    hasher = hashlib.sha256()
-    hasher.update(json.dumps(payload, sort_keys=True).encode())
-    for n in nested:
-        hasher.update(n.hash.encode())
-    block.hash = hasher.hexdigest()
-    return block
 
 
 def merge_text(nodes: list[InlineNode]) -> list[InlineNode]:
     merged: list[InlineNode] = []
+
     for node in nodes:
         if (
             isinstance(node, StyledText)
@@ -250,6 +236,7 @@ def merge_text(nodes: list[InlineNode]) -> list[InlineNode]:
             )
         else:
             merged.append(node)
+
     return merged
 
 
@@ -275,43 +262,36 @@ def styled_text_to_markdown(node: StyledText) -> str:
 
 def inline_nodes_to_content(nodes: Sequence[InlineNode]) -> InlineContent:
     text_parts: list[str] = []
+    plaintext_parts: list[str] = []
     annotations: list[tuple[SliceValue, InlineStructure]] = []
+    text_length = 0
 
     for node in merge_text(list(nodes)):
         if isinstance(node, StyledText):
-            text_parts.append(styled_text_to_markdown(node))
+            rendered = styled_text_to_markdown(node)
+            text_parts.append(rendered)
+            plaintext_parts.append(node.text)
+            text_length += len(rendered)
             continue
 
         if isinstance(node, Link):
-            start = len("".join(text_parts))
-            link_text = "".join(styled_text_to_markdown(seg) for seg in node.content)
+            start = text_length
+            link_text = "".join(
+                styled_text_to_markdown(segment) for segment in node.content
+            )
             text_parts.append(link_text)
-            end = start + len(link_text)
-            annotations.append((SliceValue.FromSlice(slice(start, end)), node))
+            plaintext_parts.extend(segment.text for segment in node.content)
+            text_length += len(link_text)
+
+            annotations.append(
+                (
+                    SliceValue.FromSlice(slice(start, text_length)),
+                    node,
+                )
+            )
 
     return InlineContent(
         text="".join(text_parts),
+        plaintext="".join(plaintext_parts),
         annotations=annotations,
     )
-
-
-def _flatten(
-    block: DocumentBlock,
-    documents: list[IndexDocument],
-    links: list[IndexEdge],
-    parent_hash: str | None,
-    order: int,
-) -> None:
-    documents.append(block.model_copy(update={"nested": []}))
-    if parent_hash is not None:
-        links.append(
-            DocumentLink(
-                from_=parent_hash,
-                to_=block.hash,
-                order=order,
-                file_hash=block.file_hash,
-            )
-        )
-
-    for i, nested in enumerate(block.nested):
-        _flatten(nested, documents, links, block.hash, i)

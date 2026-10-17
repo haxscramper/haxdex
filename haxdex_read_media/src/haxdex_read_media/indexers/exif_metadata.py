@@ -437,7 +437,7 @@ class TArtV1MainData(BaseModel):
     width: int
     height: int
     imageCount: int
-    samplerName: str
+    samplerName: str = "euler"
     steps: int
     cfgScale: float
     seed: str | None = None

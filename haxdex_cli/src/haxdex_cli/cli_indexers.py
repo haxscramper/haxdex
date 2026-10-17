@@ -2,6 +2,7 @@
 from haxdex_read_media.indexers.comfy_input_indexer import ComfyInputIndexer
 from haxdex_read_media.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex_read_media.indexers.ffprobe_indexer import FFProbeIndexer
+from haxdex_read_media.indexers.full_document.full_document import DocumentBlockIndexer
 from haxdex_read_media.indexers.image_generation import GenerationParamsIndexer
 from haxdex_read_media.indexers.image_hash import ImageHashIndexer
 from haxdex_read_media.indexers.mime_indexer import FileMimeIndexer
@@ -29,6 +30,7 @@ CLI_INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     ImageHashIndexer,
     FileMimeIndexer,
     GenerationParamsIndexer,
+    DocumentBlockIndexer,
 ]
 
 CLI_RESOURCE_TYPES = [t for t in DEFAULT_RESOURCE_TYPES] + [

@@ -12,6 +12,7 @@ from haxdex_core.db import IndexDatabase
 from haxdex_core.file_iteration import DirConfig, RootFilter, prepare_root_filters
 from haxdex_core.job_runtime import IndexRuntime
 from haxdex_core.job_types import BaseIndexer, RunContext
+from haxdex_core.types import FileRef, RootRef
 from haxdex_core.utils import format_duration
 
 
@@ -89,9 +90,7 @@ def collect_files_for_path(
 
 
 def build_refs_for_root(
-    db: IndexDatabase,
-    root: RootRef,
-    files: list[Path],
+    db: IndexDatabase, root: RootRef, files: Sequence[Path]
 ) -> list[FileRef]:
     return [db.as_ref(root, file) for file in files]
 
