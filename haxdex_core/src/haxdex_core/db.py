@@ -52,6 +52,7 @@ class IndexDatabase:
             path=self.directory / "catalog.duckdb",
             asset_name="files",
             result_schema=_catalog_schema(),
+            reset_db=False,
         )
 
         self._roots_table = self._catalog.result_schema.tables["roots"]
@@ -67,6 +68,7 @@ class IndexDatabase:
         self,
         asset_name: str,
         result_schema: MetaData,
+        reset_db: bool,
     ) -> IndexerStore:
         existing = self._indexer_databases.get(asset_name)
         if existing is not None:
@@ -80,6 +82,7 @@ class IndexDatabase:
             path=self.directory / "indexers" / f"{asset_name}.duckdb",
             asset_name=asset_name,
             result_schema=result_schema,
+            reset_db=reset_db,
         )
         logger.info(f"Opening indexer {asset_name} to {database.path}")
         self._indexer_databases[asset_name] = database

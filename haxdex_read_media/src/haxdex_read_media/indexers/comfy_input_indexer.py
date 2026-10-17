@@ -8,17 +8,17 @@ from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from pydantic import BaseModel, Field, model_serializer, model_validator
-from sqlalchemy import (
-    JSON,
-    ForeignKey,
-    MetaData,
-    String,
-    insert,
-    select,
+from sqlalchemy import JSON, ForeignKey, MetaData, String, select
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    Session,
+    mapped_column,
+    relationship,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from haxdex_read_media.indexers.exif_metadata import EXIF_METADATA_TABLE
+from haxdex_read_media.indexers.exif_metadata import ExifMetadata
 
 
 class XYObjectObject(BaseModel, extra="allow"):
@@ -187,26 +187,10 @@ class ComfyWorkflow1_0Object(BaseModel, extra="allow"):
     models: list[ModelItemObject] | None = None
 
 
-class ComfyInputLinkObject(BaseModel, extra="forbid"):
-    origin_slot: int
-    origin_id: str
-    target_slot: int
-
-
-class ComfyInputObject(BaseModel, extra="forbid"):
-    node: str
-    node_id: str
-    title: str | None = None
-    inputs: dict[str, Any] | list[Any]
-    links: list[ComfyInputLinkObject] = Field(
-        description=("Incoming links to the node -- origin slot/id is a dependee node")
-    )
-
-
 COMFY_INPUT_SCHEMA = MetaData()
 
 
-class ComfyInputBase(DeclarativeBase):
+class ComfyInputBase(MappedAsDataclass, DeclarativeBase, kw_only=True):
     metadata = COMFY_INPUT_SCHEMA
 
 
@@ -214,7 +198,22 @@ class ComfyInput(ComfyInputBase):
     __tablename__ = "comfy_input"
 
     hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    note: Mapped[str] = mapped_column(String, nullable=False)
+    note: Mapped[str] = mapped_column(default="")
+
+    nodes: Mapped[list[ComfyInputNode]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="ComfyInputNode.position",
+        default_factory=list,
+        repr=False,
+    )
+    links: Mapped[list[ComfyInputLink]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="ComfyInputLink.target_id, ComfyInputLink.position",
+        default_factory=list,
+        repr=False,
+    )
 
 
 class ComfyInputNode(ComfyInputBase):
@@ -224,12 +223,19 @@ class ComfyInputNode(ComfyInputBase):
         String(64),
         ForeignKey("comfy_input.hash"),
         primary_key=True,
+        init=False,
     )
-    node_id: Mapped[str] = mapped_column(String, primary_key=True)
-    position: Mapped[int] = mapped_column(nullable=False)
-    node: Mapped[str] = mapped_column(String, nullable=False)
-    title: Mapped[str | None] = mapped_column(String)
-    inputs: Mapped[Any] = mapped_column(JSON, nullable=False)
+    node_id: Mapped[str] = mapped_column(primary_key=True)
+    position: Mapped[int]
+    node: Mapped[str]
+    inputs: Mapped[dict[str, Any] | list[Any]] = mapped_column(JSON)
+    title: Mapped[str | None] = mapped_column(default=None)
+
+    document: Mapped[ComfyInput] = relationship(
+        back_populates="nodes",
+        init=False,
+        repr=False,
+    )
 
 
 class ComfyInputLink(ComfyInputBase):
@@ -239,30 +245,34 @@ class ComfyInputLink(ComfyInputBase):
         String(64),
         ForeignKey("comfy_input.hash"),
         primary_key=True,
+        init=False,
     )
-    target_id: Mapped[str] = mapped_column(String, primary_key=True)
+    target_id: Mapped[str] = mapped_column(primary_key=True)
     position: Mapped[int] = mapped_column(
         primary_key=True,
         autoincrement=False,
     )
-    origin_id: Mapped[str] = mapped_column(String, nullable=False)
-    origin_slot: Mapped[int] = mapped_column(nullable=False)
-    target_slot: Mapped[int] = mapped_column(nullable=False)
+    origin_id: Mapped[str]
+    origin_slot: Mapped[int]
+    target_slot: Mapped[int]
+
+    document: Mapped[ComfyInput] = relationship(
+        back_populates="links",
+        init=False,
+        repr=False,
+    )
 
 
-def _workflow_inputs(workflow: ComfyWorkflow1_0Object) -> list[ComfyInputObject]:
-    links_by_target: dict[str, list[ComfyInputLinkObject]] = defaultdict(list)
+def _workflow_inputs(
+    workflow: ComfyWorkflow1_0Object,
+    file_hash: str,
+) -> ComfyInput:
+    links_by_target: dict[str, list[LinkObject]] = defaultdict(list)
 
     for link in workflow.links or ():
-        links_by_target[str(link.target_id)].append(
-            ComfyInputLinkObject(
-                origin_id=str(link.origin_id),
-                origin_slot=int(link.origin_slot),
-                target_slot=int(link.target_slot),
-            )
-        )
+        links_by_target[str(link.target_id)].append(link)
 
-    result: list[ComfyInputObject] = []
+    document = ComfyInput(hash=file_hash)
 
     for node in workflow.nodes:
         if not node.widgets_values:
@@ -276,45 +286,48 @@ def _workflow_inputs(workflow: ComfyWorkflow1_0Object) -> list[ComfyInputObject]
 
         node_id = str(node.id)
 
-        result.append(
-            ComfyInputObject(
-                node=node.type,
+        document.nodes.append(
+            ComfyInputNode(
                 node_id=node_id,
+                position=len(document.nodes),
+                node=node.type,
                 title=title,
                 inputs=node.widgets_values,
-                links=links_by_target.get(node_id, []),
             )
         )
 
-    return result
+        document.links.extend(
+            ComfyInputLink(
+                target_id=node_id,
+                position=position,
+                origin_id=str(link.origin_id),
+                origin_slot=int(link.origin_slot),
+                target_slot=int(link.target_slot),
+            )
+            for position, link in enumerate(links_by_target.get(node_id, []))
+        )
+
+    return document
 
 
 def _load_workflow(
     database: IndexerStore,
     file_hash: str,
 ) -> ComfyWorkflow1_0Object | None:
-    with database.connection() as connection:
-        row = (
-            connection.execute(
-                select(
-                    EXIF_METADATA_TABLE.c.error,
-                    EXIF_METADATA_TABLE.c.original_metadata_full,
-                ).where(EXIF_METADATA_TABLE.c.hash == file_hash)
+    with database.connection() as connection, Session(bind=connection) as session:
+        document = session.get(ExifMetadata, file_hash)
+
+        if document is None:
+            raise LookupError(f"No EXIF metadata result for file {file_hash}")
+
+        if document.error is not None:
+            raise ValueError(
+                f"Cannot extract ComfyUI workflow for file {file_hash}: "
+                f"EXIF extraction failed: {document.error}"
             )
-            .mappings()
-            .one_or_none()
-        )
 
-    if row is None:
-        raise LookupError(f"No EXIF metadata result for file {file_hash}")
+        metadata = document.original_metadata_full
 
-    if row["error"] is not None:
-        raise ValueError(
-            f"Cannot extract ComfyUI workflow for file {file_hash}: "
-            f"EXIF extraction failed: {row['error']}"
-        )
-
-    metadata = row["original_metadata_full"]
     if not isinstance(metadata, dict):
         raise TypeError(
             f"Expected original_metadata_full to be an object for {file_hash}"
@@ -366,49 +379,23 @@ class ComfyInputIndexer(BaseIndexer):
         )
 
         if workflow is None:
-            inputs: list[ComfyInputObject] = []
-            note = "no workflow data detected"
+            document = ComfyInput(
+                hash=file_hash,
+                note="no workflow data detected",
+            )
         else:
-            inputs = _workflow_inputs(workflow)
-            note = ""
+            document = _workflow_inputs(workflow, file_hash)
 
-        node_rows = [
-            {
-                "file_hash": file_hash,
-                "node_id": node.node_id,
-                "position": position,
-                "node": node.node,
-                "title": node.title,
-                "inputs": node.inputs,
-            }
-            for position, node in enumerate(inputs)
-        ]
-
-        link_rows = [
-            {
-                "file_hash": file_hash,
-                "target_id": node.node_id,
-                "position": position,
-                "origin_id": link.origin_id,
-                "origin_slot": link.origin_slot,
-                "target_slot": link.target_slot,
-            }
-            for node in inputs
-            for position, link in enumerate(node.links)
-        ]
-
-        with self.database.transaction() as connection:
-            existing = connection.execute(
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
+            existing = session.scalar(
                 select(ComfyInput.hash).where(ComfyInput.hash == file_hash)
-            ).first()
+            )
 
             if existing is not None:
                 return
 
-            connection.execute(insert(ComfyInput).values(hash=file_hash, note=note))
-
-            if node_rows:
-                connection.execute(insert(ComfyInputNode), node_rows)
-
-            if link_rows:
-                connection.execute(insert(ComfyInputLink), link_rows)
+            session.add(document)
+            session.flush()

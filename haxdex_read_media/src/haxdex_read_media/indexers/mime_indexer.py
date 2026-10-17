@@ -10,10 +10,40 @@ from haxdex_core.job_types import (
 )
 from haxdex_core.types import IndexerRequest
 from magic import Magic, libmagic
-from sqlalchemy import ARRAY, Column, MetaData, String, Table, select
+from sqlalchemy import ARRAY, MetaData, String, select
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    Session,
+    mapped_column,
+)
 
 # From file/magic.h.
 MAGIC_PARAM_NAME_MAX = 5
+
+FILE_MIME_SCHEMA = MetaData()
+
+
+class FILE_MIME_BASE(MappedAsDataclass, DeclarativeBase):
+    metadata = FILE_MIME_SCHEMA
+
+
+class FileMime(FILE_MIME_BASE):
+    __tablename__ = "file_mime"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    mime_type: Mapped[str] = mapped_column(String, nullable=False)
+    mime_encoding: Mapped[str] = mapped_column(String, nullable=False)
+    magic_description: Mapped[str] = mapped_column(String, nullable=False)
+    magic_all_matches: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+    )
+    magic_extensions: Mapped[list[str]] = mapped_column(
+        ARRAY(String),
+        nullable=False,
+    )
 
 
 def _set_name_max(magic_instance: Magic, value: int) -> None:
@@ -26,19 +56,9 @@ def _set_name_max(magic_instance: Magic, value: int) -> None:
 
 
 class FileMimeIndexer(BaseIndexer):
-    asset_name = "file_mime"
-    result_schema = MetaData()
-
-    table = Table(
-        asset_name,
-        result_schema,
-        Column("hash", String(64), primary_key=True),
-        Column("mime_type", String, nullable=False),
-        Column("mime_encoding", String, nullable=False),
-        Column("magic_description", String, nullable=False),
-        Column("magic_all_matches", ARRAY(String), nullable=False),
-        Column("magic_extensions", ARRAY(String), nullable=False),
-    )
+    asset_name = FileMime.__tablename__
+    result_schema = FILE_MIME_SCHEMA
+    table = FileMime.__table__
 
     def __init__(
         self,
@@ -117,17 +137,20 @@ class FileMimeIndexer(BaseIndexer):
             if extension.strip()
         ]
 
-        with self.database.transaction() as connection:
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
             # Another reference with identical content may already have run.
-            existing = connection.execute(
-                select(self.table.c.hash).where(self.table.c.hash == file_hash)
-            ).first()
+            existing = session.scalar(
+                select(FileMime.hash).where(FileMime.hash == file_hash)
+            )
 
             if existing is not None:
                 return
 
-            connection.execute(
-                self.table.insert().values(
+            session.add(
+                FileMime(
                     hash=file_hash,
                     mime_type=mime_type,
                     mime_encoding=mime_encoding,
@@ -136,3 +159,4 @@ class FileMimeIndexer(BaseIndexer):
                     magic_extensions=magic_extensions,
                 )
             )
+            session.flush()

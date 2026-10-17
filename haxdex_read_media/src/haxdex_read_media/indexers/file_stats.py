@@ -5,32 +5,40 @@ from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from sqlalchemy import (
     BigInteger,
-    Column,
     DateTime,
     Float,
     MetaData,
     String,
-    Table,
+    insert,
     select,
+    update,
 )
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-result_schema = MetaData()
+FILE_STATS_SCHEMA = MetaData()
 
-file_stats = Table(
-    "file_stats",
-    result_schema,
-    Column("hash", String(64), primary_key=True),
-    Column("size_bytes", BigInteger, nullable=False),
-    Column("mode", BigInteger, nullable=False),
-    Column("mtime", Float, nullable=False),
-    Column("ctime", Float, nullable=False),
-    Column("modification_time", DateTime, nullable=False),
-)
+
+class FILE_STATS_BASE(DeclarativeBase):
+    metadata = FILE_STATS_SCHEMA
+
+
+class FileStats(FILE_STATS_BASE):
+    __tablename__ = "file_stats"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    mode: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    mtime: Mapped[float] = mapped_column(Float, nullable=False)
+    ctime: Mapped[float] = mapped_column(Float, nullable=False)
+    modification_time: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+    )
 
 
 class FileStatsIndexer(BaseIndexer):
     asset_name = "file_stats"
-    result_schema = result_schema
+    result_schema = FILE_STATS_SCHEMA
 
     def run(
         self,
@@ -50,19 +58,17 @@ class FileStatsIndexer(BaseIndexer):
         }
 
         with self.database.transaction() as connection:
-            condition = file_stats.c.hash == file_hash
+            condition = FileStats.hash == file_hash
             existing = connection.execute(
-                select(file_stats.c.hash).where(condition)
-            ).first()
+                select(FileStats.hash).where(condition)
+            ).scalar_one_or_none()
 
             if existing is None:
                 connection.execute(
-                    file_stats.insert().values(
+                    insert(FileStats).values(
                         hash=file_hash,
                         **values,
                     )
                 )
             else:
-                connection.execute(
-                    file_stats.update().where(condition).values(**values)
-                )
+                connection.execute(update(FileStats).where(condition).values(**values))

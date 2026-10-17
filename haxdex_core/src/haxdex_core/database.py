@@ -4,8 +4,9 @@ import re
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
+from beartype.typing import Iterator
+from loguru import logger
 from sqlalchemy import (
     URL,
     Connection,
@@ -36,6 +37,7 @@ class IndexerStore:
         path: Path,
         asset_name: str,
         result_schema: MetaData,
+        reset_db: bool,
     ) -> None:
         if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", asset_name) is None:
             raise ValueError(f"Invalid asset name: {asset_name!r}")
@@ -75,6 +77,11 @@ class IndexerStore:
 
         try:
             with self.transaction() as connection:
+                if reset_db:
+                    logger.warning(
+                        f"Reset DB was enabled for the {asset_name}, dropping all for {path}"
+                    )
+                    self.result_schema.drop_all(connection)
                 self.result_schema.create_all(connection)
         except BaseException:
             self._engine.dispose()
@@ -82,15 +89,13 @@ class IndexerStore:
 
     @contextmanager
     def connection(self) -> Iterator[Connection]:
-        with self._lock:
-            with self._engine.connect() as connection:
-                yield connection
+        with self._lock, self._engine.connect() as connection:
+            yield connection
 
     @contextmanager
     def transaction(self) -> Iterator[Connection]:
-        with self._lock:
-            with self._engine.begin() as connection:
-                yield connection
+        with self._lock, self._engine.begin() as connection:
+            yield connection
 
     def has_file(self, ref: FileHash | FileRef | str) -> bool:
         statement = (

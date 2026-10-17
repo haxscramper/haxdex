@@ -62,7 +62,7 @@ class BaseResource(ABC):
 
 
 class BaseIndexerConfig(BaseModel, extra="forbid"):
-    pass
+    reset_db: bool = False
 
 
 class BaseIndexer(ABC):

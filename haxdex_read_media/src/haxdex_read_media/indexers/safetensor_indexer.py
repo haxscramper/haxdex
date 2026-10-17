@@ -2,71 +2,81 @@ import json
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from loguru import logger
-from sqlalchemy import (
-    ARRAY,
-    BigInteger,
-    Column,
-    ForeignKey,
-    MetaData,
-    String,
-    Table,
-    select,
-)
+from sqlalchemy import ARRAY, BigInteger, ForeignKey, MetaData, String, insert, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-result_schema = MetaData()
+SAFETENSOR_SCHEMA = MetaData()
 
-safetensor = Table(
-    "safetensor",
-    result_schema,
-    Column("hash", String(64), primary_key=True),
-    Column("size_bytes", BigInteger, nullable=False),
-    Column("header_size", BigInteger, nullable=False),
-    Column("num_tensors", BigInteger, nullable=False),
-    Column("total_parameters", BigInteger, nullable=False),
-    Column("total_tensor_bytes", BigInteger, nullable=False),
-)
 
-safetensor_metadata = Table(
-    "safetensor_metadata",
-    result_schema,
-    Column(
-        "file_hash",
+class SAFETENSOR_BASE(DeclarativeBase):
+    metadata = SAFETENSOR_SCHEMA
+
+
+class Safetensor(SAFETENSOR_BASE):
+    __tablename__ = "safetensor"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    size_bytes: Mapped[int] = mapped_column(BigInteger)
+    header_size: Mapped[int] = mapped_column(BigInteger)
+    num_tensors: Mapped[int] = mapped_column(BigInteger)
+    total_parameters: Mapped[int] = mapped_column(BigInteger)
+    total_tensor_bytes: Mapped[int] = mapped_column(BigInteger)
+
+
+class SafetensorMetadata(SAFETENSOR_BASE):
+    __tablename__ = "safetensor_metadata"
+
+    file_hash: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("safetensor.hash"),
         primary_key=True,
-    ),
-    Column("key", String, primary_key=True),
-    Column("value", String, nullable=False),
-)
+    )
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    value: Mapped[str] = mapped_column(String)
 
-safetensor_tensor = Table(
-    "safetensor_tensor",
-    result_schema,
-    Column(
-        "file_hash",
+
+class SafetensorTensor(SAFETENSOR_BASE):
+    __tablename__ = "safetensor_tensor"
+
+    file_hash: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("safetensor.hash"),
         primary_key=True,
-    ),
-    Column("name", String, primary_key=True),
-    Column("dtype", String, nullable=False),
-    Column("shape", ARRAY(BigInteger), nullable=False),
-    Column("num_elements", BigInteger, nullable=False),
-    Column("byte_size", BigInteger, nullable=False),
-)
+    )
+    name: Mapped[str] = mapped_column(String, primary_key=True)
+    dtype: Mapped[str] = mapped_column(String)
+    shape: Mapped[list[int]] = mapped_column(ARRAY(BigInteger))
+    num_elements: Mapped[int] = mapped_column(BigInteger)
+    byte_size: Mapped[int] = mapped_column(BigInteger)
+
+
+class _Document(TypedDict):
+    size_bytes: int
+    header_size: int
+    num_tensors: int
+    total_parameters: int
+    total_tensor_bytes: int
+
+
+class _Tensor(TypedDict):
+    name: str
+    dtype: str
+    shape: list[int]
+    num_elements: int
+    byte_size: int
 
 
 @dataclass
 class _ParsedSafetensor:
-    document: dict[str, int]
+    document: _Document
     metadata: dict[str, str]
-    tensors: list[dict[str, Any]]
+    tensors: list[_Tensor]
 
 
 def _read_header(path: Path) -> tuple[int, dict[str, Any]]:
@@ -82,7 +92,7 @@ def _parse(path: Path) -> _ParsedSafetensor:
     header_size, header = _read_header(path)
     metadata = header.pop("__metadata__", {})
 
-    tensors: list[dict[str, Any]] = []
+    tensors: list[_Tensor] = []
     total_parameters = 0
     total_tensor_bytes = 0
 
@@ -123,7 +133,7 @@ def _parse(path: Path) -> _ParsedSafetensor:
 
 class SafetensorIndexer(BaseIndexer):
     asset_name = "safetensor"
-    result_schema = result_schema
+    result_schema = SAFETENSOR_SCHEMA
 
     def can_run(self, path: Path) -> bool:
         return path.suffix.lower() == ".safetensors"
@@ -146,23 +156,22 @@ class SafetensorIndexer(BaseIndexer):
         with self.database.transaction() as connection:
             # Another worker may have indexed identical content while parsing.
             existing = connection.execute(
-                select(safetensor.c.hash).where(safetensor.c.hash == file_hash)
-            ).first()
+                select(Safetensor.hash).where(Safetensor.hash == file_hash)
+            ).scalar_one_or_none()
 
             if existing is not None:
                 return
 
             connection.execute(
-                safetensor.insert(),
-                {
-                    "hash": file_hash,
+                insert(Safetensor).values(
+                    hash=file_hash,
                     **parsed.document,
-                },
+                )
             )
 
             if parsed.metadata:
                 connection.execute(
-                    safetensor_metadata.insert(),
+                    insert(SafetensorMetadata),
                     [
                         {
                             "file_hash": file_hash,
@@ -175,7 +184,7 @@ class SafetensorIndexer(BaseIndexer):
 
             if parsed.tensors:
                 connection.execute(
-                    safetensor_tensor.insert(),
+                    insert(SafetensorTensor),
                     [
                         {
                             "file_hash": file_hash,

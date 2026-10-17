@@ -110,6 +110,7 @@ class IndexService:
                 database = self.db.open_indexer(
                     asset_name=key,
                     result_schema=indexer_type.result_schema,
+                    reset_db=cfg.indexers[key].reset_db,
                 )
 
                 self.indexer_instances.append(
