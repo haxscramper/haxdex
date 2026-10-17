@@ -35,6 +35,7 @@ from haxdex_cli.cli_config import (
     IndexPathConfig,
     LoggingConfig,
 )
+from haxdex_core.file_iteration import DirConfig, prepare_root_filters
 from haxdex_core.hash_cache import HashCache
 from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
@@ -94,7 +95,6 @@ from sqlalchemy.orm import Session
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import qt_model_to_dataframe
-from haxdex.services.file_iteration import DirConfig, prepare_root_filters
 from haxdex.services.pydantic_utils import (
     format_json_with_fjson,
     model_from_json_data,

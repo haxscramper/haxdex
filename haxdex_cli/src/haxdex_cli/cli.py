@@ -10,7 +10,7 @@ from typing import Any
 
 import commentjson
 from beartype import beartype
-from cli_config import (
+from haxdex_cli.cli_config import (
     _INDEXER_TYPES,
     _RESOURCE_TYPES,
     AppConfig,
@@ -25,24 +25,8 @@ from haxdex_core.utils import (
     get_xdg_cache_dir,
     stfu_logs,
 )
-from haxdex_read_media.indexers.comfy_input_indexer import (
-    ComfyInputIndexer,
-)
-from haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-)
-from haxdex_read_media.indexers.wd_indexer import WdTagIndexer
-from haxdex_view_results.builder import WidgetBuilder
-from haxdex_view_results.comfy_input_builder import (
-    ComfyInputWidgetBuilder,
-)
-from haxdex_view_results.exif_preview_builder import (
-    ExifPreviewrWidgetBuilder,
-)
-from haxdex_view_results.wd_tagger_builder import (
-    WdTaggerWidgetBuilder,
-)
 from hstd_py_lib.pydantic_utils import model_to_json_data
+from hstd_py_lib.script_logging import get_custom_traceback_handler
 from loguru import logger
 
 from haxdex.services.log_config import keep_last_files
@@ -257,20 +241,20 @@ class IndexService:
             cfg=index_cfg,
         )
 
-    def get_builders(self) -> list[WidgetBuilder]:
-        builders = list()
-        for inst in self.indexer_instances:
-            match inst:
-                case ComfyInputIndexer():
-                    builders.append(ComfyInputWidgetBuilder(inst))
+    # def get_builders(self) -> list[WidgetBuilder]:
+    #     builders = list()
+    #     for inst in self.indexer_instances:
+    #         match inst:
+    #             case ComfyInputIndexer():
+    #                 builders.append(ComfyInputWidgetBuilder(inst))
 
-                case WdTagIndexer():
-                    builders.append(WdTaggerWidgetBuilder(inst))
+    #             case WdTagIndexer():
+    #                 builders.append(WdTaggerWidgetBuilder(inst))
 
-                case ExifMetadataIndexer():
-                    builders.append(ExifPreviewrWidgetBuilder(inst))
+    #             case ExifMetadataIndexer():
+    #                 builders.append(ExifPreviewrWidgetBuilder(inst))
 
-        return builders
+    #     return builders
 
     # def run_flat_query_view(self) -> None:
     #     qt_app = QApplication(sys.argv)
@@ -316,10 +300,6 @@ def main() -> None:
         try:
             service.run_index()
 
-        except Exception as ex:
-            logger.opt(exception=ex).critical("{}", ex)
-            raise
-
         finally:
             service.db.hash_cache.close()
             perf_file = perf_dir / f"{datetime.now().isoformat()}.json"
@@ -329,6 +309,8 @@ def main() -> None:
             if service.cfg.perf_trace_file is not None:
                 logger.info(f"Trace file {service.cfg.perf_trace_file}")
                 service.ctx.writer.save(str(service.cfg.perf_trace_file))
+
+        logger.info("Completed indexing")
 
 
 if __name__ == "__main__":

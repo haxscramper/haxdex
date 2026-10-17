@@ -5,6 +5,7 @@ from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import RunContext
 from haxdex_cli.cli_config import IndexConfig, IndexPathConfig
+from haxdex_core.file_iteration import DirConfig
 from haxdex_core.indexing_flow import run_indexing_per_root_plan
 from haxdex_core.utils import dump_with_type
 from haxdex_read_media.indexers.chunk_indexing.file_embedding import (
@@ -20,7 +21,6 @@ from haxdex_read_media.indexers.full_document.full_document_types import (
 )
 from loguru import logger
 
-from haxdex.services.file_iteration import DirConfig
 from haxdex.services.pydantic_utils import first_by_field_value
 
 corpus = Path(__file__).parent.joinpath("corpus")

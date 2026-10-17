@@ -4,13 +4,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from loguru import logger
-from pydantic import BaseModel
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
-from haxdex.services.file_iteration import RootFilter, match_root
+from haxdex_core.file_iteration import RootFilter, match_root
+from loguru import logger
+from pydantic import BaseModel
 
 AQL_FILE_PATHS = """
 FOR file IN files

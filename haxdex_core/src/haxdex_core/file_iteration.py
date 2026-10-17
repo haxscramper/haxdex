@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 
 from beartype.typing import Sequence
+from hstd_py_lib.pydantic_utils import ExistingDir, ExistingPath
 from pathspec import GitIgnoreSpec
 from pydantic import BaseModel, Field
-
-from haxdex.services.pydantic_utils import ExistingDir, ExistingPath
 
 
 class DirConfig(BaseModel, extra="forbid"):

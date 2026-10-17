@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Self
 
+from loguru import logger
 from sqlalchemy import Column, MetaData, String, Table, and_, select
 
 from haxdex_core.database import IndexerStore
@@ -80,6 +81,7 @@ class IndexDatabase:
             asset_name=asset_name,
             result_schema=result_schema,
         )
+        logger.info(f"Opening indexer {asset_name} to {database.path}")
         self._indexer_databases[asset_name] = database
         return database
 

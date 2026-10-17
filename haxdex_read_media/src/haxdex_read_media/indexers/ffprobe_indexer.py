@@ -14,49 +14,32 @@ from haxdex_core.job_types import (
 from haxdex_core.types import IndexerRequest
 from loguru import logger
 from plumbum import local
-from pydantic import BaseModel
-from sqlalchemy import (
-    BigInteger,
-    Column,
-    Float,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    select,
-)
+from sqlalchemy import BigInteger, MetaData, String, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 ffprobe_schema = MetaData()
 
-ffprobe_table = Table(
-    "ffprobe",
-    ffprobe_schema,
-    Column("hash", String(64), primary_key=True),
-    Column("duration_seconds", Float),
-    Column("bitrate_bps", BigInteger),
-    Column("width", Integer),
-    Column("height", Integer),
-    Column("resolution", String),
-    Column("codec_name", String),
-    Column("format_name", String),
-    Column("fps", Float),
-)
+
+class FFProbeBase(DeclarativeBase):
+    metadata = ffprobe_schema
+
+
+class FFProbeInfo(FFProbeBase):
+    __tablename__ = "ffprobe"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    duration_seconds: Mapped[float | None]
+    bitrate_bps: Mapped[int | None] = mapped_column(BigInteger)
+    width: Mapped[int | None]
+    height: Mapped[int | None]
+    resolution: Mapped[str | None]
+    codec_name: Mapped[str | None]
+    format_name: Mapped[str | None]
+    fps: Mapped[float | None]
 
 
 @beartype
-class FFProbeInfoModel(BaseModel, extra="forbid"):
-    duration_seconds: float | None = None
-    bitrate_bps: int | None = None
-    width: int | None = None
-    height: int | None = None
-    resolution: str | None = None
-    codec_name: str | None = None
-    format_name: str | None = None
-    fps: float | None = None
-
-
-@beartype
-def run_ffprobe(path: Path) -> FFProbeInfoModel:
+def run_ffprobe(path: Path, file_hash: str) -> FFProbeInfo:
     logger.debug("running probe on {}", path)
 
     result = local["ffprobe"].run(
@@ -115,7 +98,8 @@ def run_ffprobe(path: Path) -> FFProbeInfoModel:
         else None
     )
 
-    return FFProbeInfoModel(
+    return FFProbeInfo(
+        hash=file_hash,
         duration_seconds=parse_float(format_raw.get("duration")),
         bitrate_bps=parse_int(format_raw.get("bit_rate")),
         width=width,
@@ -156,19 +140,18 @@ class FFProbeIndexer(BaseIndexer):
         if self.database.has_file(file_hash):
             return
 
-        probe = run_ffprobe(ctx.get_path(request.file_ref))
+        probe = run_ffprobe(ctx.get_path(request.file_ref), file_hash)
 
-        with self.database.transaction() as connection:
-            existing = connection.execute(
-                select(ffprobe_table.c.hash).where(ffprobe_table.c.hash == file_hash)
-            ).first()
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
+            existing = session.scalar(
+                select(FFProbeInfo.hash).where(FFProbeInfo.hash == file_hash)
+            )
 
             if existing is not None:
                 return
 
-            connection.execute(
-                ffprobe_table.insert().values(
-                    hash=file_hash,
-                    **probe.model_dump(),
-                )
-            )
+            session.add(probe)
+            session.flush()

@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 
 from beartype import beartype
-from beartype.typing import Any, Literal, Mapping, Optional
+from beartype.typing import Any, Literal, Mapping
+from haxdex_core.file_iteration import DirConfig
 from haxdex_core.job_types import BaseIndexerConfig
 from haxdex_core.utils import get_xdg_cache_dir
 from haxdex_read_media.indexers.comfy_input_indexer import (
@@ -30,7 +31,6 @@ from haxdex_read_media.resources.pdf.pdf_extractor import (
     PdfExtractor,
 )
 from haxdex_read_media.resources.wd_tagger import WdTagger
-from haxdex_view_generation.models import ExplorerSettings
 from hstd_py_lib.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -38,18 +38,14 @@ from haxdex.services.default_job_types import (
     DEFAULT_INDEXER_TYPES,
     DEFAULT_RESOURCE_TYPES,
 )
-from haxdex.services.file_iteration import DirConfig
-from haxdex.visual.trash_action_visual import TrashActionVisualConfig
 
 _INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     WdTagIndexer,
     PdfIndexer,
     FFProbeIndexer,
     SafetensorIndexer,
-    GenerationParamsIndexer,
     ExifMetadataIndexer,
     ComfyInputIndexer,
-    MediaTranscriptionIndexer,
     ImageHashIndexer,
     FileMimeIndexer,
 ]
@@ -58,7 +54,6 @@ _RESOURCE_TYPES = [t for t in DEFAULT_RESOURCE_TYPES] + [
     FlmServerResource,
     WdTagger,
     PdfExtractor,
-    WhisperTranscribeResource,
 ]
 
 _INDEXER_BY_NAME = {cls.asset_name: cls for cls in _INDEXER_TYPES}
@@ -130,10 +125,6 @@ class IndexConfig(BaseModel):
     media_transcribe_whisper_server: ExistingPath | None = None
 
 
-class VisualConfig(BaseModel, extra="forbid", frozen=True):
-    trash: Optional[TrashActionVisualConfig] = None
-
-
 class AppConfig(BaseModel, extra="forbid"):
     fuck_off__schema: str | None = Field(alias="$schema", default=None)
 
@@ -149,15 +140,12 @@ class AppConfig(BaseModel, extra="forbid"):
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
-    generation_explorer: ExplorerSettings | None = None
-
     indexers: dict[str, BaseIndexerConfig] = Field(default_factory=dict, exclude=True)
     resources: dict[str, BaseModel] = Field(default_factory=dict, exclude=True)
     perf_trace_file: OutputFile | None = None
 
     # exactly one of these must be set
     index: IndexConfig | None = None
-    visual: VisualConfig | None = None
 
     @model_validator(mode="before")
     @classmethod

@@ -5,14 +5,13 @@ from time import perf_counter
 
 from beartype import beartype
 from beartype.typing import Any, Sequence
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import META_SUFFIX, BaseIndexer, RunContext
-from haxdex.services.core.types import FileRef, RootRef
 from haxdex_cli.cli_config import IndexConfig, IndexPathConfig
 from loguru import logger
 
-from haxdex.services.file_iteration import DirConfig, RootFilter, prepare_root_filters
+from haxdex_core.db import IndexDatabase
+from haxdex_core.file_iteration import DirConfig, RootFilter, prepare_root_filters
+from haxdex_core.job_runtime import IndexRuntime
+from haxdex_core.job_types import BaseIndexer, RunContext
 from haxdex_core.utils import format_duration
 
 
@@ -74,9 +73,6 @@ def collect_files_for_path(
 
         for file in candidates:
             if file in seen:
-                continue
-
-            if str(file).endswith(META_SUFFIX):
                 continue
 
             if not _is_file_selected_by_filters(file, filters):

@@ -2,12 +2,9 @@ from typing import Any, ClassVar, Union
 
 import glom
 from beartype.typing import Annotated, Optional
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import (
-    FullTextIndexConfig,
-    IndexerOutput,
+from haxdex_core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex_core.types import (
     IndexerRequest,
-    MultiDocumentModel,
 )
 from loguru import logger
 from pydantic import Field

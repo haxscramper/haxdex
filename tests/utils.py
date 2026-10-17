@@ -24,6 +24,7 @@ from haxdex_cli.cli_config import (
     IndexPathConfig,
     LoggingConfig,
 )
+from haxdex_core.file_iteration import DirConfig
 from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )
@@ -70,8 +71,6 @@ from haxdex_view_tree.columns.video_resolution_column import (
 )
 from loguru import logger
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex
-
-from haxdex.services.file_iteration import DirConfig
 
 
 @beartype

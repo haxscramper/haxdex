@@ -91,6 +91,12 @@ def _collect_all_embedded_metadata(img: Image.Image) -> dict[str, Any]:
         "GPSInfoIFD": 0x8825,
         "InteropIFD": 0xA005,
     }.items():
+        parent_ifd = (
+            exif_by_name.get("ExifIFD", {}) if ifd_name == "InteropIFD" else exif
+        )
+        if ifd_id not in parent_ifd:
+            continue
+
         ifd_data = exif.get_ifd(ifd_id)
         exif_by_name[ifd_name] = ifd_data
 
