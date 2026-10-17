@@ -5,12 +5,12 @@ from time import perf_counter
 
 from beartype import beartype
 from beartype.typing import Any, Sequence
-from loguru import logger
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import META_SUFFIX, BaseIndexer, RunContext
 from haxdex.services.core.types import FileRef, RootRef
+from loguru import logger
+
 from haxdex.services.file_iteration import DirConfig, RootFilter, prepare_root_filters
 from haxdex.services.utils import format_duration
 from haxdex_cli.src.haxdex_cli.cli_config import IndexConfig, IndexPathConfig
