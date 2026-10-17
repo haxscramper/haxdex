@@ -773,14 +773,16 @@ class ExifMetadataIndexer(BaseIndexer):
                 error=str(exception),
             )
 
-        with self.database.transaction() as connection:
-            with Session(bind=connection) as session:
-                existing = session.scalar(
-                    select(ExifMetadata.hash).where(ExifMetadata.hash == file_hash)
-                )
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
+            existing = session.scalar(
+                select(ExifMetadata.hash).where(ExifMetadata.hash == file_hash)
+            )
 
-                if existing is not None:
-                    return
+            if existing is not None:
+                return
 
-                session.add(document)
-                session.flush()
+            session.add(document)
+            session.flush()

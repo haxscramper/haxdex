@@ -11,8 +11,8 @@ from typing import Any
 import commentjson
 from beartype import beartype
 from haxdex_cli.cli_config import (
-    _INDEXER_TYPES,
-    _RESOURCE_TYPES,
+    CLI_INDEXER_TYPES,
+    CLI_RESOURCE_TYPES,
     AppConfig,
     LoggingConfig,
 )
@@ -66,7 +66,7 @@ class IndexService:
         enabled_resources = set(cfg.resources)
         enabled_indexers = set(cfg.indexers)
 
-        for resource_type in _RESOURCE_TYPES:
+        for resource_type in CLI_RESOURCE_TYPES:
             key = resource_type.resource_key
             if key not in enabled_resources:
                 continue
@@ -79,7 +79,7 @@ class IndexService:
 
             self.resource_instances.append(resource_type(config=cfg.resources[key]))
 
-        for indexer_type in _INDEXER_TYPES:
+        for indexer_type in CLI_INDEXER_TYPES:
             key = indexer_type.asset_name
             if key not in enabled_indexers:
                 continue
@@ -102,7 +102,7 @@ class IndexService:
         )
 
         try:
-            for indexer_type in _INDEXER_TYPES:
+            for indexer_type in CLI_INDEXER_TYPES:
                 key = indexer_type.asset_name
                 if key not in enabled_indexers:
                     continue

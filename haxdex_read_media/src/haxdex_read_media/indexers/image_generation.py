@@ -1,39 +1,73 @@
-import json
+from __future__ import annotations
+
 from collections import defaultdict, deque
 from pathlib import Path
+from typing import Any
 
-from beartype.typing import Any, cast
-from hstd_py_lib.pydantic_utils import to_json_safe
-from pydantic import BaseModel
-from sqlalchemy import Engine
+from haxdex_core.database import IndexerStore
+from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
+from haxdex_core.types import IndexerRequest
+from sqlalchemy import ForeignKey, MetaData, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 
 from haxdex_read_media.indexers.comfy_input_indexer import (
+    ComfyInput,
     ComfyInputIndexer,
-    ComfyInputObject,
+    ComfyInputNode,
 )
 from haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadata,
     ExifMetadataIndexer,
 )
 
-
-class LoraParams(BaseModel, extra="forbid"):
-    model: str
-    weight: float
+GENERATION_PARAMS_SCHEMA = MetaData()
 
 
-class GenerationParamsIndexerResult(IndexDocument, extra="forbid"):
-    positive: str
-    negative: str
-    width: int
-    height: int
-    sampler: str
-    scheduler: str
-    steps: int
-    cfg: float
-    checkpoint: str
-    loras: list[LoraParams]
-    vae: str | None = None
-    clip: str | None = None
+class GENERATION_PARAMS_BASE(DeclarativeBase):
+    metadata = GENERATION_PARAMS_SCHEMA
+
+
+class GenerationParams(GENERATION_PARAMS_BASE):
+    __tablename__ = "generation_params"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    positive: Mapped[str]
+    negative: Mapped[str]
+    width: Mapped[int]
+    height: Mapped[int]
+    sampler: Mapped[str]
+    scheduler: Mapped[str]
+    steps: Mapped[int]
+    cfg: Mapped[float]
+    checkpoint: Mapped[str]
+    vae: Mapped[str | None]
+    clip: Mapped[str | None]
+
+    loras: Mapped[list[GenerationParamsLora]] = relationship(
+        back_populates="document",
+        cascade="all, delete-orphan",
+        order_by="GenerationParamsLora.position",
+    )
+
+
+class GenerationParamsLora(GENERATION_PARAMS_BASE):
+    __tablename__ = "generation_params_loras"
+
+    file_hash: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("generation_params.hash"),
+        primary_key=True,
+    )
+    position: Mapped[int] = mapped_column(
+        primary_key=True,
+        autoincrement=False,
+    )
+    model: Mapped[str]
+    weight: Mapped[float]
+
+    document: Mapped[GenerationParams] = relationship(
+        back_populates="loras",
+    )
 
 
 def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
@@ -87,196 +121,213 @@ def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
     if key in sampler_map:
         return sampler_map[key], scheduler
 
-    else:
-        return key, "normal"
+    return key, "normal"
 
 
 def _extract_generation_params(
-    nodes: list[ComfyInputObject], request: IndexerRequest
-) -> GenerationParamsIndexerResult:
-    by_id: dict[str, ComfyInputObject] = {n.node_id: n for n in nodes}
+    document: ComfyInput,
+    file_hash: str,
+) -> GenerationParams:
+    by_id = {node.node_id: node for node in document.nodes}
 
-    # Build dependency graph. A link's origin_id is the dependee, so the
-    # node owning the link depends on origin_id.
+    dependencies: dict[str, set[str]] = defaultdict(set)
+    for link in document.links:
+        dependencies[link.target_id].add(link.origin_id)
+
     dependents: dict[str, list[str]] = defaultdict(list)
-    in_degree: dict[str, int] = {n.node_id: 0 for n in nodes}
-    for node in nodes:
-        deps = {link.origin_id for link in node.links}
+    in_degree: dict[str, int] = {}
+
+    for node in document.nodes:
+        deps = dependencies[node.node_id]
         in_degree[node.node_id] = len(deps)
         for dep in deps:
             dependents[dep].append(node.node_id)
 
-    # Kahn topological traversal starting from nodes with no dependencies.
-    queue: deque[str] = deque(node_id for node_id, deg in in_degree.items() if deg == 0)
+    queue = deque(node_id for node_id, degree in in_degree.items() if degree == 0)
     order: list[str] = []
+
     while queue:
         node_id = queue.popleft()
         order.append(node_id)
-        for nxt in dependents[node_id]:
-            in_degree[nxt] -= 1
-            if in_degree[nxt] == 0:
-                queue.append(nxt)
 
-    # Accumulators with sane defaults.
-    positive = ""
-    negative = ""
-    width = 0
-    height = 0
-    sampler = ""
-    scheduler = ""
-    steps = 0
-    cfg = 0.0
-    checkpoint = ""
-    loras: list[LoraParams] = []
-    vae: str | None = None
-    clip: str | None = None
+        for dependent in dependents[node_id]:
+            in_degree[dependent] -= 1
+            if in_degree[dependent] == 0:
+                queue.append(dependent)
 
-    def get(node: ComfyInputObject, key: str, index: int) -> Any:
-        """Read a value from named (dict) or positional (list) inputs."""
+    result = GenerationParams(
+        hash=file_hash,
+        positive="",
+        negative="",
+        width=0,
+        height=0,
+        sampler="",
+        scheduler="",
+        steps=0,
+        cfg=0.0,
+        checkpoint="",
+        loras=[],
+        vae=None,
+        clip=None,
+    )
+
+    def get(node: ComfyInputNode, key: str, index: int) -> Any:
         if isinstance(node.inputs, dict):
             return node.inputs.get(key)
         if 0 <= index < len(node.inputs):
             return node.inputs[index]
         return None
 
+    def add_lora(model: str, weight: float) -> None:
+        result.loras.append(
+            GenerationParamsLora(
+                position=len(result.loras),
+                model=model,
+                weight=weight,
+            )
+        )
+
     for node_id in order:
         node = by_id[node_id]
+
         match (node.node, node.title):
             case ("CLIPTextEncode", "CLIP Text Encode (Positive Prompt)"):
-                positive = get(node, "text", 0) or positive
+                result.positive = get(node, "text", 0) or result.positive
 
             case ("CLIPTextEncode", "CLIP Text Encode (Negative Prompt)"):
-                negative = get(node, "text", 0) or negative
+                result.negative = get(node, "text", 0) or result.negative
 
             case ("CLIPTextEncode", _):
-                # Fallback when the title is missing: first encode -> positive.
-                if not positive:
-                    positive = get(node, "text", 0) or positive
-                elif not negative:
-                    negative = get(node, "text", 0) or negative
+                if not result.positive:
+                    result.positive = get(node, "text", 0) or result.positive
+                elif not result.negative:
+                    result.negative = get(node, "text", 0) or result.negative
 
             case ("EmptyLatentImage", _):
-                width = get(node, "width", 0) or width
-                height = get(node, "height", 1) or height
+                result.width = get(node, "width", 0) or result.width
+                result.height = get(node, "height", 1) or result.height
 
             case ("KSampler", _):
-                steps = get(node, "steps", 2) or steps
-                cfg = get(node, "cfg", 3) or cfg
-                sampler = get(node, "sampler_name", 4) or sampler
-                scheduler = get(node, "scheduler", 5) or scheduler
+                result.steps = get(node, "steps", 2) or result.steps
+                result.cfg = get(node, "cfg", 3) or result.cfg
+                result.sampler = get(node, "sampler_name", 4) or result.sampler
+                result.scheduler = get(node, "scheduler", 5) or result.scheduler
 
             case ("CheckpointLoaderSimple", _) | ("CheckpointLoader", _):
-                checkpoint = get(node, "ckpt_name", 0) or checkpoint
+                result.checkpoint = get(node, "ckpt_name", 0) or result.checkpoint
 
             case ("LoraLoader", _) | ("LoraLoaderModelOnly", _):
-                loras.append(
-                    LoraParams(
-                        model=get(node, "lora_name", 0),
-                        weight=get(node, "strength_model", 1),
-                    )
+                add_lora(
+                    model=get(node, "lora_name", 0),
+                    weight=get(node, "strength_model", 1),
                 )
 
             case ("Power Lora Loader (rgthree)", _):
-                for input in node.inputs:
+                inputs = (
+                    node.inputs.values()
+                    if isinstance(node.inputs, dict)
+                    else node.inputs
+                )
+                for value in inputs:
                     if (
-                        isinstance(input, dict)
-                        and "lora" in input
-                        and ("on" not in input or input["on"])
+                        isinstance(value, dict)
+                        and "lora" in value
+                        and value.get("on", True)
                     ):
-                        loras.append(
-                            LoraParams(
-                                model=cast(str, input["lora"]),
-                                weight=cast(float, input["strength"]),
-                            )
+                        add_lora(
+                            model=value["lora"],
+                            weight=value["strength"],
                         )
 
             case ("VAELoader", _):
-                vae = get(node, "vae_name", 0) or vae
+                result.vae = get(node, "vae_name", 0) or result.vae
 
             case ("CLIPLoader", _):
-                clip = get(node, "clip_name", 0) or clip
+                result.clip = get(node, "clip_name", 0) or result.clip
 
-            case _:
-                pass
+    return result
 
-    return GenerationParamsIndexerResult(
-        positive=positive,
-        negative=negative,
-        width=width,
-        height=height,
+
+def _extract_exif_generation_params(
+    document: ExifMetadata,
+    file_hash: str,
+) -> GenerationParams:
+    sampler, scheduler = _normalize_sampler_name(document.sampler)
+
+    return GenerationParams(
+        hash=file_hash,
+        positive=document.prompt,
+        negative=document.negative_prompt,
+        width=document.width,
+        height=document.height,
+        checkpoint=document.model,
+        steps=document.steps,
         sampler=sampler,
-        scheduler=scheduler,
-        steps=steps,
-        cfg=cfg,
-        checkpoint=checkpoint,
-        loras=loras,
-        vae=vae,
-        clip=clip,
-        hash=request.get_hash_str(),
+        cfg=document.cfg_scale,
+        scheduler=scheduler or "normal",
+        loras=[
+            GenerationParamsLora(
+                position=position,
+                model=lora.name,
+                weight=lora.weight,
+            )
+            for position, lora in enumerate(document.loras)
+        ],
+        vae=None,
+        clip=None,
     )
 
 
 class GenerationParamsIndexer(BaseIndexer):
     asset_name = "generation_params"
-    result_model = GenerationParamsIndexerResult
+    result_schema = GENERATION_PARAMS_SCHEMA
+    table = GenerationParams.__table__
     required_assets = (
         ExifMetadataIndexer.asset_name,
         ComfyInputIndexer.asset_name,
     )
 
-    def __init__(self, config: BaseIndexerConfig, database: Engine) -> None:
-        super().__init__(config=config, database=database)
-
     def can_run(self, path: Path) -> bool:
-        return path.suffix.lower() in [".png", ".webp", ".jpg", ".jpeg"]
+        return path.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"}
 
     def run(
         self,
         ctx: RunContext,
         request: IndexerRequest,
-        resources: dict[str, object],
-        assets: dict[str, object],
-    ) -> IndexerOutput:
+        resources: dict[str, BaseResource],
+        assets: dict[str, IndexerStore],
+    ) -> None:
+        file_hash = request.get_hash_str()
 
-        comfy = getattr(assets[ComfyInputIndexer.asset_name], "result")
-        assert isinstance(comfy, ComfyInputIndexerResult), type(comfy)
-        exif = getattr(assets[ExifMetadataIndexer.asset_name], "result")
-        assert isinstance(exif, ExifMetadataIndexerResult), type(exif)
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
+            if session.get(GenerationParams, file_hash) is not None:
+                return
 
-        def run():
-            if comfy.note == "no workflow data detected":
-                # TODO: Extract original seed information.
-                # TODO: Do not fill generation parameters for files
-                # that have no generation data originally
-                sampler, scheduler = _normalize_sampler_name(exif.file.sampler)
-                return GenerationParamsIndexerResult(
-                    positive=exif.file.prompt,
-                    negative=exif.file.negative_prompt,
-                    width=exif.file.size[0],
-                    height=exif.file.size[1],
-                    checkpoint=exif.file.model,
-                    steps=exif.file.steps,
-                    sampler=sampler,
-                    cfg=exif.file.cfgScale,
-                    scheduler=scheduler or "normal",
-                    loras=[
-                        LoraParams(model=l.name, weight=l.weight)
-                        for l in exif.file.loras
-                    ],
-                    hash=request.get_hash_str(),
-                )
+            with (
+                assets[ComfyInputIndexer.asset_name].connection() as comfy_connection,
+                Session(bind=comfy_connection) as comfy_session,
+            ):
+                comfy = comfy_session.get(ComfyInput, file_hash)
+                if comfy is None:
+                    raise LookupError(f"Missing ComfyInput for {file_hash}")
 
-            else:
-                return _extract_generation_params(comfy.inputs, request)
+                if comfy.note == "no workflow data detected":
+                    with (
+                        assets[
+                            ExifMetadataIndexer.asset_name
+                        ].connection() as exif_connection,
+                        Session(bind=exif_connection) as exif_session,
+                    ):
+                        exif = exif_session.get(ExifMetadata, file_hash)
+                        if exif is None:
+                            raise LookupError(f"Missing ExifMetadata for {file_hash}")
 
-        try:
-            result = run()
+                        result = _extract_exif_generation_params(exif, file_hash)
+                else:
+                    result = _extract_generation_params(comfy, file_hash)
 
-        except Exception as e:
-            Path("/tmp/debug.json").write_text(
-                json.dumps(to_json_safe(comfy), indent=2)
-            )
-
-            raise e from None
-
-        return IndexerOutput(indexer_id=self.asset_name, result=result)
+            session.add(result)
+            session.flush()

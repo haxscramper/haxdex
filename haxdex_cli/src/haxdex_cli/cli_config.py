@@ -3,61 +3,15 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, Literal, Mapping
+from haxdex_cli.cli_indexers import CLI_INDEXER_TYPES, CLI_RESOURCE_TYPES
 from haxdex_core.file_iteration import DirConfig
 from haxdex_core.job_types import BaseIndexerConfig
 from haxdex_core.utils import get_xdg_cache_dir
-from haxdex_read_media.indexers.comfy_input_indexer import (
-    ComfyInputIndexer,
-)
-from haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-)
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
-from haxdex_read_media.indexers.image_hash import ImageHashIndexer
-from haxdex_read_media.indexers.mime_indexer import (
-    FileMimeIndexer,
-)
-from haxdex_read_media.indexers.pdf_indexer import PdfIndexer
-from haxdex_read_media.indexers.safetensor_indexer import (
-    SafetensorIndexer,
-)
-from haxdex_read_media.indexers.wd_indexer import WdTagIndexer
-from haxdex_read_media.resources.flm_server import (
-    FlmServerResource,
-)
-from haxdex_read_media.resources.pdf.pdf_extractor import (
-    PdfExtractor,
-)
-from haxdex_read_media.resources.wd_tagger import WdTagger
 from hstd_py_lib.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from haxdex.services.default_job_types import (
-    DEFAULT_INDEXER_TYPES,
-    DEFAULT_RESOURCE_TYPES,
-)
-
-_INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
-    WdTagIndexer,
-    PdfIndexer,
-    FFProbeIndexer,
-    SafetensorIndexer,
-    ExifMetadataIndexer,
-    ComfyInputIndexer,
-    ImageHashIndexer,
-    FileMimeIndexer,
-]
-
-_RESOURCE_TYPES = [t for t in DEFAULT_RESOURCE_TYPES] + [
-    FlmServerResource,
-    WdTagger,
-    PdfExtractor,
-]
-
-_INDEXER_BY_NAME = {cls.asset_name: cls for cls in _INDEXER_TYPES}
-_RESOURCE_BY_NAME = {cls.resource_key: cls for cls in _RESOURCE_TYPES}
+_INDEXER_BY_NAME = {cls.asset_name: cls for cls in CLI_INDEXER_TYPES}
+_RESOURCE_BY_NAME = {cls.resource_key: cls for cls in CLI_RESOURCE_TYPES}
 
 
 @beartype

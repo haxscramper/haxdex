@@ -12,59 +12,51 @@ from haxdex_core.job_types import (
     RunContext,
 )
 from haxdex_core.types import IndexerRequest
-from sqlalchemy import (
-    Boolean,
-    Column,
-    Float,
-    ForeignKey,
-    Integer,
-    MetaData,
-    String,
-    Table,
-    select,
-)
+from sqlalchemy import ForeignKey, MetaData, String, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
-_metadata = MetaData()
+MEDIA_TRANSCRIPTION_SCHEMA = MetaData()
 
-_media_transcription = Table(
-    "media_transcription",
-    _metadata,
-    Column("hash", String(64), primary_key=True),
-    Column("mime", String, nullable=False),
-    Column("ok", Boolean, nullable=False),
-    Column("model", String, nullable=False),
-    Column("text", String, nullable=False),
-    Column("language", String, nullable=True),
-    Column("duration_sec", Float, nullable=True),
-    Column("vtt", String, nullable=False),
-    Column("error", String, nullable=True),
-)
 
-_media_transcription_segments = Table(
-    "media_transcription_segments",
-    _metadata,
-    Column(
-        "file_hash",
+class MEDIA_TRANSCRIPTION_BASE(DeclarativeBase):
+    metadata = MEDIA_TRANSCRIPTION_SCHEMA
+
+
+class MediaTranscription(MEDIA_TRANSCRIPTION_BASE):
+    __tablename__ = "media_transcription"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    mime: Mapped[str]
+    ok: Mapped[bool]
+    model: Mapped[str]
+    text: Mapped[str]
+    language: Mapped[str | None]
+    duration_sec: Mapped[float | None]
+    vtt: Mapped[str]
+    error: Mapped[str | None]
+
+
+class MediaTranscriptionSegment(MEDIA_TRANSCRIPTION_BASE):
+    __tablename__ = "media_transcription_segments"
+
+    file_hash: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("media_transcription.hash"),
         primary_key=True,
-    ),
-    Column(
-        "position",
-        Integer,
+    )
+    position: Mapped[int] = mapped_column(
         primary_key=True,
         autoincrement=False,
-    ),
-    Column("index", Integer, nullable=False),
-    Column("start_sec", Float, nullable=False),
-    Column("end_sec", Float, nullable=False),
-    Column("text", String, nullable=False),
-)
+    )
+    index: Mapped[int]
+    start_sec: Mapped[float]
+    end_sec: Mapped[float]
+    text: Mapped[str]
 
 
 class MediaTranscriptionIndexer(BaseIndexer):
     asset_name = "media_transcription"
-    result_schema = _metadata
+    result_schema = MEDIA_TRANSCRIPTION_SCHEMA
     required_resources = ("whisper_transcribe",)
 
     def __init__(
@@ -136,34 +128,45 @@ class MediaTranscriptionIndexer(BaseIndexer):
                 resources=cast(dict[str, object], resources),
             )
 
-        values = {
-            "hash": file_hash,
-            "mime": mime,
-            **result.model_dump(exclude={"segments"}),
-        }
-        segments = [
-            {
-                "file_hash": file_hash,
-                "position": position,
-                **segment.model_dump(),
-            }
-            for position, segment in enumerate(result.segments)
-        ]
-
-        with self.database.transaction() as connection:
-            existing = connection.execute(
-                select(_media_transcription.c.hash).where(
-                    _media_transcription.c.hash == file_hash
+        with (
+            self.database.transaction() as connection,
+            Session(bind=connection) as session,
+        ):
+            existing = session.scalar(
+                select(MediaTranscription.hash).where(
+                    MediaTranscription.hash == file_hash
                 )
-            ).first()
+            )
 
             if existing is not None:
                 return
 
-            connection.execute(_media_transcription.insert().values(**values))
-
-            if segments:
-                connection.execute(
-                    _media_transcription_segments.insert(),
-                    segments,
+            session.add(
+                MediaTranscription(
+                    hash=file_hash,
+                    mime=mime,
+                    ok=result.ok,
+                    model=result.model,
+                    text=result.text,
+                    language=result.language,
+                    duration_sec=result.duration_sec,
+                    vtt=result.vtt,
+                    error=result.error,
                 )
+            )
+            session.flush()
+
+            session.add_all(
+                [
+                    MediaTranscriptionSegment(
+                        file_hash=file_hash,
+                        position=position,
+                        index=segment.index,
+                        start_sec=segment.start_sec,
+                        end_sec=segment.end_sec,
+                        text=segment.text,
+                    )
+                    for position, segment in enumerate(result.segments)
+                ]
+            )
+            session.flush()
