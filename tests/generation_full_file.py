@@ -20,7 +20,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
 
-from haxdex.services.indexers.full_document import full_document_types as doc_types
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document import (
+    full_document_types as doc_types,
+)
 
 T = TypeVar("T")
 

@@ -8,7 +8,7 @@ from loguru import logger
 from pydantic import Field
 from sqlalchemy import Engine
 
-import haxdex.services.indexers.full_document.full_document_types as doc_types
+import haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types as doc_types
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import (
     IndexDocument,
@@ -17,8 +17,12 @@ from haxdex.services.core.types import (
     IndexerRequest,
     MultiDocumentModel,
 )
-from haxdex.services.indexers.full_document.from_pandoc import pandoc_to_document
-from haxdex.services.indexers.full_document.full_document_types import _flatten
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.from_pandoc import (
+    pandoc_to_document,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types import (
+    _flatten,
+)
 
 
 class DocumentBlockIndexerResult(MultiDocumentModel, extra="forbid"):

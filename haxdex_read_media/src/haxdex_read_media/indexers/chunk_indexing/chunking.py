@@ -11,12 +11,12 @@ from beartype import beartype
 from beartype.typing import Callable, Literal, Optional
 from pydantic import BaseModel, Field
 
-import haxdex.services.indexers.full_document.full_document_types as doc_types
+import haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types as doc_types
 from haxdex.services.core.types import (
     IndexEdge,
     IndexMultiDocument,
 )
-from haxdex.services.indexers.full_document.full_document_types import (
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types import (
     DocumentBlock,
     InlineContent,
 )

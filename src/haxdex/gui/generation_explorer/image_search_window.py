@@ -29,9 +29,13 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.indexers.image_generation import GenerationParamsIndexer
-from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
-from haxdex.services.indexers.wd_indexer import WdTagIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
 
 from .constants import EDITOR_H, THUMB
 from .delegates import ImageDelegate, resolve_image_path

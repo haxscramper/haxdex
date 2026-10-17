@@ -6,7 +6,7 @@ from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
-from haxdex.services.resources.text_summary import (
+from haxdex_read_media.src.haxdex_read_media.resources.text_summary import (
     SummarizeRequest,
     TextSummaryResource,
     TextSummaryResult,

@@ -14,23 +14,43 @@ from haxdex.services.default_job_types import (
     DEFAULT_RESOURCE_TYPES,
 )
 from haxdex.services.file_iteration import DirConfig
-from haxdex.services.indexers.comfy_input_indexer import ComfyInputIndexer
-from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
-from haxdex.services.indexers.image_generation import GenerationParamsIndexer
-from haxdex.services.indexers.image_hash import ImageHashIndexer
-from haxdex.services.indexers.media_transcribe import MediaTranscriptionIndexer
-from haxdex.services.indexers.mime_indexer import FileMimeIndexer
-from haxdex.services.indexers.pdf_indexer import PdfIndexer
-from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
-from haxdex.services.indexers.wd_indexer import WdTagIndexer
 from haxdex.services.pydantic_utils import ExistingDir, ExistingPath, OutputFile
-from haxdex.services.resources.flm_server import FlmServerResource
-from haxdex.services.resources.pdf.pdf_extractor import PdfExtractor
-from haxdex.services.resources.wd_tagger import WdTagger
-from haxdex.services.resources.whisper_transcribe import WhisperTranscribeResource
 from haxdex.services.utils import get_xdg_cache_dir
 from haxdex.visual.trash_action_visual import TrashActionVisualConfig
+from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
+    ComfyInputIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.image_hash import ImageHashIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.media_transcribe import (
+    MediaTranscriptionIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.pdf_indexer import PdfIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
+from haxdex_read_media.src.haxdex_read_media.resources.flm_server import (
+    FlmServerResource,
+)
+from haxdex_read_media.src.haxdex_read_media.resources.pdf.pdf_extractor import (
+    PdfExtractor,
+)
+from haxdex_read_media.src.haxdex_read_media.resources.wd_tagger import WdTagger
+from haxdex_read_media.src.haxdex_read_media.resources.whisper_transcribe import (
+    WhisperTranscribeResource,
+)
 
 _INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     WdTagIndexer,

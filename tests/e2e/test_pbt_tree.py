@@ -63,17 +63,25 @@ from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
 from haxdex.services.file_iteration import DirConfig, prepare_root_filters
-from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
-from haxdex.services.indexers.file_stats import FileStatsIndexer
-from haxdex.services.indexers.full_document.full_document import DocumentBlockIndexer
-from haxdex.services.indexers.mime_indexer import FileMimeIndexer
 from haxdex.services.pydantic_utils import (
     format_json_with_fjson,
     model_from_json_data,
     to_json_safe,
 )
 from haxdex_core.src.haxdex_core.hash_cache import HashCache
+from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import FileStatsIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document import (
+    DocumentBlockIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+)
 from hstd_py_qt.src.hstd_py_qt import model_dump
 from hstd_py_qt.src.hstd_py_qt.model_dump import (
     render_text,

@@ -7,7 +7,7 @@ from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.gui.file_tree.actions.action_handler import ActionResult
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-from haxdex.services.indexers.comfy_input_indexer import (
+from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,
     ComfyInputIndexerResult,
 )

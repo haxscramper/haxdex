@@ -14,7 +14,10 @@ import pymupdf4llm
 from loguru import logger
 from pydantic import BaseModel
 
-from haxdex.services.resources.pdf.page_model import BoundingBox, DocTag
+from haxdex_read_media.src.haxdex_read_media.resources.pdf.page_model import (
+    BoundingBox,
+    DocTag,
+)
 
 
 class MyPDFPage(BaseModel, extra="forbid"):

@@ -13,7 +13,7 @@ from haxdex.services.core.types import (
     IndexerRequest,
     MultiDocumentModel,
 )
-from haxdex.services.indexers.chunk_indexing.chunking import (
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkDocument,
     Chunker,
@@ -22,7 +22,7 @@ from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkUnit,
     chunks_to_multidoc,
 )
-from haxdex.services.indexers.full_document.full_document import (
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document import (
     DocumentBlockIndexerResult,
 )
 

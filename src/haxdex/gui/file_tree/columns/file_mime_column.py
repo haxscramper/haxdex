@@ -9,7 +9,10 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeInitArgs,
     FileTreeNode,
 )
-from haxdex.services.indexers.mime_indexer import FileMimeIndexer, FileMimeIndexerResult
+from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+    FileMimeIndexerResult,
+)
 
 
 class FileMimeData(BaseModel, extra="forbid"):

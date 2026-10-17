@@ -9,8 +9,11 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeInitArgs,
     FileTreeNode,
 )
-from haxdex.services.indexers.file_stats import FileStatsIndexer, FileStatsIndexerResult
 from haxdex.services.utils import format_size
+from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import (
+    FileStatsIndexer,
+    FileStatsIndexerResult,
+)
 
 
 class EntrySizeData(BaseModel, extra="forbid"):

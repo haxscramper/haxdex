@@ -17,7 +17,10 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
 )
-from haxdex.services.indexers.image_hash import ImageHashIndexer, ImageHashIndexerResult
+from haxdex_read_media.src.haxdex_read_media.indexers.image_hash import (
+    ImageHashIndexer,
+    ImageHashIndexerResult,
+)
 
 
 class ImageHashData(BaseModel, extra="forbid"):

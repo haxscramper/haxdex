@@ -18,7 +18,9 @@ from haxdex.gui.file_tree.columns.file_tree_column import (
     FileTreeInitArgs,
     FileTreeNode,
 )
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
 
 
 class VideoConvertTarget(str, enum.Enum):

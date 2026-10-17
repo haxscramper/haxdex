@@ -6,7 +6,7 @@ from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from haxdex.services.resources.wd_tagger import WdTag, WdTagger
+from haxdex_read_media.src.haxdex_read_media.resources.wd_tagger import WdTag, WdTagger
 
 
 class WdTagIndexerResult(IndexDocument, extra="forbid"):

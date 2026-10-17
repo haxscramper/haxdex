@@ -5,9 +5,15 @@ from beartype import beartype
 from beartype.typing import Any
 from pydantic import BaseModel, Field
 
-from haxdex.services.indexers.image_generation import GenerationParamsIndexerResult
-from haxdex.services.indexers.safetensor_indexer import SafetensorIndexerResult
-from haxdex.services.indexers.wd_indexer import WdTagIndexerResult
+from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexerResult,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexerResult,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import (
+    WdTagIndexerResult,
+)
 
 
 @beartype

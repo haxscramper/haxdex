@@ -37,11 +37,6 @@ from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.indexers.comfy_input_indexer import ComfyInputIndexer
-from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
-from haxdex.services.indexers.image_generation import GenerationParamsIndexer
-from haxdex.services.indexers.safetensor_indexer import SafetensorIndexer
-from haxdex.services.indexers.wd_indexer import WdTagIndexer
 from haxdex.services.log_config import keep_last_files
 from haxdex.services.pydantic_utils import model_to_json_data
 from haxdex.services.utils import (
@@ -51,6 +46,19 @@ from haxdex.services.utils import (
 )
 from haxdex.visual.trash_action_visual import visualize_trash_actions
 from haxdex_core.src.haxdex_core.hash_cache import HashCache
+from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
+    ComfyInputIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
 
 logging.basicConfig(
     level=logging.DEBUG,

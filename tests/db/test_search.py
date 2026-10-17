@@ -9,17 +9,19 @@ from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import RunContext
 from haxdex.services.file_iteration import DirConfig
-from haxdex.services.indexers.chunk_indexing.file_embedding import (
+from haxdex.services.pydantic_utils import first_by_field_value
+from haxdex.services.utils import dump_with_type
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.file_embedding import (
     EmbeddingChunk,
     FileEmbeddingIndexerResult,
 )
-from haxdex.services.indexers.chunk_indexing.full_text import (
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.full_text import (
     FullTextChunk,
     FullTextIndexer,
 )
-from haxdex.services.indexers.full_document.full_document_types import Heading
-from haxdex.services.pydantic_utils import first_by_field_value
-from haxdex.services.utils import dump_with_type
+from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types import (
+    Heading,
+)
 
 corpus = Path(__file__).parent.joinpath("corpus")
 

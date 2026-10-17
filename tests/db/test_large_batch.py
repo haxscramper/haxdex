@@ -2,11 +2,11 @@ from pathlib import Path
 
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.indexers.chunk_indexing.full_text import (
+from haxdex.services.pydantic_utils import first_by_field_value
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.full_text import (
     FullTextChunk,
     FullTextIndexerResult,
 )
-from haxdex.services.pydantic_utils import first_by_field_value
 
 
 def test_large_batch_indexing(

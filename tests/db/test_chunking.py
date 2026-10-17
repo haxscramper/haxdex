@@ -1,5 +1,5 @@
-import haxdex.services.indexers.full_document.full_document_types as fd
-from haxdex.services.indexers.chunk_indexing.chunking import (
+import haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types as fd
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkDocument,
     Chunker,

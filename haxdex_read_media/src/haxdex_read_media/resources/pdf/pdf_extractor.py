@@ -9,12 +9,15 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from haxdex.services.core.job_types import BaseResource, RunContext
-from haxdex.services.resources.pdf.docling_extractor import (
+from haxdex.services.utils import get_xdg_cache_dir
+from haxdex_read_media.src.haxdex_read_media.resources.pdf.docling_extractor import (
     DoclingExtractor,
     DoclingPage,
 )
-from haxdex.services.resources.pdf.mypdf_extractor import MyPDFExtractor, MyPDFPage
-from haxdex.services.utils import get_xdg_cache_dir
+from haxdex_read_media.src.haxdex_read_media.resources.pdf.mypdf_extractor import (
+    MyPDFExtractor,
+    MyPDFPage,
+)
 
 
 class PdfExtractorRequest(BaseModel, extra="forbid"):

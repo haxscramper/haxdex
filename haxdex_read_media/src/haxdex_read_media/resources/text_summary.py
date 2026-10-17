@@ -10,7 +10,7 @@ from haxdex.services.core.job_types import (
     RunContext,
 )
 from haxdex.services.core.types import MultiDocumentModel
-from haxdex.services.indexers.chunk_indexing.chunking import (
+from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkDocument,
     Chunker,
@@ -19,7 +19,7 @@ from haxdex.services.indexers.chunk_indexing.chunking import (
     ChunkUnit,
     chunks_to_multidoc,
 )
-from haxdex.services.resources.flm_server import (
+from haxdex_read_media.src.haxdex_read_media.resources.flm_server import (
     FlmMessage,
     FlmRequest,
     FlmServerResource,

@@ -44,10 +44,16 @@ from haxdex.gui.file_tree.columns.video_resolution_column import (
     VideoResolutionColumnSpec,
 )
 from haxdex.services.file_iteration import DirConfig
-from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
-from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
-from haxdex.services.indexers.file_stats import FileStatsIndexer
-from haxdex.services.indexers.mime_indexer import FileMimeIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import FileStatsIndexer
+from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+)
 
 
 @beartype

@@ -8,7 +8,9 @@ from sqlalchemy import Engine
 
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
-from haxdex.services.indexers.exif_metadata import ExifMetadataIndexerResult
+from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexerResult,
+)
 
 
 class XYObject(BaseModel, extra="allow"):
