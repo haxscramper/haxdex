@@ -1,0 +1,78 @@
+from beartype import beartype
+from beartype.typing import Any, Optional, cast
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+    FFProbeIndexerResult,
+    FFProbeInfoModel,
+)
+
+
+class VideoBitrateData(BaseModel, extra="forbid"):
+    probe: FFProbeInfoModel
+
+
+@beartype
+def format_bitrate(probe: FFProbeInfoModel) -> str:
+    if probe.bitrate_bps is None:
+        return ""
+
+    result = f"{probe.bitrate_bps / 1_000_000:.2f} Mbps"
+
+    if probe.width and probe.height:
+        result += f" ({probe.bitrate_bps / (probe.height * probe.width):.2f} bpps)"
+
+    return result
+
+
+@beartype
+class VideoBitrateColumnSpec(FileTreeColumnSpec):
+    column_name = "video_bitrate"
+    column_type = VideoBitrateData
+
+    def initColumnData(
+        self,
+        args: FileTreeInitArgs,
+        assets: dict[str, BaseModel],
+        nested: list[FileTreeNode],
+    ) -> Optional[BaseModel]:
+        if FFProbeIndexer.asset_name in assets:
+            result = cast(FFProbeIndexerResult, assets[FFProbeIndexer.asset_name])
+            if result.probe:
+                return VideoBitrateData(probe=result.probe)
+
+        return None
+
+    def data(
+        self,
+        index: QModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        rate = cast(Optional[VideoBitrateData], self.getColumnData(index))
+
+        if not rate:
+            return None
+
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return format_bitrate(rate.probe)
+
+            case CustomModelRole.FullDataRole.value:
+                return rate
+
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
+                return rate.probe.bitrate_bps
+
+            case _:
+                return None

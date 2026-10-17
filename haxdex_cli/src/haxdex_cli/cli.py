@@ -21,9 +21,6 @@ from haxdex.gui.collection_views.exif_preview_builder import (
     ExifPreviewrWidgetBuilder,
 )
 from haxdex.gui.collection_views.wd_tagger_builder import WdTaggerWidgetBuilder
-from haxdex.gui.file_tree.actions.action_execute import ActionExecutor
-from haxdex.gui.file_tree.actions.action_list_model import load_actions
-from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryWindow
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
 from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
@@ -63,6 +60,9 @@ from haxdex_view_generation.src.haxdex_view_generation.image_search_window impor
 from haxdex_view_generation.src.haxdex_view_generation.image_table_window import (
     GenerationExplorerWindow,
 )
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import ActionExecutor
+from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import load_actions
+from haxdex_view_tree.src.haxdex_view_tree.qt_tree_window import FileTreeQueryWindow
 
 logging.basicConfig(
     level=logging.DEBUG,

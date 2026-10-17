@@ -1,0 +1,63 @@
+from beartype import beartype
+from beartype.typing import Any, Optional, cast
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+    FileMimeIndexerResult,
+)
+
+
+class FileMimeData(BaseModel, extra="forbid"):
+    mime_type: str
+
+
+@beartype
+class FileMimeColumnSpec(FileTreeColumnSpec):
+    column_name = "file_mime"
+    column_type = FileMimeData
+
+    def initColumnData(
+        self,
+        args: FileTreeInitArgs,
+        assets: dict[str, BaseModel],
+        nested: list[FileTreeNode],
+    ) -> Optional[BaseModel]:
+        if FileMimeIndexer.asset_name in assets:
+            result = cast(FileMimeIndexerResult, assets[FileMimeIndexer.asset_name])
+            return FileMimeData(mime_type=result.mime_type)
+
+        return None
+
+    def data(
+        self,
+        index: QModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        mime = cast(Optional[FileMimeData], self.getColumnData(index))
+
+        if not mime:
+            return None
+
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return mime.mime_type
+
+            case CustomModelRole.FullDataRole.value:
+                return mime
+
+            case (
+                CustomModelRole.FilterDataRole.value
+                | CustomModelRole.SortDataRole.value
+            ):
+                return mime.mime_type
+
+            case _:
+                return None

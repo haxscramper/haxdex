@@ -7,7 +7,6 @@ from typing import Any, ClassVar
 from haxdex_core.database import IndexerDatabase
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
-from haxdex_read_media.indexers.exif_metadata import EXIF_METADATA_TABLE
 from pydantic import BaseModel, Field, model_serializer, model_validator
 from sqlalchemy import (
     JSON,
@@ -19,6 +18,8 @@ from sqlalchemy import (
     Table,
     select,
 )
+
+from haxdex_read_media.indexers.exif_metadata import EXIF_METADATA_TABLE
 
 
 class XYObject(BaseModel, extra="allow"):

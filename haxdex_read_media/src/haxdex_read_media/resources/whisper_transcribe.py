@@ -12,10 +12,6 @@ from haxdex_core.job_types import (
     RunContext,
 )
 from haxdex_core.types import IndexerRequest
-from haxdex_read_media.resources.whisper_transcribe import (
-    WhisperTranscribeRequest,
-    WhisperTranscribeResource,
-)
 from sqlalchemy import (
     Boolean,
     Column,
@@ -26,6 +22,11 @@ from sqlalchemy import (
     String,
     Table,
     select,
+)
+
+from haxdex_read_media.resources.whisper_transcribe import (
+    WhisperTranscribeRequest,
+    WhisperTranscribeResource,
 )
 
 _metadata = MetaData()

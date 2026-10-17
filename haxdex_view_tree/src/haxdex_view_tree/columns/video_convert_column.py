@@ -1,0 +1,150 @@
+import enum
+
+from beartype import beartype
+from beartype.typing import Any, Optional, cast
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from pydantic import BaseModel
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
+from PyQt6.QtWidgets import (
+    QAbstractItemDelegate,
+    QComboBox,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QWidget,
+)
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+
+
+class VideoConvertTarget(str, enum.Enum):
+    NO_CHANGE = "NO_CHANGE"
+    SD_30 = "480p30"
+    HD_30 = "720p30"
+    FULL_HD_30 = "1080p30"
+    QVGA_160x120_10 = "160x120p10"  # primarily for tests
+
+
+class VideoConvertData(BaseModel, extra="forbid"):
+    target: VideoConvertTarget = VideoConvertTarget.NO_CHANGE
+
+
+class PresetDelegate(QStyledItemDelegate):
+    @beartype
+    def __init__(
+        self,
+        target_enum: type[VideoConvertTarget] = VideoConvertTarget,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._target_enum = target_enum
+
+    @beartype
+    def createEditor(
+        self,
+        parent: QWidget,
+        option: QStyleOptionViewItem,
+        index: QModelIndex,
+    ) -> QWidget:
+        editor = QComboBox(parent)
+        for target in self._target_enum:
+            editor.addItem(target.value, target)
+        return editor
+
+    @beartype
+    def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
+        if not isinstance(editor, QComboBox):
+            return
+
+        raw_value = index.data(Qt.ItemDataRole.EditRole)
+
+        if isinstance(raw_value, self._target_enum):
+            value = raw_value.value
+        elif raw_value is None:
+            value = VideoConvertTarget.NO_CHANGE.value
+        else:
+            value = str(raw_value)
+
+        pos = editor.findText(value)
+        editor.setCurrentIndex(pos if pos >= 0 else 0)
+
+    @beartype
+    def setModelData(
+        self,
+        editor: QWidget,
+        model: QAbstractItemModel,
+        index: QModelIndex,
+    ) -> None:
+        if not isinstance(editor, QComboBox):
+            return
+
+        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+
+@beartype
+class VideoConvertColumnSpec(FileTreeColumnSpec):
+    column_name = "video_convert"
+    column_type = VideoConvertData
+
+    def initColumnData(
+        self,
+        args: FileTreeInitArgs,
+        assets: dict[str, BaseModel],
+        nested: list[FileTreeNode],
+    ) -> Optional[BaseModel]:
+        if not args.is_directory and FFProbeIndexer.asset_name in assets:
+            return VideoConvertData()
+
+        else:
+            return None
+
+    def setData(
+        self,
+        index: QModelIndex,
+        value: Any,
+        role: int = Qt.ItemDataRole.EditRole,
+    ) -> bool:
+        self.setColumnData(
+            index, VideoConvertData(target=VideoConvertTarget(str(value)))
+        )
+        return True
+
+    def getDelegate(self) -> QAbstractItemDelegate | None:
+        return PresetDelegate()
+
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        rate = cast(Optional[VideoConvertData], self.getColumnData(index))
+        if rate:
+            return super().flags(index) | Qt.ItemFlag.ItemIsEditable
+
+        else:
+            return super().flags(index)
+
+    def data(
+        self,
+        index: QModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        rate = cast(Optional[VideoConvertData], self.getColumnData(index))
+
+        if not rate:
+            return None
+
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return str(rate.target.value)
+
+            case (
+                CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
+                return rate.target.value
+
+            case _:
+                return None

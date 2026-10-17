@@ -1,0 +1,78 @@
+from beartype import beartype
+from beartype.typing import Any, Optional, cast
+from haxdex.gui.file_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
+from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
+from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+    FFProbeIndexerResult,
+    FFProbeInfoModel,
+)
+
+
+class VideoResolutionData(BaseModel, extra="forbid"):
+    probe: FFProbeInfoModel
+
+
+@beartype
+def format_resolution(probe: FFProbeInfoModel) -> str:
+    if probe.width is None or probe.height is None:
+        return ""
+
+    return f"{probe.width}x{probe.height}"
+
+
+@beartype
+class VideoResolutionColumnSpec(FileTreeColumnSpec):
+    column_name = "video_resolution"
+    column_type = VideoResolutionData
+
+    def initColumnData(
+        self,
+        args: FileTreeInitArgs,
+        assets: dict[str, BaseModel],
+        nested: list[FileTreeNode],
+    ) -> Optional[BaseModel]:
+        if FFProbeIndexer.asset_name in assets:
+            result = cast(FFProbeIndexerResult, assets[FFProbeIndexer.asset_name])
+            if result.probe:
+                return VideoResolutionData(probe=result.probe)
+
+        return None
+
+    def data(
+        self,
+        index: QModelIndex,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        res = cast(Optional[VideoResolutionData], self.getColumnData(index))
+
+        if not res:
+            return None
+
+        match role:
+            case Qt.ItemDataRole.DisplayRole:
+                return format_resolution(res.probe)
+
+            case (
+                Qt.ItemDataRole.UserRole
+                | CustomModelRole.SortDataRole.value
+                | CustomModelRole.FilterDataRole.value
+            ):
+                if res.probe.width is None or res.probe.height is None:
+                    return None
+
+                else:
+                    return res.probe.width * res.probe.height
+
+            case CustomModelRole.FullDataRole.value:
+                return res
+
+            case _:
+                return None
