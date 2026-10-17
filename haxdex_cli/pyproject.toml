@@ -9,6 +9,8 @@ dependencies = [
     "loguru",
     "pydantic>=2",
     "sqlalchemy>=2",
+    "haxdex_core",
+    "haxdex_read_media",
 ]
 
 [dependency-groups]
@@ -20,4 +22,4 @@ build-backend = "hatchling.build"
 
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/haxdex_core"]
+packages = ["src/haxdex_cli"]

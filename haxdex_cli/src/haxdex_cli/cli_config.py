@@ -114,20 +114,8 @@ def _validate_plugin_config_map(
     return validated
 
 
-class DatabaseConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    host: str = "http://localhost:8529"
-    db_name: str
-    username: str = "root"
-    password: str = "test"
-
-    @field_validator("db_name")
-    @classmethod
-    def _db_name_not_empty(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("db_name must not be empty")
-        return value
+class DatabaseConfig(BaseModel, extra="forbid"):
+    directory: Path
 
 
 class LoggingConfig(BaseModel):
@@ -179,11 +167,6 @@ class VisualConfig(BaseModel, extra="forbid", frozen=True):
 
 class AppConfig(BaseModel, extra="forbid"):
     fuck_off__schema: str | None = Field(alias="$schema", default=None)
-
-    index_cache: OutputFile = Field(
-        description="DB location for the indexer result cache",
-        default_factory=lambda: get_xdg_cache_dir([]).joinpath("index_cache.sqlite"),
-    )
 
     db: DatabaseConfig
     hash_cache: OutputFile = Field(

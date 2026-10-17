@@ -1,0 +1,24 @@
+[project]
+name = "haxdex_view_generation"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "beartype",
+    "duckdb",
+    "duckdb-engine",
+    "loguru",
+    "pydantic>=2",
+    "sqlalchemy>=2",
+    "hstd_py_qt",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haxdex_view_generation"]

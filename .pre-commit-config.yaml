@@ -7,6 +7,14 @@ repos:
   #       language: system
   #       types: [python]
   #       pass_filenames: true
+  - repo: local
+    hooks:
+      - id: isort
+        name: Format python imports
+        entry: uv run --dev isort
+        language: system
+        types: [python]
+        stages: [manual]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.6
     hooks:

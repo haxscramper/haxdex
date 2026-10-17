@@ -33,8 +33,17 @@ include_trailing_comma = true
 members = [
     "haxdex_core",
     "haxdex_read_media",
+    "haxdex_view_tree",
+    "haxdex_view_generation",
+    "hstd_py_qt",
+    "haxdex_read_code_tsitter",
 ]
 
 [tool.uv.sources]
 haxdex_core = { workspace = true }
 haxdex_read_media = { workspace = true }
+haxdex_view_tree = { workspace = true }
+haxdex_view_generation = { workspace = true }
+hstd_py_qt = { workspace = true }
+haxdex_read_code_tsitter = { workspace = true }
+

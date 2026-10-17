@@ -22,7 +22,7 @@ from haxdex.gui.collection_views.exif_preview_builder import (
 )
 from haxdex.gui.collection_views.wd_tagger_builder import WdTaggerWidgetBuilder
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
+from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext
@@ -81,13 +81,8 @@ warnings.showwarning = showwarning
 @beartype
 class IndexService:
     @staticmethod
-    def reset_for_config(cfg: AppConfig):
-        IndexDatabase.reset_database(
-            host=cfg.db.host,
-            db_name=cfg.db.db_name,
-            username=cfg.db.username,
-            password=cfg.db.password,
-        )
+    def reset_for_config(cfg: AppConfig) -> None:
+        IndexDatabase.reset_database(cfg.db.directory)
 
     def get_indexer(self, s: str) -> BaseIndexer:
         for i in self.indexer_instances:
@@ -96,63 +91,74 @@ class IndexService:
 
         assert False, f"No indexer named {s}"
 
-    def __init__(self, cfg: AppConfig, only_short_curcuit_checks: bool) -> None:
+    def __init__(self, cfg: AppConfig) -> None:
         self.cfg = cfg
-        self.indexer_instances = list()
-        self.resource_instances = list()
-
         self.resource_instances = []
-        for t in _RESOURCE_TYPES:
-            key = t.resource_key
-            if key not in self.cfg.resources:
-                continue
-
-            for dep in t.required_resources:
-                if dep not in self.cfg.resources:
-                    raise ValueError(
-                        f"Resource '{key}' requires resource '{dep}' to be enabled"
-                    )
-
-            resource_cfg = self.cfg.resources[key]
-            self.resource_instances.append(t(config=resource_cfg))
-
-        self.indexer_connection = get_hash_cache_connection(self.cfg.index_cache)
         self.indexer_instances: list[BaseIndexer] = []
-        for t in _INDEXER_TYPES:
-            key = t.asset_name
-            if key not in self.cfg.indexers:
+
+        enabled_resources = set(cfg.resources)
+        enabled_indexers = set(cfg.indexers)
+
+        for resource_type in _RESOURCE_TYPES:
+            key = resource_type.resource_key
+            if key not in enabled_resources:
                 continue
 
-            for dep in t.required_resources:
-                if dep not in self.cfg.resources:
-                    raise ValueError(
-                        f"Indexer '{key}' requires resource '{dep}' to be enabled"
-                    )
+            missing = set(resource_type.required_resources) - enabled_resources
+            if missing:
+                raise ValueError(
+                    f"Resource {key!r} requires resources: {sorted(missing)}"
+                )
 
-            for dep in t.required_assets:
-                if dep not in self.cfg.indexers:
-                    raise ValueError(
-                        f"Indexer '{key}' requires indexer '{dep}' to be enabled"
-                    )
+            self.resource_instances.append(resource_type(config=cfg.resources[key]))
 
-            cfg = self.cfg.indexers[key]
-            instance = t(
-                database=self.indexer_connection,
-                config=cfg,
-            )
+        for indexer_type in _INDEXER_TYPES:
+            key = indexer_type.asset_name
+            if key not in enabled_indexers:
+                continue
 
-            self.indexer_instances.append(instance)
+            missing_resources = set(indexer_type.required_resources) - enabled_resources
+            if missing_resources:
+                raise ValueError(
+                    f"Indexer {key!r} requires resources: {sorted(missing_resources)}"
+                )
+
+            missing_assets = set(indexer_type.required_assets) - enabled_indexers
+            if missing_assets:
+                raise ValueError(
+                    f"Indexer {key!r} requires indexers: {sorted(missing_assets)}"
+                )
 
         self.db = IndexDatabase(
-            host=self.cfg.db.host,
-            db_name=self.cfg.db.db_name,
-            username=self.cfg.db.username,
-            password=self.cfg.db.password,
-            hash_cache=HashCache(Path(self.cfg.hash_cache).expanduser().absolute()),
-            only_short_curcuit_checks=only_short_curcuit_checks,
+            directory=cfg.db.directory,
+            hash_cache=HashCache(Path(cfg.hash_cache).expanduser().absolute()),
         )
 
+        try:
+            for indexer_type in _INDEXER_TYPES:
+                key = indexer_type.asset_name
+                if key not in enabled_indexers:
+                    continue
+
+                database = self.db.open_indexer(
+                    asset_name=key,
+                    result_schema=indexer_type.result_schema,
+                )
+
+                self.indexer_instances.append(
+                    indexer_type(
+                        database=database,
+                        config=cfg.indexers[key],
+                    )
+                )
+        except BaseException:
+            self.db.close()
+            raise
+
         self.ctx = RunContext(self.db)
+
+    def close(self) -> None:
+        self.db.close()
 
     import sys
     from datetime import datetime
@@ -256,9 +262,6 @@ class IndexService:
                 resource_types=self.resource_instances,
             )
 
-        for idx in self.indexer_instances:
-            self.db.enable_index(idx)
-
         logger.info(
             f"Enabled indexers {[t.asset_name for t in self.indexer_instances]}"
         )
@@ -317,10 +320,7 @@ def main_impl(command: str, cfg: AppConfig):
     if command == "index" and cfg.index and cfg.index.reset:
         IndexService.reset_for_config(cfg)
 
-    service = IndexService(
-        cfg,
-        only_short_curcuit_checks=command != "index",
-    )
+    service = IndexService(cfg)
 
     _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
     logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
