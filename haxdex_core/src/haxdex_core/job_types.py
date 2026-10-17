@@ -8,7 +8,7 @@ from typing import Any, ClassVar, Iterator
 from pydantic import BaseModel
 from sqlalchemy import MetaData
 
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.db import IndexDatabase
 from haxdex_core.trace import TraceWriter
 from haxdex_core.types import FileRef, IndexerRequest
@@ -75,7 +75,7 @@ class BaseIndexer(ABC):
 
     def __init__(
         self,
-        database: IndexerDatabase,
+        database: IndexerStore,
         config: BaseIndexerConfig,
     ) -> None:
         if database.asset_name != self.asset_name:
@@ -104,6 +104,6 @@ class BaseIndexer(ABC):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         raise NotImplementedError

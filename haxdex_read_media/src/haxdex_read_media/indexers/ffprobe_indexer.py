@@ -4,7 +4,7 @@ from typing import Any, ClassVar
 
 import magic
 from beartype import beartype
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import (
     BaseIndexer,
     BaseIndexerConfig,
@@ -136,7 +136,7 @@ class FFProbeIndexer(BaseIndexer):
     def __init__(
         self,
         config: BaseIndexerConfig,
-        database: IndexerDatabase,
+        database: IndexerStore,
     ) -> None:
         super().__init__(config=config, database=database)
         self._magic = magic.Magic(mime=True)
@@ -150,7 +150,7 @@ class FFProbeIndexer(BaseIndexer):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         file_hash = request.get_hash_str()
         if self.database.has_file(file_hash):

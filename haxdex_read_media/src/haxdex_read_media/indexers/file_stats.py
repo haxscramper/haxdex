@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from sqlalchemy import (
@@ -37,7 +37,7 @@ class FileStatsIndexer(BaseIndexer):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         stat = ctx.get_path(request.file_ref).stat()
         file_hash = request.get_hash_str()

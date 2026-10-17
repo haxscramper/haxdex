@@ -30,7 +30,7 @@ def get_file_hash(ref: FileHash | FileRef | str) -> str:
     return ref.hash.hash
 
 
-class IndexerDatabase:
+class IndexerStore:
     def __init__(
         self,
         path: Path,

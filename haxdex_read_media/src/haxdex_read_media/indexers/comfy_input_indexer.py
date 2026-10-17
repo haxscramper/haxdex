@@ -4,30 +4,29 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, ClassVar
 
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from pydantic import BaseModel, Field, model_serializer, model_validator
 from sqlalchemy import (
     JSON,
-    Column,
     ForeignKey,
-    Integer,
     MetaData,
     String,
-    Table,
+    insert,
     select,
 )
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from haxdex_read_media.indexers.exif_metadata import EXIF_METADATA_TABLE
 
 
-class XYObject(BaseModel, extra="allow"):
+class XYObjectObject(BaseModel, extra="allow"):
     f_0: float = Field(alias="0")
     f_1: float = Field(alias="1")
 
 
-class Group(BaseModel, extra="allow"):
+class GroupObject(BaseModel, extra="allow"):
     title: str
     bounding: tuple[float, float, float, float]
     color: str | None = None
@@ -35,19 +34,19 @@ class Group(BaseModel, extra="allow"):
     locked: bool | None = None
 
 
-class ConfigModel(BaseModel, extra="allow"):
+class ConfigModelObject(BaseModel, extra="allow"):
     links_ontop: bool | None = None
     align_to_grid: bool | None = None
 
 
-class State(BaseModel, extra="allow"):
+class StateObject(BaseModel, extra="allow"):
     lastGroupid: float | None = None
     lastNodeId: float | None = None
     lastLinkId: float | None = None
     lastRerouteId: float | None = None
 
 
-class Flags(BaseModel, extra="allow"):
+class FlagsObject(BaseModel, extra="allow"):
     collapsed: bool | None = None
     pinned: bool | None = None
     allow_interaction: bool | None = None
@@ -55,45 +54,45 @@ class Flags(BaseModel, extra="allow"):
     skip_repeated_outputs: bool | None = None
 
 
-class Input(BaseModel, extra="allow"):
+class InputObject(BaseModel, extra="allow"):
     name: str
     type: str | list[str] | float
     link: float | None = None
     slot_index: int | str | None = None
 
 
-class Output(BaseModel, extra="allow"):
+class OutputObject(BaseModel, extra="allow"):
     name: str
     type: str | list[str] | float
     links: list[float] | None = None
     slot_index: int | str | None = None
 
 
-class NodeProperties(BaseModel, extra="allow"):
+class NodePropertiesObject(BaseModel, extra="allow"):
     node_name_for_s_r: str | None = Field(
         default=None,
         alias="Node name for S&R",
     )
 
 
-class Node(BaseModel, extra="allow"):
+class NodeObject(BaseModel, extra="allow"):
     id: int | str
     type: str
     title: str | None = None
-    pos: XYObject | tuple[float, float]
-    size: XYObject | tuple[float, float]
-    flags: Flags
+    pos: XYObjectObject | tuple[float, float]
+    size: XYObjectObject | tuple[float, float]
+    flags: FlagsObject
     order: float
     mode: float
-    inputs: list[Input] | None = None
-    outputs: list[Output] | None = None
-    properties: NodeProperties
+    inputs: list[InputObject] | None = None
+    outputs: list[OutputObject] | None = None
+    properties: NodePropertiesObject
     widgets_values: list[Any] | dict[str, Any] | None = None
     color: str | None = None
     bgcolor: str | None = None
 
 
-class Link(BaseModel, extra="allow"):
+class LinkObject(BaseModel, extra="allow"):
     id: float
     origin_id: int | str
     origin_slot: int | str
@@ -134,19 +133,19 @@ class Link(BaseModel, extra="allow"):
         return result
 
 
-class Reroute(BaseModel, extra="allow"):
+class RerouteObject(BaseModel, extra="allow"):
     id: float
     parentId: float | None = None
-    pos: XYObject | tuple[float, float]
+    pos: XYObjectObject | tuple[float, float]
     linkIds: list[float] | None = None
 
 
-class DS(BaseModel, extra="allow"):
+class DSObject(BaseModel, extra="allow"):
     scale: float
-    offset: XYObject | tuple[float, float]
+    offset: XYObjectObject | tuple[float, float]
 
 
-class Info(BaseModel, extra="allow"):
+class InfoObject(BaseModel, extra="allow"):
     name: str
     author: str
     description: str
@@ -156,19 +155,19 @@ class Info(BaseModel, extra="allow"):
     software: str
 
 
-class LinkExtension(BaseModel, extra="allow"):
+class LinkExtensionObject(BaseModel, extra="allow"):
     id: float
     parentId: float
 
 
-class Extra(BaseModel, extra="allow"):
-    ds: DS | None = None
-    info: Info | None = None
-    linkExtensions: list[LinkExtension] | None = None
-    reroutes: list[Reroute] | None = None
+class ExtraObject(BaseModel, extra="allow"):
+    ds: DSObject | None = None
+    info: InfoObject | None = None
+    linkExtensions: list[LinkExtensionObject] | None = None
+    reroutes: list[RerouteObject] | None = None
 
 
-class ModelItem(BaseModel, extra="allow"):
+class ModelItemObject(BaseModel, extra="allow"):
     name: str
     url: str
     hash: str | None = None
@@ -176,94 +175,94 @@ class ModelItem(BaseModel, extra="allow"):
     directory: str
 
 
-class ComfyWorkflow1_0(BaseModel, extra="allow"):
+class ComfyWorkflow1_0Object(BaseModel, extra="allow"):
     version: float
-    config: ConfigModel | None = None
-    state: State = Field(default_factory=State)
-    groups: list[Group] | None = None
-    nodes: list[Node]
-    links: list[Link] | None = None
-    reroutes: list[Reroute] | None = None
-    extra: Extra | None = None
-    models: list[ModelItem] | None = None
+    config: ConfigModelObject | None = None
+    state: StateObject = Field(default_factory=StateObject)
+    groups: list[GroupObject] | None = None
+    nodes: list[NodeObject]
+    links: list[LinkObject] | None = None
+    reroutes: list[RerouteObject] | None = None
+    extra: ExtraObject | None = None
+    models: list[ModelItemObject] | None = None
 
 
-class ComfyInputLink(BaseModel, extra="forbid"):
+class ComfyInputLinkObject(BaseModel, extra="forbid"):
     origin_slot: int
     origin_id: str
     target_slot: int
 
 
-class ComfyInput(BaseModel, extra="forbid"):
+class ComfyInputObject(BaseModel, extra="forbid"):
     node: str
     node_id: str
     title: str | None = None
     inputs: dict[str, Any] | list[Any]
-    links: list[ComfyInputLink] = Field(
+    links: list[ComfyInputLinkObject] = Field(
         description=("Incoming links to the node -- origin slot/id is a dependee node")
     )
 
 
 COMFY_INPUT_SCHEMA = MetaData()
 
-COMFY_INPUT_TABLE = Table(
-    "comfy_input",
-    COMFY_INPUT_SCHEMA,
-    Column("hash", String(64), primary_key=True),
-    Column("note", String, nullable=False),
-)
 
-COMFY_INPUT_NODES_TABLE = Table(
-    "comfy_input_nodes",
-    COMFY_INPUT_SCHEMA,
-    Column(
-        "file_hash",
+class ComfyInputBase(DeclarativeBase):
+    metadata = COMFY_INPUT_SCHEMA
+
+
+class ComfyInput(ComfyInputBase):
+    __tablename__ = "comfy_input"
+
+    hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    note: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class ComfyInputNode(ComfyInputBase):
+    __tablename__ = "comfy_input_nodes"
+
+    file_hash: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("comfy_input.hash"),
         primary_key=True,
-    ),
-    Column("node_id", String, primary_key=True),
-    Column("position", Integer, nullable=False),
-    Column("node", String, nullable=False),
-    Column("title", String),
-    Column("inputs", JSON, nullable=False),
-)
+    )
+    node_id: Mapped[str] = mapped_column(String, primary_key=True)
+    position: Mapped[int] = mapped_column(nullable=False)
+    node: Mapped[str] = mapped_column(String, nullable=False)
+    title: Mapped[str | None] = mapped_column(String)
+    inputs: Mapped[Any] = mapped_column(JSON, nullable=False)
 
-COMFY_INPUT_LINKS_TABLE = Table(
-    "comfy_input_links",
-    COMFY_INPUT_SCHEMA,
-    Column(
-        "file_hash",
+
+class ComfyInputLink(ComfyInputBase):
+    __tablename__ = "comfy_input_links"
+
+    file_hash: Mapped[str] = mapped_column(
         String(64),
         ForeignKey("comfy_input.hash"),
         primary_key=True,
-    ),
-    Column("target_id", String, primary_key=True),
-    Column(
-        "position",
-        Integer,
+    )
+    target_id: Mapped[str] = mapped_column(String, primary_key=True)
+    position: Mapped[int] = mapped_column(
         primary_key=True,
         autoincrement=False,
-    ),
-    Column("origin_id", String, nullable=False),
-    Column("origin_slot", Integer, nullable=False),
-    Column("target_slot", Integer, nullable=False),
-)
+    )
+    origin_id: Mapped[str] = mapped_column(String, nullable=False)
+    origin_slot: Mapped[int] = mapped_column(nullable=False)
+    target_slot: Mapped[int] = mapped_column(nullable=False)
 
 
-def _workflow_inputs(workflow: ComfyWorkflow1_0) -> list[ComfyInput]:
-    links_by_target: dict[str, list[ComfyInputLink]] = defaultdict(list)
+def _workflow_inputs(workflow: ComfyWorkflow1_0Object) -> list[ComfyInputObject]:
+    links_by_target: dict[str, list[ComfyInputLinkObject]] = defaultdict(list)
 
     for link in workflow.links or ():
         links_by_target[str(link.target_id)].append(
-            ComfyInputLink(
+            ComfyInputLinkObject(
                 origin_id=str(link.origin_id),
                 origin_slot=int(link.origin_slot),
                 target_slot=int(link.target_slot),
             )
         )
 
-    result: list[ComfyInput] = []
+    result: list[ComfyInputObject] = []
 
     for node in workflow.nodes:
         if not node.widgets_values:
@@ -278,7 +277,7 @@ def _workflow_inputs(workflow: ComfyWorkflow1_0) -> list[ComfyInput]:
         node_id = str(node.id)
 
         result.append(
-            ComfyInput(
+            ComfyInputObject(
                 node=node.type,
                 node_id=node_id,
                 title=title,
@@ -291,9 +290,9 @@ def _workflow_inputs(workflow: ComfyWorkflow1_0) -> list[ComfyInput]:
 
 
 def _load_workflow(
-    database: IndexerDatabase,
+    database: IndexerStore,
     file_hash: str,
-) -> ComfyWorkflow1_0 | None:
+) -> ComfyWorkflow1_0Object | None:
     with database.connection() as connection:
         row = (
             connection.execute(
@@ -331,9 +330,9 @@ def _load_workflow(
     workflow_data = exif_metadata["workflow"]
 
     if isinstance(workflow_data, str):
-        return ComfyWorkflow1_0.model_validate_json(workflow_data)
+        return ComfyWorkflow1_0Object.model_validate_json(workflow_data)
 
-    return ComfyWorkflow1_0.model_validate(workflow_data)
+    return ComfyWorkflow1_0Object.model_validate(workflow_data)
 
 
 class ComfyInputIndexer(BaseIndexer):
@@ -354,7 +353,7 @@ class ComfyInputIndexer(BaseIndexer):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         file_hash = request.get_hash_str()
 
@@ -367,7 +366,7 @@ class ComfyInputIndexer(BaseIndexer):
         )
 
         if workflow is None:
-            inputs: list[ComfyInput] = []
+            inputs: list[ComfyInputObject] = []
             note = "no workflow data detected"
         else:
             inputs = _workflow_inputs(workflow)
@@ -400,30 +399,16 @@ class ComfyInputIndexer(BaseIndexer):
 
         with self.database.transaction() as connection:
             existing = connection.execute(
-                select(COMFY_INPUT_TABLE.c.hash).where(
-                    COMFY_INPUT_TABLE.c.hash == file_hash
-                )
+                select(ComfyInput.hash).where(ComfyInput.hash == file_hash)
             ).first()
 
             if existing is not None:
                 return
 
-            connection.execute(
-                COMFY_INPUT_TABLE.insert(),
-                {
-                    "hash": file_hash,
-                    "note": note,
-                },
-            )
+            connection.execute(insert(ComfyInput).values(hash=file_hash, note=note))
 
             if node_rows:
-                connection.execute(
-                    COMFY_INPUT_NODES_TABLE.insert(),
-                    node_rows,
-                )
+                connection.execute(insert(ComfyInputNode), node_rows)
 
             if link_rows:
-                connection.execute(
-                    COMFY_INPUT_LINKS_TABLE.insert(),
-                    link_rows,
-                )
+                connection.execute(insert(ComfyInputLink), link_rows)

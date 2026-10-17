@@ -8,8 +8,8 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 
 from haxdex_read_media.indexers.comfy_input_indexer import (
-    ComfyInput,
     ComfyInputIndexer,
+    ComfyInputObject,
 )
 from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
@@ -92,9 +92,9 @@ def _normalize_sampler_name(name: str) -> tuple[str, str | None]:
 
 
 def _extract_generation_params(
-    nodes: list[ComfyInput], request: IndexerRequest
+    nodes: list[ComfyInputObject], request: IndexerRequest
 ) -> GenerationParamsIndexerResult:
-    by_id: dict[str, ComfyInput] = {n.node_id: n for n in nodes}
+    by_id: dict[str, ComfyInputObject] = {n.node_id: n for n in nodes}
 
     # Build dependency graph. A link's origin_id is the dependee, so the
     # node owning the link depends on origin_id.
@@ -131,7 +131,7 @@ def _extract_generation_params(
     vae: str | None = None
     clip: str | None = None
 
-    def get(node: ComfyInput, key: str, index: int) -> Any:
+    def get(node: ComfyInputObject, key: str, index: int) -> Any:
         """Read a value from named (dict) or positional (list) inputs."""
         if isinstance(node.inputs, dict):
             return node.inputs.get(key)

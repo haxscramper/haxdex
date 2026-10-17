@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import cast
 
 import magic
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import (
     BaseIndexer,
     BaseIndexerConfig,
@@ -70,7 +70,7 @@ class MediaTranscriptionIndexer(BaseIndexer):
     def __init__(
         self,
         config: BaseIndexerConfig,
-        database: IndexerDatabase,
+        database: IndexerStore,
     ) -> None:
         super().__init__(config=config, database=database)
         self._magic = magic.Magic(mime=True)
@@ -87,7 +87,7 @@ class MediaTranscriptionIndexer(BaseIndexer):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         file_hash = request.get_hash_str()
 

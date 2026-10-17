@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import imagehash
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from loguru import logger
@@ -34,7 +34,7 @@ class ImageHashIndexer(BaseIndexer):
         ctx: RunContext,
         request: IndexerRequest,
         resources: dict[str, BaseResource],
-        assets: dict[str, IndexerDatabase],
+        assets: dict[str, IndexerStore],
     ) -> None:
         file_hash = request.get_hash_str()
 

@@ -5,7 +5,7 @@ from typing import Self
 
 from sqlalchemy import Column, MetaData, String, Table, and_, select
 
-from haxdex_core.database import IndexerDatabase
+from haxdex_core.database import IndexerStore
 from haxdex_core.hash_cache import HashCache
 from haxdex_core.types import FileHash, FileRef, RootRef
 
@@ -45,9 +45,9 @@ class IndexDatabase:
         self.directory.mkdir(parents=True, exist_ok=True)
 
         self.hash_cache = hash_cache
-        self._indexer_databases: dict[str, IndexerDatabase] = {}
+        self._indexer_databases: dict[str, IndexerStore] = {}
 
-        self._catalog = IndexerDatabase(
+        self._catalog = IndexerStore(
             path=self.directory / "catalog.duckdb",
             asset_name="files",
             result_schema=_catalog_schema(),
@@ -66,7 +66,7 @@ class IndexDatabase:
         self,
         asset_name: str,
         result_schema: MetaData,
-    ) -> IndexerDatabase:
+    ) -> IndexerStore:
         existing = self._indexer_databases.get(asset_name)
         if existing is not None:
             if existing.result_schema is not result_schema:
@@ -75,7 +75,7 @@ class IndexDatabase:
                 )
             return existing
 
-        database = IndexerDatabase(
+        database = IndexerStore(
             path=self.directory / "indexers" / f"{asset_name}.duckdb",
             asset_name=asset_name,
             result_schema=result_schema,
@@ -83,7 +83,7 @@ class IndexDatabase:
         self._indexer_databases[asset_name] = database
         return database
 
-    def get_indexer_database(self, asset_name: str) -> IndexerDatabase:
+    def get_indexer_database(self, asset_name: str) -> IndexerStore:
         return self._indexer_databases[asset_name]
 
     def has_indexer_result(
