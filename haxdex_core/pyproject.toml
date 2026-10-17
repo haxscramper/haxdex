@@ -9,6 +9,7 @@ dependencies = [
     "loguru",
     "pydantic>=2",
     "sqlalchemy>=2",
+    "platformdirs",
 ]
 
 [dependency-groups]

@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Literal
 
-import fitz
+import pymupdf
 import requests
 from docling_core.types.doc.document import (
     ContentLayer,
@@ -61,10 +61,10 @@ def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
 
 
 def _rasterize_page(pdf_path: Path, page_num: int, raster_dir: Path) -> Path:
-    """Renders a single PDF page to a PNG file using fitz."""
-    with fitz.open(str(pdf_path)) as pdf:
+    """Renders a single PDF page to a PNG file using pymupdf."""
+    with pymupdf.open(str(pdf_path)) as pdf:
         page = pdf[page_num - 1]
-        mat = fitz.Matrix(2, 2)
+        mat = pymupdf.Matrix(2, 2)
         pix = page.get_pixmap(matrix=mat)
         output_path = raster_dir / f"page_{page_num:04d}.png"
         pix.save(str(output_path))

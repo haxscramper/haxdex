@@ -24,11 +24,6 @@ from sqlalchemy import (
     select,
 )
 
-from haxdex_read_media.resources.whisper_transcribe import (
-    WhisperTranscribeRequest,
-    WhisperTranscribeResource,
-)
-
 _metadata = MetaData()
 
 _media_transcription = Table(

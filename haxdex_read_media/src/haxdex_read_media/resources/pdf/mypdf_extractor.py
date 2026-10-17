@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Literal
 
-import fitz
+import pymupdf
 import pymupdf4llm
 from haxdex_read_media.resources.pdf.page_model import (
     BoundingBox,
@@ -378,7 +378,7 @@ def _extract_page_dimensions(
     page_number = metadata.get("page_number") if isinstance(metadata, dict) else None
 
     if isinstance(file_path, str) and isinstance(page_number, int) and page_number > 0:
-        with fitz.open(file_path) as pdf:
+        with pymupdf.open(file_path) as pdf:
             page = pdf[page_number - 1]
             rect = page.rect
             return float(rect.width), float(rect.height)
@@ -545,7 +545,7 @@ class MyPDFExtractor:
     """Extracts structured tags from PDF pages with selectable text using pymupdf4llm."""
 
     @staticmethod
-    def page_has_selectable_text(pdf: fitz.Document, page_num: int) -> bool:
+    def page_has_selectable_text(pdf: pymupdf.Document, page_num: int) -> bool:
         page = pdf[page_num - 1]
         text = page.get_text("text")
         return len(text.strip()) > 20

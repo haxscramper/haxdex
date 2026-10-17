@@ -9,7 +9,7 @@ import jax
 import numpy as np
 import pandas as pd
 from beartype.typing import ClassVar
-from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
+from haxdex_core.job_types import BaseResource, BaseResourceConfig
 from haxdex_core.utils import get_xdg_cache_dir
 from huggingface_hub import hf_hub_download
 from PIL import Image

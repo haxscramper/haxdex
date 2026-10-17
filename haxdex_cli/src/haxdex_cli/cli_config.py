@@ -14,13 +14,7 @@ from haxdex_read_media.indexers.exif_metadata import (
 from haxdex_read_media.indexers.ffprobe_indexer import (
     FFProbeIndexer,
 )
-from haxdex_read_media.indexers.image_generation import (
-    GenerationParamsIndexer,
-)
 from haxdex_read_media.indexers.image_hash import ImageHashIndexer
-from haxdex_read_media.indexers.media_transcribe import (
-    MediaTranscriptionIndexer,
-)
 from haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
 )
@@ -36,9 +30,6 @@ from haxdex_read_media.resources.pdf.pdf_extractor import (
     PdfExtractor,
 )
 from haxdex_read_media.resources.wd_tagger import WdTagger
-from haxdex_read_media.resources.whisper_transcribe import (
-    WhisperTranscribeResource,
-)
 from haxdex_view_generation.models import ExplorerSettings
 from hstd_py_lib.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator

@@ -12,6 +12,16 @@ dependencies = [
   "haxdex_core",
   "semchunk",
   "tiktoken",
+  "python-magic",
+  "Pillow",
+  "imagehash",
+  "pymupdf",
+  "docling",
+  "pymupdf4llm",
+  "flax",
+  "jax[rocm7-local]",
+  "einops",
+  "openai",
 ]
 
 [dependency-groups]

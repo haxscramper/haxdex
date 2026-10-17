@@ -4,8 +4,8 @@ import hashlib
 from pathlib import Path
 from typing import Annotated, Union
 
-import fitz
-from haxdex.services.core.job_types import BaseResource, RunContext
+import pymupdf
+from haxdex_core.job_types import BaseResource, RunContext
 from haxdex_core.utils import get_xdg_cache_dir
 from haxdex_read_media.resources.pdf.docling_extractor import (
     DoclingExtractor,
@@ -78,7 +78,7 @@ class PdfExtractor(BaseResource):
         raster_dir = self._raster_dir(pdf_path)
 
         with (
-            fitz.open(str(pdf_path)) as pdf,
+            pymupdf.open(str(pdf_path)) as pdf,
             ctx.trace_scope("extract PDF", path=str(pdf_path)),
         ):
             max_pages = len(pdf)

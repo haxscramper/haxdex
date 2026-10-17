@@ -5,11 +5,10 @@ import threading
 import time
 from typing import Any
 
+from haxdex_core.job_types import BaseResource, BaseResourceConfig, RunContext
 from loguru import logger
 from openai import OpenAI
 from pydantic import BaseModel
-
-from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
 
 
 class FlmMessage(BaseModel, extra="forbid"):
