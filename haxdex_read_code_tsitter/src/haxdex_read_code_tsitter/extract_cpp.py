@@ -5,12 +5,12 @@ from pathlib import Path
 import tree_sitter_cpp
 from tree_sitter import Language, Node, Parser
 
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.code_model import (
+from haxdex_read_code_tsitter.code_model import (
     DocInfo,
     ParsedArgument,
     ParsedEntry,
 )
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.utils import (
+from haxdex_read_code_tsitter.utils import (
     find_first_descendant,
     node_text,
     normalize_doc_lines,

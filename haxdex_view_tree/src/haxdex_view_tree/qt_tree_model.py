@@ -1,13 +1,13 @@
 import glom
 from beartype import beartype
 from beartype.typing import Any
+from haxdex_view_tree.columns.file_tree_column import FileTreeNode
+from hstd_py_qt.file_view.tree_column_model import (
+    AbstractTreeColumnModel,
+)
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
-from hstd_py_qt.src.hstd_py_qt.file_view.tree_column_model import (
-    AbstractTreeColumnModel,
-)
 
 
 @beartype

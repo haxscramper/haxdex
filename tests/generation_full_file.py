@@ -14,15 +14,14 @@ from beartype.typing import Literal, Sequence, TypeVar, Union
 from dominate import document as html_document
 from dominate import tags
 from ebooklib import epub
+from haxdex_read_media.indexers.full_document import (
+    full_document_types as doc_types,
+)
 from PIL import Image, ImageDraw, PngImagePlugin
 from pydantic import BaseModel, Field
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen.canvas import Canvas
-
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document import (
-    full_document_types as doc_types,
-)
 
 T = TypeVar("T")
 

@@ -3,6 +3,36 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
+from haxdex.services.core.types import FileHash
+from haxdex_action.action_handler import ActionResult
+from haxdex_action.action_video_convert import (
+    VideoConvertAction,
+    VideoConvertActionHandler,
+)
+from haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeNode,
+)
+from haxdex_view_tree.columns.known_actions_column import (
+    KnownActionColumnSpec,
+    KnownActionData,
+)
+from haxdex_view_tree.python_code_editor import PythonQueryEditor
+from haxdex_view_tree.query_filter import (
+    QueryFilterEvaluator,
+    QueryResult,
+)
+from hstd_py_qt.file_view.column_model import AbstractColumnItemModel
+from hstd_py_qt.file_view.column_sort_filter_proxy import (
+    ColumnSortFilterProxyModel,
+)
+from hstd_py_qt.file_view.tree_to_table_model import (
+    TreeToTableProxyModel,
+)
+from hstd_py_qt.filterable_table_view import (
+    FilterableTableView,
+    FilterColumnConfig,
+)
 from loguru import logger
 from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -24,36 +54,6 @@ from PyQt6.QtWidgets import (
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
-from haxdex.services.core.types import FileHash
-from haxdex_action.src.haxdex_action.action_handler import ActionResult
-from haxdex_action.src.haxdex_action.action_video_convert import (
-    VideoConvertAction,
-    VideoConvertActionHandler,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeNode,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.known_actions_column import (
-    KnownActionColumnSpec,
-    KnownActionData,
-)
-from haxdex_view_tree.src.haxdex_view_tree.python_code_editor import PythonQueryEditor
-from haxdex_view_tree.src.haxdex_view_tree.query_filter import (
-    QueryFilterEvaluator,
-    QueryResult,
-)
-from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
-from hstd_py_qt.src.hstd_py_qt.file_view.column_sort_filter_proxy import (
-    ColumnSortFilterProxyModel,
-)
-from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (
-    TreeToTableProxyModel,
-)
-from hstd_py_qt.src.hstd_py_qt.filterable_table_view import (
-    FilterableTableView,
-    FilterColumnConfig,
-)
 
 
 @beartype

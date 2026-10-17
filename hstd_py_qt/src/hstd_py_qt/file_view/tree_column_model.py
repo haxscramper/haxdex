@@ -4,7 +4,7 @@ from beartype import beartype
 from beartype.typing import Generic, Sequence, TypeVar, cast
 from PyQt6.QtCore import QModelIndex, QObject
 
-from hstd_py_qt.src.hstd_py_qt.file_view.column_model import (
+from hstd_py_qt.file_view.column_model import (
     AbstractColumnItemModel,
     ColumnSpec,
 )

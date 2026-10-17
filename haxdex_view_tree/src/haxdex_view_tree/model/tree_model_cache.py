@@ -6,6 +6,18 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_types import BaseIndexer, RunContext
+from haxdex.services.core.types import FileHash
+from haxdex_core.utils import create_cache_engine
+from haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+)
+from haxdex_view_tree.model.tree_model_fetch import (
+    FilePathRow,
+    fetch_indexer_assets,
+)
 from loguru import logger
 from sqlalchemy import (
     Column,
@@ -20,19 +32,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
-from haxdex.services.utils import create_cache_engine
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-)
-from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_fetch import (
-    FilePathRow,
-    fetch_indexer_assets,
-)
 
 CACHE_SCHEMA_TABLE = "file_tree_column_schemas"
 CACHE_FILE_TABLE = "file_tree_file_columns"

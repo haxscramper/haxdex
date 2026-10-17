@@ -11,23 +11,23 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 from tree_sitter import Parser
 
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.code_model import (
+from haxdex_read_code_tsitter.code_model import (
     Base,
     FunctionArgument,
     IndexEntry,
     ParsedEntry,
 )
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.extract_cpp import (
+from haxdex_read_code_tsitter.extract_cpp import (
     CPP_LANGUAGE,
     CPP_SUFFIXES,
     index_cpp_file,
 )
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.extract_python import (
+from haxdex_read_code_tsitter.extract_python import (
     PYTHON_LANGUAGE,
     PYTHON_SUFFIXES,
     index_python_file,
 )
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.utils import make_parser
+from haxdex_read_code_tsitter.utils import make_parser
 
 
 def index_file(

@@ -13,6 +13,78 @@ import plumbum
 import pytest
 from beartype import beartype
 from beartype.typing import Any, List
+from haxdex_action.action_db import OperationRow
+from haxdex_action.action_execute import (
+    _DONE_STR,
+    ActionExecutor,
+)
+from haxdex_action.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+    TrashAction,
+    load_actions,
+)
+from haxdex_action.action_list_view import (
+    ActionListView,
+)
+from haxdex_cli.cli import IndexService, main_impl
+from haxdex_cli.cli_config import (
+    AppConfig,
+    DatabaseConfig,
+    IndexConfig,
+    IndexPathConfig,
+    LoggingConfig,
+)
+from haxdex_core.hash_cache import HashCache
+from haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_read_media.indexers.file_stats import FileStatsIndexer
+from haxdex_read_media.indexers.full_document.full_document import (
+    DocumentBlockIndexer,
+)
+from haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+)
+from haxdex_view_tree.columns.file_duplicate_column import (
+    FileDuplicateColumnSpec,
+    FileDuplicateData,
+)
+from haxdex_view_tree.columns.file_mime_column import (
+    FileMimeColumnSpec,
+    FileMimeData,
+)
+from haxdex_view_tree.columns.file_tree_column import (
+    FileTreeNode,
+)
+from haxdex_view_tree.columns.known_actions_column import (
+    KnownActionColumnSpec,
+)
+from haxdex_view_tree.columns.trivial_data_column import (
+    TrivialDataColumnSpec,
+    TrivialEntryData,
+)
+from haxdex_view_tree.model.tree_model_fetch import (
+    AQL_FILE_PATHS,
+    _fetch_file_paths_impl,
+)
+from haxdex_view_tree.qt_tree_model import FileTreeModel
+from haxdex_view_tree.qt_tree_window import FileTreeQueryCore
+from haxdex_view_tree.query_filter import (
+    QueryFilterEvaluator,
+    QueryProgram,
+)
+from hstd_py_qt.file_view.tree_to_table_model import (
+    TreeToTableProxyModel,
+)
+from hstd_py_qt.model_dump import (
+    render_text,
+    simple_dump,
+    simple_dump_rows_json,
+)
 from hypothesis import HealthCheck, Phase, given, settings
 from hypothesis.control import current_build_context
 from loguru import logger
@@ -28,79 +100,7 @@ from haxdex.services.pydantic_utils import (
     model_from_json_data,
     to_json_safe,
 )
-from haxdex_action.src.haxdex_action.action_db import OperationRow
-from haxdex_action.src.haxdex_action.action_execute import (
-    _DONE_STR,
-    ActionExecutor,
-)
-from haxdex_action.src.haxdex_action.action_list_model import (
-    ActionListModel,
-    ActionProvider,
-    TrashAction,
-    load_actions,
-)
-from haxdex_action.src.haxdex_action.action_list_view import (
-    ActionListView,
-)
-from haxdex_cli.src.haxdex_cli.cli import IndexService, main_impl
-from haxdex_cli.src.haxdex_cli.cli_config import (
-    AppConfig,
-    DatabaseConfig,
-    IndexConfig,
-    IndexPathConfig,
-    LoggingConfig,
-)
-from haxdex_core.src.haxdex_core.hash_cache import HashCache
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import FileStatsIndexer
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document import (
-    DocumentBlockIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
-    FileMimeIndexer,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
-    FileDuplicateColumnSpec,
-    FileDuplicateData,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_mime_column import (
-    FileMimeColumnSpec,
-    FileMimeData,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
-    FileTreeNode,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.known_actions_column import (
-    KnownActionColumnSpec,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.trivial_data_column import (
-    TrivialDataColumnSpec,
-    TrivialEntryData,
-)
-from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_fetch import (
-    AQL_FILE_PATHS,
-    _fetch_file_paths_impl,
-)
-from haxdex_view_tree.src.haxdex_view_tree.qt_tree_model import FileTreeModel
-from haxdex_view_tree.src.haxdex_view_tree.qt_tree_window import FileTreeQueryCore
-from haxdex_view_tree.src.haxdex_view_tree.query_filter import (
-    QueryFilterEvaluator,
-    QueryProgram,
-)
-from hstd_py_qt.src.hstd_py_qt import model_dump
-from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (
-    TreeToTableProxyModel,
-)
-from hstd_py_qt.src.hstd_py_qt.model_dump import (
-    render_text,
-    simple_dump,
-    simple_dump_rows_json,
-)
+from hstd_py_qt import model_dump
 from tests.generation import (
     META_SUFFIX,
     GeneratedDirectory,

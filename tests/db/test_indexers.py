@@ -6,34 +6,34 @@ from pathlib import Path
 import glom
 import pytest
 from beartype.typing import Any, TypeVar, cast
-from loguru import logger
-from pydantic import BaseModel
-from sqlalchemy import Engine
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.types import FileHash, FileRef, IndexerOutput
-from haxdex.services.pydantic_utils import first_by_field_value
-from haxdex.services.utils import dump_with_type
-from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
+from haxdex_core.utils import dump_with_type
+from haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkDocument,
     ChunkFile,
     ChunkLink,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.file_summary import (
+from haxdex_read_media.indexers.chunk_indexing.file_summary import (
     FileSummaryIndexerResult,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.full_text import (
+from haxdex_read_media.indexers.chunk_indexing.full_text import (
     FullTextIndexerResult,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.file_size import (
+from haxdex_read_media.indexers.file_size import (
     FileSizeIndexer,
     FileSizeIndexerResult,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import (
+from haxdex_read_media.indexers.file_stats import (
     FileStatsIndexerResult,
 )
-from haxdex_read_media.src.haxdex_read_media.resources.text_summary import SummaryChunk
+from haxdex_read_media.resources.text_summary import SummaryChunk
+from loguru import logger
+from pydantic import BaseModel
+from sqlalchemy import Engine
+
+from haxdex.services.pydantic_utils import first_by_field_value
 
 ARANGO_HOST = os.environ.get("ARANGO_HOST", "http://localhost:8529")
 ARANGO_USER = os.environ.get("ARANGO_USER", "root")

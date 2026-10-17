@@ -10,44 +10,42 @@ from typing import Any
 
 import commentjson
 from beartype import beartype
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from hstd_py_lib.pydantic_utils import model_to_json_data
-from loguru import logger
-
-from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.services.log_config import keep_last_files
-from haxdex.services.utils import (
-    get_custom_traceback_handler,
-    get_xdg_cache_dir,
-    stfu_logs,
-)
-from haxdex_cli.src.haxdex_cli.cli_config import (
+from cli_config import (
     _INDEXER_TYPES,
     _RESOURCE_TYPES,
     AppConfig,
     LoggingConfig,
 )
-from haxdex_core.src.haxdex_core.hash_cache import HashCache
-from haxdex_core.src.haxdex_core.indexing_flow import run_indexing_per_root_plan
-from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
+from haxdex_core.db import IndexDatabase
+from haxdex_core.hash_cache import HashCache
+from haxdex_core.indexing_flow import run_indexing_per_root_plan
+from haxdex_core.job_runtime import IndexRuntime
+from haxdex_core.job_types import BaseIndexer, RunContext
+from haxdex_core.utils import (
+    get_xdg_cache_dir,
+    stfu_logs,
+)
+from haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
-from haxdex_view_results.src.haxdex_view_results.builder import WidgetBuilder
-from haxdex_view_results.src.haxdex_view_results.comfy_input_builder import (
+from haxdex_read_media.indexers.wd_indexer import WdTagIndexer
+from haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.comfy_input_builder import (
     ComfyInputWidgetBuilder,
 )
-from haxdex_view_results.src.haxdex_view_results.exif_preview_builder import (
+from haxdex_view_results.exif_preview_builder import (
     ExifPreviewrWidgetBuilder,
 )
-from haxdex_view_results.src.haxdex_view_results.wd_tagger_builder import (
+from haxdex_view_results.wd_tagger_builder import (
     WdTaggerWidgetBuilder,
 )
+from hstd_py_lib.pydantic_utils import model_to_json_data
+from loguru import logger
+
+from haxdex.services.log_config import keep_last_files
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -274,44 +272,16 @@ class IndexService:
 
         return builders
 
-    def run_flat_query_view(self) -> None:
-        qt_app = QApplication(sys.argv)
+    # def run_flat_query_view(self) -> None:
+    #     qt_app = QApplication(sys.argv)
 
-        win = FlatQueryViewWindow(
-            self.db,
-            collection_names=[t for t in self.cfg.indexers.keys()],
-            builders=self.get_builders(),
-        )
-        win.show()
-        sys.exit(qt_app.exec())
-
-
-def main_impl(command: str, cfg: AppConfig):
-    if command == "index" and cfg.index and cfg.index.reset:
-        IndexService.reset_for_config(cfg)
-
-    service = IndexService(cfg)
-
-    _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
-    logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
-    service.ctx.start_trace()
-
-    try:
-        service.run_index()
-
-    except Exception as ex:
-        logger.opt(exception=ex).critical("{}", ex)
-        raise
-
-    finally:
-        service.db.hash_cache.close()
-        perf_file = perf_dir / f"{datetime.now().isoformat()}.json"
-        service.ctx.writer.save(str(perf_file))
-        keep_last_files(perf_dir, "*.json", 20)
-
-        if service.cfg.perf_trace_file is not None:
-            logger.info(f"Trace file {service.cfg.perf_trace_file}")
-            service.ctx.writer.save(str(service.cfg.perf_trace_file))
+    #     win = FlatQueryViewWindow(
+    #         self.db,
+    #         collection_names=[t for t in self.cfg.indexers.keys()],
+    #         builders=self.get_builders(),
+    #     )
+    #     win.show()
+    #     sys.exit(qt_app.exec())
 
 
 def main() -> None:
@@ -333,7 +303,32 @@ def main() -> None:
         return
 
     else:
-        main_impl(args.command, cfg)
+        assert args.command == "index"
+        if cfg.index and cfg.index.reset:
+            IndexService.reset_for_config(cfg)
+
+        service = IndexService(cfg)
+
+        _, _, perf_dir = service.setup_runtime_logging(service.cfg.logging)
+        logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
+        service.ctx.start_trace()
+
+        try:
+            service.run_index()
+
+        except Exception as ex:
+            logger.opt(exception=ex).critical("{}", ex)
+            raise
+
+        finally:
+            service.db.hash_cache.close()
+            perf_file = perf_dir / f"{datetime.now().isoformat()}.json"
+            service.ctx.writer.save(str(perf_file))
+            keep_last_files(perf_dir, "*.json", 20)
+
+            if service.cfg.perf_trace_file is not None:
+                logger.info(f"Trace file {service.cfg.perf_trace_file}")
+                service.ctx.writer.save(str(service.cfg.perf_trace_file))
 
 
 if __name__ == "__main__":

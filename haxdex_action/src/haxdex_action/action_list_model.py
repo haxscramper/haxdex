@@ -3,6 +3,23 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
+from haxdex_action.action_handler import (
+    ActionHandler,
+    BaseAction,
+)
+from haxdex_action.action_move_file import MoveAction
+from haxdex_action.action_trash_file import TrashAction
+from haxdex_action.action_video_convert import (
+    VideoConvertAction,
+)
+from haxdex_view_tree.columns.file_tree_column import FileTreeNode
+from haxdex_view_tree.columns.video_convert_column import (
+    VideoConvertData,
+)
+from hstd_py_qt.file_view.column_model import (
+    AbstractColumnItemModel,
+    ColumnSpec,
+)
 from pydantic import BaseModel
 from PyQt6.QtCore import (
     QModelIndex,
@@ -11,23 +28,6 @@ from PyQt6.QtCore import (
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.pydantic_utils import model_from_json_data
-from haxdex_action.src.haxdex_action.action_handler import (
-    ActionHandler,
-    BaseAction,
-)
-from haxdex_action.src.haxdex_action.action_move_file import MoveAction
-from haxdex_action.src.haxdex_action.action_trash_file import TrashAction
-from haxdex_action.src.haxdex_action.action_video_convert import (
-    VideoConvertAction,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
-from haxdex_view_tree.src.haxdex_view_tree.columns.video_convert_column import (
-    VideoConvertData,
-)
-from hstd_py_qt.src.hstd_py_qt.file_view.column_model import (
-    AbstractColumnItemModel,
-    ColumnSpec,
-)
 
 
 def to_action_handler_map(handlers: list[ActionHandler]) -> dict[str, ActionHandler]:

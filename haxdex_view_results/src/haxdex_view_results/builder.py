@@ -3,9 +3,8 @@ from abc import ABC, abstractmethod
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer
 from haxdex.services.core.types import FileHash
+from haxdex_action.action_handler import ActionResult
 from PyQt6.QtWidgets import QWidget
-
-from haxdex_action.src.haxdex_action.action_handler import ActionResult
 
 
 class WidgetBuilder(ABC):

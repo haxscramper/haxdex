@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import pytest
 from beartype.typing import Iterator, List, Tuple
-from PyQt6.QtCore import QCoreApplication, QSortFilterProxyModel, Qt
-from PyQt6.QtGui import QStandardItem, QStandardItemModel
-
-from hstd_py_qt.src.hstd_py_qt.file_view.tree_to_table_model import (
+from hstd_py_qt.file_view.tree_to_table_model import (
     TreeToTableProxyModel,
 )
+from PyQt6.QtCore import QCoreApplication, QSortFilterProxyModel, Qt
+from PyQt6.QtGui import QStandardItem, QStandardItemModel
 
 
 @pytest.fixture(scope="session", autouse=True)

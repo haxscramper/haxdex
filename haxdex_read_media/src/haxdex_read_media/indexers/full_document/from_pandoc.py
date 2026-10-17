@@ -4,7 +4,7 @@ from pathlib import Path
 import plumbum
 from beartype.typing import Sequence, cast
 
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types import (
+from haxdex_read_media.indexers.full_document.full_document_types import (
     BulletListItem,
     Code,
     CodeBlockProps,

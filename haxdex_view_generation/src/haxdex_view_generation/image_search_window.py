@@ -1,6 +1,14 @@
 import json
 
 from beartype.typing import Any
+from haxdex.services.core.db import IndexDatabase
+from haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.indexers.wd_indexer import WdTagIndexer
 from PyQt6.QtCore import (
     QAbstractListModel,
     QModelIndex,
@@ -27,15 +35,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from haxdex.services.core.db import IndexDatabase
-from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
-    GenerationParamsIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
-    SafetensorIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
 
 from .constants import EDITOR_H, THUMB
 from .delegates import ImageDelegate, resolve_image_path

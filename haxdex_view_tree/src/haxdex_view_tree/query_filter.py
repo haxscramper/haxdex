@@ -4,25 +4,24 @@ from dataclasses import dataclass
 
 from beartype import beartype
 from beartype.typing import Callable, cast
+from haxdex_action.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+)
+from haxdex_view_tree.columns.file_tree_column import FileTreeNode
+from haxdex_view_tree.python_code_editor import (
+    QUERY_FILENAME,
+    QueryError,
+    as_query_error,
+)
+from haxdex_view_tree.qt_tree_model import FileTreeModel
+from hstd_py_qt.file_view.column_model import AbstractColumnItemModel
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QAbstractProxyModel,
     QModelIndex,
     QObject,
 )
-
-from haxdex_action.src.haxdex_action.action_list_model import (
-    ActionListModel,
-    ActionProvider,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
-from haxdex_view_tree.src.haxdex_view_tree.python_code_editor import (
-    QUERY_FILENAME,
-    QueryError,
-    as_query_error,
-)
-from haxdex_view_tree.src.haxdex_view_tree.qt_tree_model import FileTreeModel
-from hstd_py_qt.src.hstd_py_qt.file_view.column_model import AbstractColumnItemModel
 
 FilterFn = Callable[[list[FileTreeNode]], list[FileTreeNode]]
 TraverseFn = Callable[["ActionProvider", list[FileTreeNode]], object]

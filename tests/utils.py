@@ -10,16 +10,12 @@ import glom
 import pandas as pd
 from beartype import beartype
 from beartype.typing import Any, Iterator, cast
-from loguru import logger
-from PyQt6.QtCore import QAbstractItemModel, QModelIndex
-
-from haxdex.services.file_iteration import DirConfig
-from haxdex_action.src.haxdex_action.action_execute import (
+from haxdex_action.action_execute import (
     ActionExecutionConfig,
     ActionExecutor,
 )
-from haxdex_cli.src.haxdex_cli.cli import IndexService
-from haxdex_cli.src.haxdex_cli.cli_config import (
+from haxdex_cli.cli import IndexService
+from haxdex_cli.cli_config import (
     ActionConfig,
     AppConfig,
     DatabaseConfig,
@@ -28,50 +24,54 @@ from haxdex_cli.src.haxdex_cli.cli_config import (
     IndexPathConfig,
     LoggingConfig,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
+from haxdex_read_media.indexers.ffprobe_indexer import (
     FFProbeIndexer,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import FileStatsIndexer
-from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
+from haxdex_read_media.indexers.file_stats import FileStatsIndexer
+from haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
+from haxdex_view_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_mime_column import (
+from haxdex_view_tree.columns.file_mime_column import (
     FileMimeColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_name_column import (
+from haxdex_view_tree.columns.file_name_column import (
     FileNameColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeNode,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.known_actions_column import (
+from haxdex_view_tree.columns.known_actions_column import (
     KnownActionColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.size_column import (
+from haxdex_view_tree.columns.size_column import (
     EntrySizeColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.size_share_column import (
+from haxdex_view_tree.columns.size_share_column import (
     SizeShareColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.trivial_data_column import (
+from haxdex_view_tree.columns.trivial_data_column import (
     TrivialDataColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.video_bitrate_columns import (
+from haxdex_view_tree.columns.video_bitrate_columns import (
     VideoBitrateColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.video_framerate_column import (
+from haxdex_view_tree.columns.video_framerate_column import (
     VideoFramerateColumnSpec,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.video_resolution_column import (
+from haxdex_view_tree.columns.video_resolution_column import (
     VideoResolutionColumnSpec,
 )
+from loguru import logger
+from PyQt6.QtCore import QAbstractItemModel, QModelIndex
+
+from haxdex.services.file_iteration import DirConfig
 
 
 @beartype

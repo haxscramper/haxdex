@@ -14,13 +14,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ....haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
+from ....haxdex_read_media.indexers.image_generation import (
     GenerationParamsIndexer,
 )
-from ....haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
+from ....haxdex_read_media.indexers.safetensor_indexer import (
     SafetensorIndexer,
 )
-from ....haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import (
+from ....haxdex_read_media.indexers.wd_indexer import (
     WdTagIndexer,
 )
 from ....src.haxdex.services.core.db import IndexDatabase

@@ -2,10 +2,16 @@ import json
 from pathlib import Path
 
 from beartype.typing import Optional, cast
-from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
+from haxdex_action.action_handler import ActionResult
+from haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+    ExifMetadataIndexerResult,
+    ImageParams,
+)
+from haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.json_preview_widget import JsonPreviewWidget
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
@@ -22,12 +28,6 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.services.pydantic_utils import model_to_json_data
-from haxdex_action.src.haxdex_action.action_handler import ActionResult
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-    ExifMetadataIndexerResult,
-    ImageParams,
-)
 
 
 class ExifPreviewrWidgetBuilder(WidgetBuilder):

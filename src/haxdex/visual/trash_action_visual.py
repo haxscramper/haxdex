@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from coloraide import Color
-from pydantic import BaseModel
-
-from haxdex_action.src.haxdex_action.action_list_model import (
+from haxdex_action.action_list_model import (
     TrashAction,
     load_actions,
 )
+from pydantic import BaseModel
 
 
 @dataclass

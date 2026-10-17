@@ -22,14 +22,14 @@ test_gui:
         > test_results.tmp.log 2>&1
 
 index:
-    uv run src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
+    uv run haxdex_cli/src/haxdex_cli/cli.py index "{{ CONFIG_FILE }}"
 
 profile_index:
     uv run py-spy record --rate 50 --format chrometrace -o /tmp/haxdex-perf-index.json -- \
-      python src/haxdex/cli/cli.py index "{{ CONFIG_FILE }}"
+      python haxdex_cli/src/haxdex_cli/cli.py index "{{ CONFIG_FILE }}"
 
 schema:
-    uv run src/haxdex/cli/cli.py schema "{{ CONFIG_FILE }}"
+    uv run haxdex_cli/src/haxdex_cli/cli.py schema "{{ CONFIG_FILE }}"
 
 flat_query_view: schema
     uv run src/haxdex/cli/cli.py flat_query_view "{{ CONFIG_FILE }}" 

@@ -11,13 +11,12 @@ from typing import Any, Literal
 
 import fitz
 import pymupdf4llm
-from loguru import logger
-from pydantic import BaseModel
-
-from haxdex_read_media.src.haxdex_read_media.resources.pdf.page_model import (
+from haxdex_read_media.resources.pdf.page_model import (
     BoundingBox,
     DocTag,
 )
+from loguru import logger
+from pydantic import BaseModel
 
 
 class MyPDFPage(BaseModel, extra="forbid"):

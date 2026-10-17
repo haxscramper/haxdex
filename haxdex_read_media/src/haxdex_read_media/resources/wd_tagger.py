@@ -9,13 +9,13 @@ import jax
 import numpy as np
 import pandas as pd
 from beartype.typing import ClassVar
+from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
+from haxdex_core.utils import get_xdg_cache_dir
 from huggingface_hub import hf_hub_download
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from haxdex.services.core.job_types import BaseResource, BaseResourceConfig, RunContext
-from haxdex.services.utils import get_xdg_cache_dir
-from haxdex_read_media.src.haxdex_read_media.resources.wdv3_jax import Models
+from haxdex_read_media.resources.wdv3_jax import Models
 
 jax.config.update(
     "jax_compilation_cache_dir",

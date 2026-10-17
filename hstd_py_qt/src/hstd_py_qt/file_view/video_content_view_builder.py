@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (
+from hstd_py_qt.file_view.file_content_builder import (
     FileContentViewBuilder,
 )
 

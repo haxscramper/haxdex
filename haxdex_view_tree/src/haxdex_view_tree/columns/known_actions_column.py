@@ -2,21 +2,21 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from pydantic import BaseModel
-from PyQt6.QtCore import QModelIndex, Qt
-
-from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex_action.src.haxdex_action.action_execute import ActionExecutor
-from haxdex_action.src.haxdex_action.action_handler import BaseAction
-from haxdex_action.src.haxdex_action.action_video_convert import (
+from haxdex_action.action_execute import ActionExecutor
+from haxdex_action.action_handler import BaseAction
+from haxdex_action.action_video_convert import (
     VideoConvertAction,
     VideoConvertActionHandler,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
     FileTreeNode,
 )
+from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 class KnownActionData(BaseModel, extra="forbid"):

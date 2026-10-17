@@ -1,4 +1,10 @@
 import pytest
+from hstd_py_qt.directory_view import (
+    BaseDirDelegate,
+    MixedTreeTileView,
+    TileDelegate,
+    attr_label,
+)
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QModelIndex,
@@ -14,13 +20,6 @@ from PyQt6.QtWidgets import (
     QMainWindow,
 )
 from pytestqt.qtbot import QtBot
-
-from hstd_py_qt.src.hstd_py_qt.directory_view import (
-    BaseDirDelegate,
-    MixedTreeTileView,
-    TileDelegate,
-    attr_label,
-)
 
 
 class SynNode:

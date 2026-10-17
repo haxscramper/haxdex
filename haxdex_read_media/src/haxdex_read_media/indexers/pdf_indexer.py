@@ -1,12 +1,12 @@
 from pathlib import Path
 
 from beartype.typing import cast
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from pydantic import BaseModel
 from sqlalchemy import Engine
 
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
-from haxdex_read_media.src.haxdex_read_media.resources.pdf.pdf_extractor import (
+from haxdex_read_media.resources.pdf.pdf_extractor import (
     PdfExtractor,
     PdfExtractorRequest,
     PdfExtractorResult,

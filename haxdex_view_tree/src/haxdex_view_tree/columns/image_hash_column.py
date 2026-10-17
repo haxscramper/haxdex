@@ -5,22 +5,22 @@ from typing import Optional
 import pybktree
 from beartype import beartype
 from beartype.typing import Any, cast
+from haxdex_read_media.indexers.image_hash import (
+    ImageHashIndexer,
+    ImageHashIndexerResult,
+)
+from haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+)
 from pydantic import BaseModel
 from PyQt6.QtCore import QModelIndex, Qt
 from PyQt6.QtGui import QBrush, QColor
-from testing.python.haxdex.src.haxdex.gui.file_tree.model.tree_model_build import (
+from testing.python.haxdex.gui.file_tree.model.tree_model_build import (
     FileTreeNode,
 )
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex_read_media.src.haxdex_read_media.indexers.image_hash import (
-    ImageHashIndexer,
-    ImageHashIndexerResult,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-)
 
 
 class ImageHashData(BaseModel, extra="forbid"):

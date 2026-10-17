@@ -15,11 +15,10 @@ from docling_core.types.doc.document import (
     DocTagsDocument,
     DocTagsPage,
 )
+from haxdex_read_media.resources.pdf.page_model import DocTag
 from loguru import logger
 from PIL import Image as PILImage
 from pydantic import BaseModel
-
-from haxdex_read_media.src.haxdex_read_media.resources.pdf.page_model import DocTag
 
 
 class DoclingPage(BaseModel, extra="forbid"):

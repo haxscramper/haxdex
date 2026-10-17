@@ -1,19 +1,19 @@
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from pydantic import BaseModel
-from PyQt6.QtCore import QModelIndex, Qt
-
-from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.services.utils import format_size
-from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import (
+from haxdex_core.utils import format_size
+from haxdex_read_media.indexers.file_stats import (
     FileStatsIndexer,
     FileStatsIndexerResult,
 )
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
+from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
     FileTreeNode,
 )
+from pydantic import BaseModel
+from PyQt6.QtCore import QModelIndex, Qt
+
+from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 class EntrySizeData(BaseModel, extra="forbid"):

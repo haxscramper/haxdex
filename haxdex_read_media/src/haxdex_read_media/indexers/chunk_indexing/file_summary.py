@@ -2,11 +2,11 @@ from pathlib import Path
 
 import magic
 from beartype.typing import cast
-from sqlalchemy import Engine
-
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import IndexerOutput, IndexerRequest
-from haxdex_read_media.src.haxdex_read_media.resources.text_summary import (
+from sqlalchemy import Engine
+
+from haxdex_read_media.resources.text_summary import (
     SummarizeRequest,
     TextSummaryResource,
     TextSummaryResult,

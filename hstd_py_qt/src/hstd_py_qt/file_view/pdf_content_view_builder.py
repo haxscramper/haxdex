@@ -3,7 +3,7 @@ from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtPdfWidgets import QPdfView
 from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
-from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (
+from hstd_py_qt.file_view.file_content_builder import (
     FileContentViewBuilder,
 )
 

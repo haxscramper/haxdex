@@ -2,10 +2,6 @@ from typing import Any, ClassVar, Union
 
 import glom
 from beartype.typing import Annotated, Optional
-from loguru import logger
-from pydantic import Field
-from sqlalchemy import Engine
-
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import (
     FullTextIndexConfig,
@@ -13,7 +9,11 @@ from haxdex.services.core.types import (
     IndexerRequest,
     MultiDocumentModel,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
+from loguru import logger
+from pydantic import Field
+from sqlalchemy import Engine
+
+from haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkDocument,
     Chunker,
@@ -22,7 +22,7 @@ from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking im
     ChunkUnit,
     chunks_to_multidoc,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document import (
+from haxdex_read_media.indexers.full_document.full_document import (
     DocumentBlockIndexerResult,
 )
 

@@ -2,15 +2,15 @@
 from typing import Any, ClassVar, Union
 
 from beartype.typing import Annotated
-from pydantic import BaseModel, Field
-
 from haxdex.services.core.job_types import (
     BaseResource,
     BaseResourceConfig,
     RunContext,
 )
 from haxdex.services.core.types import MultiDocumentModel
-from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking import (
+from pydantic import BaseModel, Field
+
+from haxdex_read_media.indexers.chunk_indexing.chunking import (
     ChunkConfig,
     ChunkDocument,
     Chunker,
@@ -19,7 +19,7 @@ from haxdex_read_media.src.haxdex_read_media.indexers.chunk_indexing.chunking im
     ChunkUnit,
     chunks_to_multidoc,
 )
-from haxdex_read_media.src.haxdex_read_media.resources.flm_server import (
+from haxdex_read_media.resources.flm_server import (
     FlmMessage,
     FlmRequest,
     FlmServerResource,

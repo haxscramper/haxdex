@@ -2,6 +2,14 @@ import enum
 
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
+from haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_view_tree.columns.file_tree_column import (
+    FileTreeColumnSpec,
+    FileTreeInitArgs,
+    FileTreeNode,
+)
 from pydantic import BaseModel
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex, Qt
 from PyQt6.QtWidgets import (
@@ -13,14 +21,6 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
-from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeInitArgs,
-    FileTreeNode,
-)
 
 
 class VideoConvertTarget(str, enum.Enum):

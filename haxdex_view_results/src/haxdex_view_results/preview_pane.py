@@ -3,11 +3,12 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from beartype import beartype
-from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.json_preview_builder import JsonWidgetBuilder
-from haxdex.gui.collection_views.paths_preview_builder import PathsWidgetBuilder
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
+from haxdex_action.action_handler import ActionResult
+from haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.json_preview_builder import JsonWidgetBuilder
+from haxdex_view_results.paths_preview_builder import PathsWidgetBuilder
 from loguru import logger
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPainter, QPen
@@ -17,8 +18,6 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
-from haxdex_action.src.haxdex_action.action_handler import ActionResult
 
 
 class HorizontalTextTabBar(QTabBar):

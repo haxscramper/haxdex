@@ -6,7 +6,18 @@ readme = "README.md"
 authors = [{ name = "haxscramper", email = "haxscramper@gmail.com" }]
 requires-python = ">=3.13"
 dependencies = [
-    "hstd-py-lib",
+    "commentjson>=0.9.0",
+    # haxorg wheels
+    "hstd_py_lib",
+    # editable local dependencies
+    "haxdex_core",
+    "haxdex_read_media",
+    "haxdex_view_tree",
+    "haxdex_view_generation",
+    "hstd_py_qt",
+    "haxdex_read_code_tsitter",
+    "haxdex_cli",
+    "haxdex_action",
 ]
 
 [project.scripts]

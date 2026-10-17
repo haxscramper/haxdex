@@ -2,8 +2,7 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
-
-from haxdex_view_tree.src.haxdex_view_tree.model.tree_model_fetch import (
+from haxdex_view_tree.model.tree_model_fetch import (
     AQL_FILE_PATHS,
     FilePathRow,
 )

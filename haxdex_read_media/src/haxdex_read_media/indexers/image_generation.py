@@ -3,18 +3,18 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from beartype.typing import Any, cast
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from pydantic import BaseModel
 from sqlalchemy import Engine
 
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexDocument, IndexerOutput, IndexerRequest
 from haxdex.services.pydantic_utils import to_json_safe
-from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
+from haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInput,
     ComfyInputIndexer,
     ComfyInputIndexerResult,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
+from haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
     ExifMetadataIndexerResult,
 )

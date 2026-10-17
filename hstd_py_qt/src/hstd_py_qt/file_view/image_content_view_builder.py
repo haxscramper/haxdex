@@ -3,7 +3,7 @@ from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QWidget
 
-from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (
+from hstd_py_qt.file_view.file_content_builder import (
     FileContentViewBuilder,
 )
 

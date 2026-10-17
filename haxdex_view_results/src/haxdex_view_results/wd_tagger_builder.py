@@ -1,14 +1,13 @@
 from beartype.typing import cast
-from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, QWidget
-
-from haxdex_action.src.haxdex_action.action_handler import ActionResult
-from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import (
+from haxdex_action.action_handler import ActionResult
+from haxdex_read_media.indexers.wd_indexer import (
     WdTagIndexerResult,
 )
+from haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.json_preview_widget import JsonPreviewWidget
+from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, QWidget
 
 
 class WdTaggerWidgetBuilder(WidgetBuilder):

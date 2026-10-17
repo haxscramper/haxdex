@@ -4,11 +4,6 @@ from typing import Annotated, Union
 import magic
 import plumbum
 from beartype.typing import Annotated, Any, ClassVar, Union
-from loguru import logger
-from pydantic import Field
-from sqlalchemy import Engine
-
-import haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types as doc_types
 from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
 from haxdex.services.core.types import (
     IndexDocument,
@@ -17,10 +12,15 @@ from haxdex.services.core.types import (
     IndexerRequest,
     MultiDocumentModel,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document.from_pandoc import (
+from loguru import logger
+from pydantic import Field
+from sqlalchemy import Engine
+
+import haxdex_read_media.indexers.full_document.full_document_types as doc_types
+from haxdex_read_media.indexers.full_document.from_pandoc import (
     pandoc_to_document,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_document_types import (
+from haxdex_read_media.indexers.full_document.full_document_types import (
     _flatten,
 )
 

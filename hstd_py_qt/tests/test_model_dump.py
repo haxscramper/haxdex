@@ -2,12 +2,7 @@ from __future__ import annotations
 
 from beartype import beartype
 from beartype.typing import Callable
-from PyQt6.QtCore import QModelIndex, Qt
-from PyQt6.QtGui import QStandardItem, QStandardItemModel
-from rich.text import Text
-from rich.tree import Tree
-
-from hstd_py_qt.src.hstd_py_qt.model_dump import (
+from hstd_py_qt.model_dump import (
     ItemFormatContext,
     ModelRichDumpConfig,
     ModelStructure,
@@ -16,6 +11,10 @@ from hstd_py_qt.src.hstd_py_qt.model_dump import (
     extract_snapshot,
     render_text,
 )
+from PyQt6.QtCore import QModelIndex, Qt
+from PyQt6.QtGui import QStandardItem, QStandardItemModel
+from rich.text import Text
+from rich.tree import Tree
 
 
 @beartype

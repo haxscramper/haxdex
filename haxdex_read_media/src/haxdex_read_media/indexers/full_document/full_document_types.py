@@ -2,15 +2,11 @@ import enum
 import hashlib
 import json
 
-from beartype.typing import Annotated, Any, Literal, Sequence, TypeVar, Union
+from beartype.typing import Annotated, Any, Literal, Sequence, Union
 from pydantic import BaseModel, Field, TypeAdapter, field_serializer, field_validator
 
-from haxdex.services.core.types import IndexDocument, IndexEdge, IndexMultiDocument
 
-T = TypeVar("T")
-
-
-class DocumentLink(IndexEdge, extra="forbid"):
+class DocumentLink(BaseModel, extra="forbid"):
     order: int
     relation: Literal["nested"] = "nested"  # type: ignore
 
@@ -109,7 +105,7 @@ class DivProps(CaptionProps, extra="forbid"):
     attributes: dict[str, str] = Field(default_factory=dict)
 
 
-class DocumentBlock(IndexMultiDocument, extra="forbid"):
+class DocumentBlock(BaseModel, extra="forbid"):
     nested: Sequence["DocumentBlock"] = Field(default_factory=list)
 
 
@@ -214,7 +210,7 @@ for _cls in (
 _fake_hash = "0" * 64
 
 
-def build(
+def build[T](
     cls: type[T],
     *,
     file_hash: str,

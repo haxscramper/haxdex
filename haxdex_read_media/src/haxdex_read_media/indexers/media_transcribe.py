@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import cast
 
 import magic
+from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
+from haxdex.services.core.types import IndexerOutput, IndexerRequest
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
-from haxdex.services.core.job_types import BaseIndexer, BaseIndexerConfig, RunContext
-from haxdex.services.core.types import IndexerOutput, IndexerRequest
-from haxdex_read_media.src.haxdex_read_media.resources.whisper_transcribe import (
+from haxdex_read_media.resources.whisper_transcribe import (
     WhisperTranscribeRequest,
     WhisperTranscribeResource,
     WhisperTranscribeResult,

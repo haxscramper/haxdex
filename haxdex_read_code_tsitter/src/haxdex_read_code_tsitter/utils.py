@@ -4,7 +4,7 @@ import re
 
 from tree_sitter import Language, Node, Parser
 
-from haxdex_read_code_tsitter.src.haxdex_read_code_tsitter.code_model import DocInfo
+from haxdex_read_code_tsitter.code_model import DocInfo
 
 
 def make_parser(language: Language) -> Parser:

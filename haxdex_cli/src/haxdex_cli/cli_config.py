@@ -1,58 +1,54 @@
 import json
 from pathlib import Path
 
-from arango import Optional
 from beartype import beartype
-from beartype.typing import Any, Literal, Mapping
+from beartype.typing import Any, Literal, Mapping, Optional
+from haxdex_core.job_types import BaseIndexerConfig
+from haxdex_core.utils import get_xdg_cache_dir
+from haxdex_read_media.indexers.comfy_input_indexer import (
+    ComfyInputIndexer,
+)
+from haxdex_read_media.indexers.exif_metadata import (
+    ExifMetadataIndexer,
+)
+from haxdex_read_media.indexers.ffprobe_indexer import (
+    FFProbeIndexer,
+)
+from haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.indexers.image_hash import ImageHashIndexer
+from haxdex_read_media.indexers.media_transcribe import (
+    MediaTranscriptionIndexer,
+)
+from haxdex_read_media.indexers.mime_indexer import (
+    FileMimeIndexer,
+)
+from haxdex_read_media.indexers.pdf_indexer import PdfIndexer
+from haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.indexers.wd_indexer import WdTagIndexer
+from haxdex_read_media.resources.flm_server import (
+    FlmServerResource,
+)
+from haxdex_read_media.resources.pdf.pdf_extractor import (
+    PdfExtractor,
+)
+from haxdex_read_media.resources.wd_tagger import WdTagger
+from haxdex_read_media.resources.whisper_transcribe import (
+    WhisperTranscribeResource,
+)
+from haxdex_view_generation.models import ExplorerSettings
+from hstd_py_lib.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from haxdex.services.core.job_types import BaseIndexerConfig
 from haxdex.services.default_job_types import (
     DEFAULT_INDEXER_TYPES,
     DEFAULT_RESOURCE_TYPES,
 )
 from haxdex.services.file_iteration import DirConfig
-from haxdex.services.pydantic_utils import ExistingDir, ExistingPath, OutputFile
-from haxdex.services.utils import get_xdg_cache_dir
 from haxdex.visual.trash_action_visual import TrashActionVisualConfig
-from haxdex_action.src.haxdex_action.action_execute import (
-    ActionExecutionConfig,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
-    ComfyInputIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
-    GenerationParamsIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.image_hash import ImageHashIndexer
-from haxdex_read_media.src.haxdex_read_media.indexers.media_transcribe import (
-    MediaTranscriptionIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
-    FileMimeIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.pdf_indexer import PdfIndexer
-from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
-    SafetensorIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
-from haxdex_read_media.src.haxdex_read_media.resources.flm_server import (
-    FlmServerResource,
-)
-from haxdex_read_media.src.haxdex_read_media.resources.pdf.pdf_extractor import (
-    PdfExtractor,
-)
-from haxdex_read_media.src.haxdex_read_media.resources.wd_tagger import WdTagger
-from haxdex_read_media.src.haxdex_read_media.resources.whisper_transcribe import (
-    WhisperTranscribeResource,
-)
-from haxdex_view_generation.src.haxdex_view_generation.models import ExplorerSettings
 
 _INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     WdTagIndexer,
@@ -143,15 +139,6 @@ class IndexConfig(BaseModel):
     media_transcribe_whisper_server: ExistingPath | None = None
 
 
-class FlatQueryViewConfig(BaseModel, extra="forbid"):
-    # placeholder for future view-specific options
-    pass
-
-
-class ActionConfig(BaseModel, extra="forbid", frozen=True):
-    execution: ActionExecutionConfig
-
-
 class VisualConfig(BaseModel, extra="forbid", frozen=True):
     trash: Optional[TrashActionVisualConfig] = None
 
@@ -170,11 +157,6 @@ class AppConfig(BaseModel, extra="forbid"):
     common_ignore_prefix: list[str] = Field(default_factory=list)
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    action_file: OutputFile = Field(
-        description="JSONL file to write all collected actions"
-    )
-
-    act: ActionConfig | None = None
 
     generation_explorer: ExplorerSettings | None = None
 
@@ -185,8 +167,6 @@ class AppConfig(BaseModel, extra="forbid"):
     # exactly one of these must be set
     index: IndexConfig | None = None
     visual: VisualConfig | None = None
-    flat_query_view: FlatQueryViewConfig | None = None
-    file_tree_view: FileTreeViewConfig | None = None
 
     @model_validator(mode="before")
     @classmethod
