@@ -6,8 +6,8 @@ from arango.aql import AQL
 from arango.database import StandardDatabase
 from beartype.typing import Dict
 
-from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.types import FileRef
+from haxdex_core.src.haxdex_core.hash_cache import HashCache
 
 
 class DatabaseBase:

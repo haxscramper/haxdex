@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "haxdex-core"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "beartype",
+    "duckdb",
+    "duckdb-engine",
+    "loguru",
+    "pydantic>=2",
+    "sqlalchemy>=2",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haxdex_core"]

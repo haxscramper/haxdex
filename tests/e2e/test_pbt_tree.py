@@ -62,7 +62,6 @@ from haxdex.gui.file_tree.model.tree_model_fetch import (
 from haxdex.gui.file_tree.qt_tree_model import FileTreeModel
 from haxdex.gui.file_tree.qt_tree_window import FileTreeQueryCore
 from haxdex.gui.file_tree.query_filter import QueryFilterEvaluator, QueryProgram
-from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.file_iteration import DirConfig, prepare_root_filters
 from haxdex.services.indexers.exif_metadata import ExifMetadataIndexer
 from haxdex.services.indexers.ffprobe_indexer import FFProbeIndexer
@@ -74,6 +73,7 @@ from haxdex.services.pydantic_utils import (
     model_from_json_data,
     to_json_safe,
 )
+from haxdex_core.src.haxdex_core.hash_cache import HashCache
 from hstd_py_qt.src.hstd_py_qt import model_dump
 from hstd_py_qt.src.hstd_py_qt.model_dump import (
     render_text,

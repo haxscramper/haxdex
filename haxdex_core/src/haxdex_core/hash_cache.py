@@ -8,7 +8,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from haxdex.services.core.types import FileHash
+from haxdex_core.types import FileHash
 
 
 class Base(DeclarativeBase):

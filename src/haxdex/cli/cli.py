@@ -34,7 +34,6 @@ from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
 from haxdex.gui.generation_explorer.image_search_window import ImageSearchWindow
 from haxdex.gui.generation_explorer.image_table_window import GenerationExplorerWindow
 from haxdex.services.core.db import IndexDatabase, get_hash_cache_connection
-from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext
@@ -51,6 +50,7 @@ from haxdex.services.utils import (
     stfu_logs,
 )
 from haxdex.visual.trash_action_visual import visualize_trash_actions
+from haxdex_core.src.haxdex_core.hash_cache import HashCache
 
 logging.basicConfig(
     level=logging.DEBUG,

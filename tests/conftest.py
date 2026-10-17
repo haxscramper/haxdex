@@ -14,7 +14,6 @@ from haxdex.gui.common.directory_view_utils import (
     _populate_template_directory,
 )
 from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.hash_cache import HashCache
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseResource, RunContext
 from haxdex.services.resources.flm_server import (
@@ -24,6 +23,7 @@ from haxdex.services.resources.flm_server import (
     FlmServerResourceConfig,
 )
 from haxdex.services.utils import get_custom_traceback_handler, stfu_logs
+from haxdex_core.src.haxdex_core.hash_cache import HashCache
 
 ARANGO_HOST = "http://localhost:8529"
 ARANGO_USER = "root"
