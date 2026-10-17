@@ -11,7 +11,7 @@ from PyQt6.QtCore import (
     QObject,
 )
 
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+from haxdex_action.src.haxdex_action.action_list_model import (
     ActionListModel,
     ActionProvider,
 )

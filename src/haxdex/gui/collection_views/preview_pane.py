@@ -18,7 +18,7 @@ from haxdex.gui.collection_views.json_preview_builder import JsonWidgetBuilder
 from haxdex.gui.collection_views.paths_preview_builder import PathsWidgetBuilder
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
+from haxdex_action.src.haxdex_action.action_handler import ActionResult
 
 
 class HorizontalTextTabBar(QTabBar):

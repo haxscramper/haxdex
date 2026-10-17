@@ -14,6 +14,10 @@ from loguru import logger
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 
 from haxdex.services.file_iteration import DirConfig
+from haxdex_action.src.haxdex_action.action_execute import (
+    ActionExecutionConfig,
+    ActionExecutor,
+)
 from haxdex_cli.src.haxdex_cli.cli import IndexService
 from haxdex_cli.src.haxdex_cli.cli_config import (
     ActionConfig,
@@ -33,10 +37,6 @@ from haxdex_read_media.src.haxdex_read_media.indexers.ffprobe_indexer import (
 from haxdex_read_media.src.haxdex_read_media.indexers.file_stats import FileStatsIndexer
 from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
-)
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
-    ActionExecutionConfig,
-    ActionExecutor,
 )
 from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,

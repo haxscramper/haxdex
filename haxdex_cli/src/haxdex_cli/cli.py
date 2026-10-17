@@ -10,8 +10,8 @@ from typing import Any
 
 import commentjson
 from beartype import beartype
+from hstd_py_lib.pydantic_utils import model_to_json_data
 from loguru import logger
-from PyQt6.QtWidgets import QApplication
 
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.comfy_input_builder import (
@@ -27,13 +27,11 @@ from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.log_config import keep_last_files
-from haxdex.services.pydantic_utils import model_to_json_data
 from haxdex.services.utils import (
     get_custom_traceback_handler,
     get_xdg_cache_dir,
     stfu_logs,
 )
-from haxdex.visual.trash_action_visual import visualize_trash_actions
 from haxdex_cli.src.haxdex_cli.cli_config import (
     _INDEXER_TYPES,
     _RESOURCE_TYPES,
@@ -47,22 +45,7 @@ from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import
 from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )
-from haxdex_read_media.src.haxdex_read_media.indexers.image_generation import (
-    GenerationParamsIndexer,
-)
-from haxdex_read_media.src.haxdex_read_media.indexers.safetensor_indexer import (
-    SafetensorIndexer,
-)
 from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
-from haxdex_view_generation.src.haxdex_view_generation.image_search_window import (
-    ImageSearchWindow,
-)
-from haxdex_view_generation.src.haxdex_view_generation.image_table_window import (
-    GenerationExplorerWindow,
-)
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import ActionExecutor
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import load_actions
-from haxdex_view_tree.src.haxdex_view_tree.qt_tree_window import FileTreeQueryWindow
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -300,21 +283,6 @@ class IndexService:
         win.show()
         sys.exit(qt_app.exec())
 
-    def run_tree_view(self) -> None:
-        qt_app = QApplication(sys.argv)
-
-        assert self.cfg.file_tree_view
-        win = FileTreeQueryWindow(
-            ctx=self.ctx,
-            db=self.db,
-            indexer_instances=self.indexer_instances,
-            builders=self.get_builders(),
-            cfg=self.cfg,
-        )
-
-        win.show()
-        sys.exit(qt_app.exec())
-
 
 def main_impl(command: str, cfg: AppConfig):
     if command == "index" and cfg.index and cfg.index.reset:
@@ -326,92 +294,8 @@ def main_impl(command: str, cfg: AppConfig):
     logger.debug(json.dumps(model_to_json_data(cfg), indent=2))
     service.ctx.start_trace()
 
-    def register_db_actions() -> ActionExecutor:
-        assert cfg.act
-        executor = ActionExecutor(cfg.act.execution)
-        actions = load_actions(cfg.action_file, list(executor.handlers.values()))
-        executor.init_db()
-        executor.register_actions(actions)
-        return executor
-
     try:
-        match command:
-            case "index":
-                service.run_index()
-
-            case "flat_query_view":
-                service.run_flat_query_view()
-
-            case "file_tree_view":
-                if cfg.act:
-                    executor = ActionExecutor(cfg.act.execution)
-                    if cfg.action_file.exists():
-                        actions = load_actions(
-                            cfg.action_file, list(executor.handlers.values())
-                        )
-                        executor.init_db()
-                        executor.register_actions(actions)
-
-                service.run_tree_view()
-
-            case "generation_explorer":
-                assert cfg.generation_explorer
-                qt_app = QApplication(sys.argv)
-                win = GenerationExplorerWindow(
-                    settings=cfg.generation_explorer,
-                    index_database=service.db,
-                    safetensor_indexer=service.get_indexer(
-                        SafetensorIndexer.asset_name
-                    ),
-                    wd_tag_indexer=service.get_indexer(WdTagIndexer.asset_name),
-                    generation_params_indexer=service.get_indexer(
-                        GenerationParamsIndexer.asset_name
-                    ),
-                )
-
-                win.show()
-                sys.exit(qt_app.exec())
-
-            case "generation_search":
-                assert cfg.generation_explorer
-                qt_app = QApplication(sys.argv)
-                win = ImageSearchWindow(
-                    settings=cfg.generation_explorer,
-                    index_database=service.db,
-                    safetensor_indexer=service.get_indexer(
-                        SafetensorIndexer.asset_name
-                    ),
-                    wd_tag_indexer=service.get_indexer(WdTagIndexer.asset_name),
-                    generation_params_indexer=service.get_indexer(
-                        GenerationParamsIndexer.asset_name
-                    ),
-                )
-
-                win.show()
-                sys.exit(qt_app.exec())
-
-            case "visual":
-                assert service.cfg.visual
-                assert service.cfg.visual.trash
-                visualize_trash_actions(service.cfg.visual.trash, cfg.action_file)
-
-            case "do_act":
-                executor = register_db_actions()
-                assert cfg.act
-                executor.execute_pending(max_operations=cfg.act.execution.max_actions)
-
-            case "undo_act":
-                assert cfg.act
-                executor = ActionExecutor(cfg.act.execution)
-                actions = load_actions(
-                    cfg.action_file, list(executor.handlers.values())
-                )
-                executor.init_db()
-                executor.register_actions(actions)
-                executor.revert_done()
-
-            case _:
-                raise ValueError(f"Unexpected command {command}")
+        service.run_index()
 
     except Exception as ex:
         logger.opt(exception=ex).critical("{}", ex)

@@ -13,19 +13,19 @@ from sqlalchemy.orm import Session
 
 from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 from haxdex.services.utils import dump_with_type
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionHandler
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+from haxdex_action.src.haxdex_action.action_db import OperationRow
+from haxdex_action.src.haxdex_action.action_handler import ActionHandler
+from haxdex_action.src.haxdex_action.action_list_model import (
     BaseAction,
     to_action_handler_map,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_move_file import (
+from haxdex_action.src.haxdex_action.action_move_file import (
     MoveActionHandler,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_trash_file import (
+from haxdex_action.src.haxdex_action.action_trash_file import (
     TrashActionHandler,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_video_convert import (
+from haxdex_action.src.haxdex_action.action_video_convert import (
     VideoConvertActionHandler,
 )
 
@@ -95,7 +95,7 @@ class ActionExecutor:
         )
 
     def init_db(self) -> None:
-        from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import Base
+        from haxdex_action.src.haxdex_action.action_db import Base
 
         Base.metadata.create_all(self.engine)
 

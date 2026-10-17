@@ -17,14 +17,14 @@ from haxdex.gui.common.qt_utils import get_settings
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.core.types import FileHash
-from haxdex_cli.src.haxdex_cli.cli_config import AppConfig
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import ActionExecutor
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+from haxdex_action.src.haxdex_action.action_execute import ActionExecutor
+from haxdex_action.src.haxdex_action.action_list_model import (
     ActionListModel,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_view import (
+from haxdex_action.src.haxdex_action.action_list_view import (
     ActionListView,
 )
+from haxdex_cli.src.haxdex_cli.cli_config import AppConfig
 from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,
 )

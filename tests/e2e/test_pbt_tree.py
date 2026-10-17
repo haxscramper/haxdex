@@ -28,6 +28,20 @@ from haxdex.services.pydantic_utils import (
     model_from_json_data,
     to_json_safe,
 )
+from haxdex_action.src.haxdex_action.action_db import OperationRow
+from haxdex_action.src.haxdex_action.action_execute import (
+    _DONE_STR,
+    ActionExecutor,
+)
+from haxdex_action.src.haxdex_action.action_list_model import (
+    ActionListModel,
+    ActionProvider,
+    TrashAction,
+    load_actions,
+)
+from haxdex_action.src.haxdex_action.action_list_view import (
+    ActionListView,
+)
 from haxdex_cli.src.haxdex_cli.cli import IndexService, main_impl
 from haxdex_cli.src.haxdex_cli.cli_config import (
     AppConfig,
@@ -49,20 +63,6 @@ from haxdex_read_media.src.haxdex_read_media.indexers.full_document.full_documen
 )
 from haxdex_read_media.src.haxdex_read_media.indexers.mime_indexer import (
     FileMimeIndexer,
-)
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
-    _DONE_STR,
-    ActionExecutor,
-)
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
-    ActionListModel,
-    ActionProvider,
-    TrashAction,
-    load_actions,
-)
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_view import (
-    ActionListView,
 )
 from haxdex_view_tree.src.haxdex_view_tree.columns.file_duplicate_column import (
     FileDuplicateColumnSpec,

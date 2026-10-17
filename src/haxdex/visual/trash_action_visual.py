@@ -9,7 +9,7 @@ from typing import Any
 from coloraide import Color
 from pydantic import BaseModel
 
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_list_model import (
+from haxdex_action.src.haxdex_action.action_list_model import (
     TrashAction,
     load_actions,
 )

@@ -25,8 +25,8 @@ from PyQt6.QtWidgets import (
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.gui.common.qt_utils import get_settings
 from haxdex.services.core.types import FileHash
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_video_convert import (
+from haxdex_action.src.haxdex_action.action_handler import ActionResult
+from haxdex_action.src.haxdex_action.action_video_convert import (
     VideoConvertAction,
     VideoConvertActionHandler,
 )

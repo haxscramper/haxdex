@@ -11,13 +11,13 @@ from PyQt6.QtCore import (
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 from haxdex.services.pydantic_utils import model_from_json_data
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import (
+from haxdex_action.src.haxdex_action.action_handler import (
     ActionHandler,
     BaseAction,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_move_file import MoveAction
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_trash_file import TrashAction
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_video_convert import (
+from haxdex_action.src.haxdex_action.action_move_file import MoveAction
+from haxdex_action.src.haxdex_action.action_trash_file import TrashAction
+from haxdex_action.src.haxdex_action.action_video_convert import (
     VideoConvertAction,
 )
 from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode

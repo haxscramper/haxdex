@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 authors = [{ name = "haxscramper", email = "haxscramper@gmail.com" }]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "hstd-py-lib",
+]
 
 [project.scripts]
 index-service = "haxdex:main"
@@ -37,6 +39,8 @@ members = [
     "haxdex_view_generation",
     "hstd_py_qt",
     "haxdex_read_code_tsitter",
+    "haxdex_cli", 
+    "haxdex_action",
 ]
 
 [tool.uv.sources]
@@ -46,4 +50,9 @@ haxdex_view_tree = { workspace = true }
 haxdex_view_generation = { workspace = true }
 hstd_py_qt = { workspace = true }
 haxdex_read_code_tsitter = { workspace = true }
+haxdex_cli = { workspace = true }
+haxdex_action = { workspace = true }
+
+
+hstd_py_lib = { path = "../../haxorg/dist/hstd_py_lib-0.1.0-py3-none-any.whl" }
 

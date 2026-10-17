@@ -15,6 +15,9 @@ from haxdex.services.file_iteration import DirConfig
 from haxdex.services.pydantic_utils import ExistingDir, ExistingPath, OutputFile
 from haxdex.services.utils import get_xdg_cache_dir
 from haxdex.visual.trash_action_visual import TrashActionVisualConfig
+from haxdex_action.src.haxdex_action.action_execute import (
+    ActionExecutionConfig,
+)
 from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,
 )
@@ -50,9 +53,6 @@ from haxdex_read_media.src.haxdex_read_media.resources.whisper_transcribe import
     WhisperTranscribeResource,
 )
 from haxdex_view_generation.src.haxdex_view_generation.models import ExplorerSettings
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
-    ActionExecutionConfig,
-)
 
 _INDEXER_TYPES = [t for t in DEFAULT_INDEXER_TYPES] + [
     WdTagIndexer,
@@ -146,15 +146,6 @@ class IndexConfig(BaseModel):
 class FlatQueryViewConfig(BaseModel, extra="forbid"):
     # placeholder for future view-specific options
     pass
-
-
-class FileTreeViewConfig(BaseModel, extra="forbid"):
-    root_dirs: list[DirConfig]
-    reference_dir: Optional[DirConfig] = None
-    reference_tree_cache_path: OutputFile = Path("/tmp/reference_tree_cache.sqlite")
-    visual_tree_cache_path: OutputFile = Path("/tmp/input_tree_cache.sqlite")
-    drop_cache_files: bool = False
-    user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite").expanduser()
 
 
 class ActionConfig(BaseModel, extra="forbid", frozen=True):

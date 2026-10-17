@@ -6,9 +6,9 @@ from pydantic import BaseModel
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import ActionExecutor
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import BaseAction
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_video_convert import (
+from haxdex_action.src.haxdex_action.action_execute import ActionExecutor
+from haxdex_action.src.haxdex_action.action_handler import BaseAction
+from haxdex_action.src.haxdex_action.action_video_convert import (
     VideoConvertAction,
     VideoConvertActionHandler,
 )

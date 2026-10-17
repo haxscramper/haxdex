@@ -22,12 +22,12 @@ from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
 from haxdex.services.pydantic_utils import model_to_json_data
+from haxdex_action.src.haxdex_action.action_handler import ActionResult
 from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
     ExifMetadataIndexerResult,
     ImageParams,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
 
 
 class ExifPreviewrWidgetBuilder(WidgetBuilder):

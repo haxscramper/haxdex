@@ -22,7 +22,7 @@ from haxdex.gui.common.qt_utils import get_settings
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
 from haxdex.services.utils import format_timestamp_relative
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import ActionResult
+from haxdex_action.src.haxdex_action.action_handler import ActionResult
 from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (
     FileContentViewBuilder,
 )

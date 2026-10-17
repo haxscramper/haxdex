@@ -11,6 +11,7 @@ dependencies = [
     "sqlalchemy>=2",
     "haxdex_core",
     "haxdex_read_media",
+    "commentjson",
 ]
 
 [dependency-groups]

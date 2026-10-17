@@ -6,14 +6,14 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_db import OperationRow
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_execute import (
+from haxdex_action.src.haxdex_action.action_db import OperationRow
+from haxdex_action.src.haxdex_action.action_execute import (
     ActionExecutionConfig,
     ActionExecutor,
 )
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_handler import BaseAction
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_move_file import MoveAction
-from haxdex_view_tree.src.haxdex_view_tree.actions.action_trash_file import TrashAction
+from haxdex_action.src.haxdex_action.action_handler import BaseAction
+from haxdex_action.src.haxdex_action.action_move_file import MoveAction
+from haxdex_action.src.haxdex_action.action_trash_file import TrashAction
 from haxdex_view_tree.src.haxdex_view_tree.columns.file_tree_column import FileTreeNode
 
 
