@@ -1,11 +1,11 @@
 import json
 
-from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, QWidget
-
 from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.collection_views.json_preview_widget import JsonPreviewWidget
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.types import FileHash
+from PyQt6.QtWidgets import QAbstractItemView, QTableWidget, QTableWidgetItem, QWidget
+
 from haxdex_action.src.haxdex_action.action_handler import ActionResult
 from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from beartype import beartype
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.types import FileHash
 from loguru import logger
 from PyQt6.QtCore import QModelIndex, QSize, Qt
 from PyQt6.QtWidgets import (
@@ -17,15 +19,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.preview_pane import FilePreviewPane
 from haxdex.gui.file_preview_delegate import (
     FilePreviewDelegate,
     ThumbnailCache,
 )
 from haxdex.gui.flat_query_preview.query_model import QueryResultModel
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
+from haxdex_view_results.src.haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.src.haxdex_view_results.preview_pane import FilePreviewPane
 
 TILE_SIZE = 128
 BATCH_SIZE = 200

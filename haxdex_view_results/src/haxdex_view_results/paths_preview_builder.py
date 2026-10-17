@@ -5,6 +5,9 @@ from pathlib import Path
 
 import magic
 from beartype import beartype
+from haxdex.gui.collection_views.builder import WidgetBuilder
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.types import FileHash
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, QSize, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -17,10 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from haxdex.gui.collection_views.builder import WidgetBuilder
 from haxdex.gui.common.qt_utils import get_settings
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
 from haxdex.services.utils import format_timestamp_relative
 from haxdex_action.src.haxdex_action.action_handler import ActionResult
 from hstd_py_qt.src.hstd_py_qt.file_view.file_content_builder import (

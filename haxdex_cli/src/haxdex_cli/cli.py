@@ -10,22 +10,13 @@ from typing import Any
 
 import commentjson
 from beartype import beartype
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.job_runtime import IndexRuntime
+from haxdex.services.core.job_types import BaseIndexer, RunContext
 from hstd_py_lib.pydantic_utils import model_to_json_data
 from loguru import logger
 
-from haxdex.gui.collection_views.builder import WidgetBuilder
-from haxdex.gui.collection_views.comfy_input_builder import (
-    ComfyInputWidgetBuilder,
-)
-from haxdex.gui.collection_views.exif_preview_builder import (
-    ExifPreviewrWidgetBuilder,
-)
-from haxdex.gui.collection_views.wd_tagger_builder import WdTaggerWidgetBuilder
 from haxdex.gui.flat_query_preview.window import FlatQueryViewWindow
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.indexing_flow import run_indexing_per_root_plan
-from haxdex.services.core.job_runtime import IndexRuntime
-from haxdex.services.core.job_types import BaseIndexer, RunContext
 from haxdex.services.log_config import keep_last_files
 from haxdex.services.utils import (
     get_custom_traceback_handler,
@@ -39,6 +30,7 @@ from haxdex_cli.src.haxdex_cli.cli_config import (
     LoggingConfig,
 )
 from haxdex_core.src.haxdex_core.hash_cache import HashCache
+from haxdex_core.src.haxdex_core.indexing_flow import run_indexing_per_root_plan
 from haxdex_read_media.src.haxdex_read_media.indexers.comfy_input_indexer import (
     ComfyInputIndexer,
 )
@@ -46,6 +38,16 @@ from haxdex_read_media.src.haxdex_read_media.indexers.exif_metadata import (
     ExifMetadataIndexer,
 )
 from haxdex_read_media.src.haxdex_read_media.indexers.wd_indexer import WdTagIndexer
+from haxdex_view_results.src.haxdex_view_results.builder import WidgetBuilder
+from haxdex_view_results.src.haxdex_view_results.comfy_input_builder import (
+    ComfyInputWidgetBuilder,
+)
+from haxdex_view_results.src.haxdex_view_results.exif_preview_builder import (
+    ExifPreviewrWidgetBuilder,
+)
+from haxdex_view_results.src.haxdex_view_results.wd_tagger_builder import (
+    WdTaggerWidgetBuilder,
+)
 
 logging.basicConfig(
     level=logging.DEBUG,
