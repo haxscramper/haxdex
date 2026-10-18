@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import base64
 import io
-import subprocess
-import time
 from pathlib import Path
 from typing import Literal
 
@@ -13,12 +11,16 @@ from docling_core.types.doc.document import (
     ContentLayer,
     DoclingDocument,
     DocTagsDocument,
-    DocTagsPage,
 )
-from haxdex_read_media.resources.pdf.page_model import DocTag
+from haxdex_read_media.resources.pdf.page_model import BoundingBox, DocTag
 from loguru import logger
 from PIL import Image as PILImage
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+
+class DoclingExtractedImage(BaseModel, extra="forbid"):
+    tag_id: str
+    image_blob: bytes
 
 
 class DoclingPage(BaseModel, extra="forbid"):
@@ -26,151 +28,253 @@ class DoclingPage(BaseModel, extra="forbid"):
     page_number: int
     raw_docling_response: str
     spatial_tags: list[DocTag]
+    document: DoclingDocument
+    image_width: int
+    image_height: int
+    extracted_images: list[DoclingExtractedImage] = Field(
+        default_factory=list,
+    )
 
 
-def _ensure_ollama_running(model_name: str, ollama_url: str) -> None:
-    """Ensures that ollama serve is running and the model is pulled."""
-    base_url = ollama_url.rsplit("/api/", 1)[0]
-
-    try:
-        requests.get(f"{base_url}/api/tags", timeout=2)
-    except requests.exceptions.RequestException:
-        logger.info("Ollama is not running. Starting 'ollama serve'...")
-        subprocess.Popen(
-            ["ollama", "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+def _normalize_bbox(
+    left: float,
+    top: float,
+    right: float,
+    bottom: float,
+    width: int,
+    height: int,
+) -> BoundingBox:
+    x1, x2 = sorted(
+        (
+            min(1.0, max(0.0, left / width)),
+            min(1.0, max(0.0, right / width)),
         )
-        for _ in range(15):
-            try:
-                requests.get(f"{base_url}/api/tags", timeout=2)
-                break
-            except requests.exceptions.RequestException:
-                time.sleep(1)
-        else:
-            raise RuntimeError("Failed to start or connect to 'ollama serve'")
-
-    logger.info(f"Checking if model {model_name} is available...")
-    result = subprocess.run(["ollama", "list"], capture_output=True, text=True)
-    if model_name not in result.stdout:
-        logger.info(
-            f"Model {model_name} not found. Pulling (this might take a while)..."
+    )
+    y1, y2 = sorted(
+        (
+            min(1.0, max(0.0, top / height)),
+            min(1.0, max(0.0, bottom / height)),
         )
-        subprocess.run(["ollama", "pull", model_name], check=True)
-        logger.info(f"Model {model_name} pulled successfully.")
+    )
+
+    return BoundingBox(
+        x=x1,
+        y=y1,
+        width=x2 - x1,
+        height=y2 - y1,
+    )
 
 
-def _rasterize_page(pdf_path: Path, page_num: int, raster_dir: Path) -> Path:
-    """Renders a single PDF page to a PNG file using pymupdf."""
-    with pymupdf.open(str(pdf_path)) as pdf:
-        page = pdf[page_num - 1]
-        mat = pymupdf.Matrix(2, 2)
-        pix = page.get_pixmap(matrix=mat)
-        output_path = raster_dir / f"page_{page_num:04d}.png"
-        pix.save(str(output_path))
-    return output_path
+def parse_spatial_tags(
+    raw_text: str,
+    page_num: int,
+    page_image: PILImage.Image,
+) -> tuple[list[DocTag], DoclingDocument]:
+    content = raw_text.strip()
 
+    if not content:
+        raise RuntimeError(f"Model returned empty output for page {page_num}")
 
-def parse_spatial_tags(raw_xml: str, page_num: int) -> list[DocTag]:
-    """
-    Parses the raw XML from Ollama/Docling using docling_core
-    to extract spatial tags, bounding boxes, and hierarchical data.
-    """
-    root_tag = DocTag(id=f"page{page_num}-root", tag_name="root", text="")
+    doc_tags = DocTagsDocument.from_doctags_and_image_pairs(
+        doctags=[content],
+        images=[page_image],
+    )
+    document = DoclingDocument.load_from_doctags(
+        doctag_document=doc_tags,
+    )
 
-    doc_tags = DocTagsDocument(pages=[DocTagsPage(tokens=raw_xml)])
-    doc = DoclingDocument.load_from_doctags(doctag_document=doc_tags)
+    root = DocTag(
+        id=f"page{page_num}-root",
+        tag_name="root",
+        text="",
+    )
+    stack: list[tuple[int, DocTag]] = []
 
-    tag_counter = 1
-    for item, level in doc.iterate_items(
-        included_content_layers=set(ContentLayer), with_groups=True
+    for index, (item, level) in enumerate(
+        document.iterate_items(
+            included_content_layers=set(ContentLayer),
+            with_groups=True,
+        ),
+        start=1,
     ):
-        tag_name = (
-            str(item.label.value)
-            if hasattr(item, "label") and item.label
-            else type(item).__name__
-        )
-        text_content = getattr(item, "text", "")
+        label = getattr(item, "label", None)
+        tag_name = str(label.value) if label else type(item).__name__
 
         bbox = None
-        if hasattr(item, "prov") and item.prov and len(item.prov) > 0:
-            p = item.prov[0]
-            if hasattr(p, "bbox") and p.bbox:
-                bbox = BoundingBox(
-                    x=p.bbox.l,
-                    y=p.bbox.t,
-                    width=p.bbox.r - p.bbox.l,
-                    height=p.bbox.b - p.bbox.t,
-                )
+        provenance = getattr(item, "prov", None)
 
-        nested_tag = DocTag(
-            id=f"page{page_num}-{tag_name}-{tag_counter}",
+        if provenance and provenance[0].bbox is not None:
+            source_bbox = provenance[0].bbox.to_top_left_origin(
+                page_height=page_image.height,
+            )
+            bbox = _normalize_bbox(
+                left=source_bbox.l,
+                top=source_bbox.t,
+                right=source_bbox.r,
+                bottom=source_bbox.b,
+                width=page_image.width,
+                height=page_image.height,
+            )
+
+        tag = DocTag(
+            id=f"page{page_num}-{tag_name}-{index}",
             tag_name=tag_name,
-            text=text_content,
+            text=getattr(item, "text", "") or "",
             bbox=bbox,
         )
-        root_tag.nested.append(nested_tag)
-        tag_counter += 1
 
-    return [root_tag]
+        while stack and stack[-1][0] >= level:
+            stack.pop()
+
+        container = stack[-1][1] if stack else root
+        container.nested.append(tag)
+        stack.append((level, tag))
+
+    return [root], document
+
+
+def _extract_images(
+    image: PILImage.Image,
+    tags: list[DocTag],
+) -> list[DoclingExtractedImage]:
+    extracted: list[DoclingExtractedImage] = []
+
+    def visit(tag: DocTag) -> None:
+        if (
+            tag.tag_name.strip().casefold() in {"picture", "image"}
+            and tag.bbox is not None
+        ):
+            bbox = tag.bbox
+
+            # Docling boxes are normalized to [0, 1], not [0, 999].
+            x1 = round(bbox.x * image.width)
+            y1 = round(bbox.y * image.height)
+            x2 = round((bbox.x + bbox.width) * image.width)
+            y2 = round((bbox.y + bbox.height) * image.height)
+
+            if x2 > x1 and y2 > y1:
+                with image.crop((x1, y1, x2, y2)) as crop:
+                    buffer = io.BytesIO()
+                    crop.save(buffer, format="PNG")
+
+                extracted.append(
+                    DoclingExtractedImage(
+                        tag_id=tag.id,
+                        image_blob=buffer.getvalue(),
+                    )
+                )
+
+        for nested in tag.nested:
+            visit(nested)
+
+    for tag in tags:
+        visit(tag)
+
+    return extracted
 
 
 class DoclingExtractor:
-    """Extracts structured tags from PDF pages using the Ollama-hosted docling VLM."""
+    """Extracts PDF pages through an existing llama.cpp server."""
 
     def __init__(
         self,
-        ollama_url: str = "http://localhost:11434/api/chat",
-        model_name: str = "ibm/granite-docling",
-        timeout: int = 600,
+        llama_server_url: str,
+        model_id: str = "ibm/granite-docling",
+        dpi: int = 300,
+        request_timeout: int = 600,
     ) -> None:
-        self.ollama_url = ollama_url
-        self.model_name = model_name
-        self.timeout = timeout
-        _ensure_ollama_running(model_name, ollama_url)
+        self.llama_server_url = llama_server_url.rstrip("/")
+        self.model_id = model_id
+        self.dpi = dpi
+        self.request_timeout = request_timeout
 
-    def _call_ollama_vlm(self, image: PILImage.Image) -> str:
-        """Sends image to Ollama API and returns the response text."""
-        buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
-        base64_image = base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-        payload = {
-            "model": self.model_name,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Convert this page to docling.",
-                    "images": [base64_image],
-                }
-            ],
-            "stream": False,
-            "options": {"temperature": 0},
-        }
-
-        response = requests.post(self.ollama_url, json=payload, timeout=self.timeout)
+    def check_server(self) -> None:
+        response = requests.get(
+            f"{self.llama_server_url}/health",
+            timeout=self.request_timeout,
+        )
         response.raise_for_status()
 
-        return response.json().get("message", {}).get("content", "")
+    def call_model(
+        self,
+        image: PILImage.Image,
+        page_number: int,
+    ) -> str:
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=95)
+        encoded_image = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+        response = requests.post(
+            f"{self.llama_server_url}/v1/chat/completions",
+            json={
+                "model": self.model_id,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Convert this page to docling.",
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": (f"data:image/jpeg;base64,{encoded_image}"),
+                                },
+                            },
+                        ],
+                    },
+                ],
+                "temperature": 0,
+                "stream": False,
+            },
+            timeout=self.request_timeout,
+        )
+        response.raise_for_status()
+
+        raw_text = response.json()["choices"][0]["message"]["content"]
+
+        if not isinstance(raw_text, str) or not raw_text.strip():
+            raise RuntimeError(f"Model returned empty output for page {page_number}")
+
+        return raw_text
 
     def extract_page(
-        self, pdf_path: Path, page_num: int, raster_dir: Path
+        self,
+        pdf_path: Path,
+        page_num: int,
     ) -> DoclingPage:
         logger.info(f"Docling extracting page {page_num} from {pdf_path.name}")
 
-        image_path = _rasterize_page(pdf_path, page_num, raster_dir)
-        image = PILImage.open(str(image_path))
+        with pymupdf.open(pdf_path) as pdf:
+            pixmap = pdf[page_num - 1].get_pixmap(
+                dpi=self.dpi,
+                colorspace=pymupdf.csRGB,
+                alpha=False,
+            )
 
-        response_text = self._call_ollama_vlm(image)
+        with PILImage.frombytes(
+            "RGB",
+            (pixmap.width, pixmap.height),
+            pixmap.samples,
+        ) as image:
+            raw_text = self.call_model(
+                image=image,
+                page_number=page_num,
+            )
+            spatial_tags, document = parse_spatial_tags(
+                raw_text=raw_text,
+                page_num=page_num,
+                page_image=image,
+            )
+            extracted_images = _extract_images(image, spatial_tags)
 
-        clean_text = response_text.strip()
-        if not clean_text.startswith("<doctag>"):
-            clean_text = f"<doctag>{clean_text}</doctag>"
-
-        spatial_tags = parse_spatial_tags(clean_text, page_num)
-
-        return DoclingPage(
-            page_number=page_num,
-            raw_docling_response=clean_text,
-            spatial_tags=spatial_tags,
-        )
+            return DoclingPage(
+                page_number=page_num,
+                raw_docling_response=raw_text,
+                spatial_tags=spatial_tags,
+                document=document,
+                image_width=image.width,
+                image_height=image.height,
+                extracted_images=extracted_images,
+            )

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
-from typing import Annotated, Union
+from typing import Annotated, Any
 
 import pymupdf
 from haxdex_core.job_types import BaseResource, RunContext
-from haxdex_core.utils import get_xdg_cache_dir
 from haxdex_read_media.resources.pdf.docling_extractor import (
     DoclingExtractor,
     DoclingPage,
@@ -26,12 +24,22 @@ class PdfExtractorRequest(BaseModel, extra="forbid"):
 
 
 PdfPage = Annotated[
-    Union[MyPDFPage, DoclingPage],
+    MyPDFPage | DoclingPage,
     Field(discriminator="extractor"),
 ]
 
 
+class PdfPageGeometry(BaseModel, extra="forbid"):
+    width_points: float
+    height_points: float
+    rotation: int
+
+
 class PdfExtractorResult(BaseModel, extra="forbid"):
+    page_count: int
+    pdf_metadata: dict[str, Any]
+    is_repaired: bool
+    page_geometry: dict[int, PdfPageGeometry]
     pages: list[PdfPage]
 
 
@@ -40,73 +48,112 @@ class PdfExtractor(BaseResource):
 
     def __init__(
         self,
+        llama_server_url: str = "http://localhost:8080",
+        model_id: str = "ibm/granite-docling",
+        dpi: int = 300,
+        request_timeout: int = 600,
         mypdf_extractor: MyPDFExtractor | None = None,
         docling_extractor: DoclingExtractor | None = None,
     ) -> None:
-        self.mypdf_extractor = mypdf_extractor or MyPDFExtractor()
-        self.docling_extractor = docling_extractor or DoclingExtractor()
+        self.mypdf_extractor = (
+            mypdf_extractor if mypdf_extractor is not None else MyPDFExtractor()
+        )
+        self.docling_extractor = (
+            docling_extractor
+            if docling_extractor is not None
+            else DoclingExtractor(
+                llama_server_url=llama_server_url,
+                model_id=model_id,
+                dpi=dpi,
+                request_timeout=request_timeout,
+            )
+        )
 
     @staticmethod
     def from_default() -> PdfExtractor:
         return PdfExtractor()
 
     @staticmethod
-    def _parse_page_range(pages: str | None, max_pages: int) -> tuple[int, int]:
+    def _parse_page_range(
+        pages: str | None,
+        max_pages: int,
+    ) -> tuple[int, int]:
         if not pages:
             return 1, max_pages
-        parts = pages.split("-")
-        first = max(1, int(parts[0]))
-        if len(parts) > 1:
-            last = min(max_pages, int(parts[1]))
-        else:
-            last = first
+
+        parts = pages.split("-", 1)
+        first = int(parts[0])
+        last = (int(parts[1]) if parts[1] else max_pages) if len(parts) == 2 else first
+
+        if not 1 <= first <= last <= max_pages:
+            raise ValueError(f"Invalid PDF page range: {pages}")
+
         return first, last
 
-    @staticmethod
-    def _raster_dir(pdf_path: Path) -> Path:
-        digest = hashlib.sha256(str(pdf_path.absolute()).encode()).hexdigest()[:16]
-        return get_xdg_cache_dir(["pdf_extractor", f"{pdf_path.stem}_{digest}"])
-
     def handle(
-        self, ctx: RunContext, request: PdfExtractorRequest
+        self,
+        ctx: RunContext,
+        request: PdfExtractorRequest,
     ) -> PdfExtractorResult:
-
         pdf_path = Path(request.path)
+
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-        raster_dir = self._raster_dir(pdf_path)
-
         with (
-            pymupdf.open(str(pdf_path)) as pdf,
+            pymupdf.open(pdf_path) as pdf,
             ctx.trace_scope("extract PDF", path=str(pdf_path)),
         ):
-            max_pages = len(pdf)
-            first_page, last_page = self._parse_page_range(request.pages, max_pages)
+            page_count = pdf.page_count
+            pdf_metadata = dict(pdf.metadata or {})
+            is_repaired = pdf.is_repaired
+
+            first_page, last_page = self._parse_page_range(
+                request.pages,
+                page_count,
+            )
 
             logger.info(
-                f"Processing PDF: {pdf_path.name} | "
-                f"Range: {first_page}-{last_page} ({last_page - first_page + 1} pages)"
+                f"Processing PDF: {pdf_path.name} | Range: {first_page}-{last_page}"
             )
 
             pages: list[MyPDFPage | DoclingPage] = []
+            page_geometry: dict[int, PdfPageGeometry] = {}
+            server_checked = False
 
             for page_num in range(first_page, last_page + 1):
+                source_page = pdf[page_num - 1]
+                page_geometry[page_num] = PdfPageGeometry(
+                    width_points=source_page.rect.width,
+                    height_points=source_page.rect.height,
+                    rotation=source_page.rotation,
+                )
+
                 if not request.ocr_only and MyPDFExtractor.page_has_selectable_text(
                     pdf, page_num
                 ):
                     with ctx.trace_scope("mypdf page", page_num=page_num):
-                        page = self.mypdf_extractor.extract_page(pdf_path, page_num)
+                        page = self.mypdf_extractor.extract_page(
+                            pdf_path,
+                            page_num,
+                        )
                 else:
+                    if not server_checked:
+                        self.docling_extractor.check_server()
+                        server_checked = True
+
                     with ctx.trace_scope("docling page", page_num=page_num):
                         page = self.docling_extractor.extract_page(
-                            pdf_path, page_num, raster_dir
+                            pdf_path,
+                            page_num,
                         )
 
                 pages.append(page)
 
-        # Clean up raster images after successful processing
-        for f in raster_dir.glob("*.png"):
-            f.unlink(missing_ok=True)
-
-        return PdfExtractorResult(pages=pages)
+        return PdfExtractorResult(
+            page_count=page_count,
+            pdf_metadata=pdf_metadata,
+            is_repaired=is_repaired,
+            page_geometry=page_geometry,
+            pages=pages,
+        )
