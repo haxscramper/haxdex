@@ -209,13 +209,6 @@ class IndexService:
 
         assert self.cfg.index is not None
         index_cfg = self.cfg.index
-
-        handler = get_custom_traceback_handler(show_args=False)
-
-        def impl(exc_type: Any, exc_value: Any, exc_traceback: Any):
-            print(handler(exc_type, exc_value, exc_traceback))
-
-        sys.excepthook = impl
         self.ctx.start_trace()
 
         assert set(t.asset_name for t in self.indexer_instances) == set(
@@ -270,6 +263,13 @@ class IndexService:
 
 
 def main() -> None:
+    handler = get_custom_traceback_handler(show_args=False)
+
+    def impl(exc_type: Any, exc_value: Any, exc_traceback: Any):
+        print(handler(exc_type, exc_value, exc_traceback))
+
+    sys.excepthook = impl
+
     parser = argparse.ArgumentParser()
     parser.add_argument("command", help="Which action to execute")
     parser.add_argument("config", type=Path, help="Path to JSON config file")

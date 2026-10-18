@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from beartype.typing import Iterator
+from hstd_py_lib.script_logging import ExceptionContextNote
 from loguru import logger
 from sqlalchemy import (
     URL,
@@ -76,7 +77,10 @@ class IndexerStore:
         )
 
         try:
-            with self.transaction() as connection:
+            with (
+                self.transaction() as connection,
+                ExceptionContextNote(f"creating asset DB {asset_name}"),
+            ):
                 if reset_db:
                     logger.warning(
                         f"Reset DB was enabled for the {asset_name}, dropping all for {path}"

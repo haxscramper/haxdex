@@ -9,10 +9,6 @@ import semchunk
 import tiktoken
 from beartype import beartype
 from beartype.typing import Callable, Literal, Optional
-from haxdex.services.core.types import (
-    IndexEdge,
-    IndexMultiDocument,
-)
 from pydantic import BaseModel, Field
 
 import haxdex_read_media.indexers.full_document.full_document_types as doc_types
@@ -61,13 +57,13 @@ class SourceSpan(BaseModel, extra="forbid"):
     kind: Literal["core", "start_overlap", "end_overlap"] = "core"
 
 
-class ChunkFile(IndexMultiDocument, extra="forbid"):
+class ChunkFile(BaseModel, extra="forbid"):
     """Anchor document representing the whole file that was chunked."""
 
     type: Literal["chunkFile"] = "chunkFile"
 
 
-class ChunkDocument(IndexMultiDocument, extra="forbid"):
+class ChunkDocument(BaseModel, extra="forbid"):
     """A single chunk. Subclass to attach per-chunk payloads (vector, summary)."""
 
     type: Literal["chunk"] = "chunk"
@@ -79,7 +75,7 @@ class ChunkDocument(IndexMultiDocument, extra="forbid"):
     spans: list[SourceSpan] = Field(default_factory=list)
 
 
-class ChunkLink(IndexEdge, extra="forbid"):
+class ChunkLink(BaseModel, extra="forbid"):
     order: int
     relation: Literal["chunk"] = "chunk"
 

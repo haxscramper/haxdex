@@ -4,6 +4,7 @@ from pathlib import Path
 
 from beartype.typing import Any, cast
 from haxdex_core.database import IndexerStore
+from haxdex_core.db_utils import duck_id_autoincrement
 from haxdex_core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex_core.types import IndexerRequest
 from sqlalchemy import (
@@ -11,12 +12,19 @@ from sqlalchemy import (
     ForeignKey,
     LargeBinary,
     MetaData,
+    Sequence,
     String,
     Text,
     UniqueConstraint,
     select,
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    Session,
+    declared_attr,
+    mapped_column,
+)
 
 from haxdex_read_media.resources.pdf.docling_extractor import DoclingPage
 from haxdex_read_media.resources.pdf.page_model import DocTag
@@ -27,20 +35,28 @@ from haxdex_read_media.resources.pdf.pdf_extractor import (
 
 PDF_SCHEMA = MetaData()
 
+PDF_FILE_ID_SEQUENCE = Sequence(
+    "pdf_file_id_sequence",
+    metadata=PDF_SCHEMA,
+)
+
 
 class PDF_BASE(DeclarativeBase):
     metadata = PDF_SCHEMA
 
 
 class PdfFile(PDF_BASE):
-    __tablename__ = "pdf_files"
+    __tablename__ = "pdf_file"
 
     hash: Mapped[str] = mapped_column(
         String(64),
         unique=True,
         nullable=False,
     )
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    @declared_attr
+    def id(cls) -> Mapped[int]:
+        return duck_id_autoincrement(cls)
 
     page_count: Mapped[int] = mapped_column(nullable=False)
     pdf_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -48,7 +64,7 @@ class PdfFile(PDF_BASE):
 
 
 class PdfPage(PDF_BASE):
-    __tablename__ = "pdf_pages"
+    __tablename__ = "pdf_page"
     __table_args__ = (
         UniqueConstraint(
             "document_id",
@@ -57,11 +73,15 @@ class PdfPage(PDF_BASE):
         ),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    @declared_attr
+    def id(cls) -> Mapped[int]:
+        return duck_id_autoincrement(cls)
+
     document_id: Mapped[int] = mapped_column(
-        ForeignKey("pdf_files.id"),
+        ForeignKey("pdf_file.id"),
         nullable=False,
     )
+
     page_number: Mapped[int] = mapped_column(nullable=False)
     extractor: Mapped[str] = mapped_column(String(16), nullable=False)
 
@@ -79,9 +99,12 @@ class PdfPage(PDF_BASE):
 
 
 class PdfFragmentColumns:
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    @declared_attr
+    def id(cls) -> Mapped[int]:
+        return duck_id_autoincrement(cls)
+
     page_id: Mapped[int] = mapped_column(
-        ForeignKey("pdf_pages.id"),
+        ForeignKey("pdf_page.id"),
         nullable=False,
         index=True,
     )
@@ -184,9 +207,8 @@ def _save_fragments[FragmentT: (MyPdfFragment, DoclingFragment)](
 
 
 class PdfIndexer(BaseIndexer):
-    asset_name = "pdf_pages"
+    asset_name = "pdf_file"
     result_schema = PDF_SCHEMA
-    table = PdfFile.__table__
     required_resources = ("pdf_extractor",)
 
     def can_run(self, path: Path) -> bool:

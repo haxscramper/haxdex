@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import pymupdf
-from haxdex_core.job_types import BaseResource, RunContext
+from haxdex_core.job_types import BaseResource, BaseResourceConfig, RunContext
 from haxdex_read_media.resources.pdf.docling_extractor import (
     DoclingExtractor,
     DoclingPage,
@@ -43,35 +43,25 @@ class PdfExtractorResult(BaseModel, extra="forbid"):
     pages: list[PdfPage]
 
 
+class PdfExtractorConfig(BaseResourceConfig, extra="forbid"):
+    llama_server_url: str = "http://localhost:8080"
+    model_id: str = "ibm/granite-docling"
+    dpi: int = 300
+    request_timeout: int = 600
+
+
 class PdfExtractor(BaseResource):
     resource_key = "pdf_extractor"
+    config_model = PdfExtractorConfig
 
-    def __init__(
-        self,
-        llama_server_url: str = "http://localhost:8080",
-        model_id: str = "ibm/granite-docling",
-        dpi: int = 300,
-        request_timeout: int = 600,
-        mypdf_extractor: MyPDFExtractor | None = None,
-        docling_extractor: DoclingExtractor | None = None,
-    ) -> None:
-        self.mypdf_extractor = (
-            mypdf_extractor if mypdf_extractor is not None else MyPDFExtractor()
+    def __init__(self, config: PdfExtractorConfig) -> None:
+        self.mypdf_extractor = MyPDFExtractor()
+        self.docling_extractor = DoclingExtractor(
+            llama_server_url=config.llama_server_url,
+            model_id=config.model_id,
+            dpi=config.dpi,
+            request_timeout=config.request_timeout,
         )
-        self.docling_extractor = (
-            docling_extractor
-            if docling_extractor is not None
-            else DoclingExtractor(
-                llama_server_url=llama_server_url,
-                model_id=model_id,
-                dpi=dpi,
-                request_timeout=request_timeout,
-            )
-        )
-
-    @staticmethod
-    def from_default() -> PdfExtractor:
-        return PdfExtractor()
 
     @staticmethod
     def _parse_page_range(

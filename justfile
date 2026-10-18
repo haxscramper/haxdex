@@ -22,7 +22,7 @@ test_gui:
         > test_results.tmp.log 2>&1
 
 index:
-    uv run haxdex_cli/src/haxdex_cli/cli.py index "{{ CONFIG_FILE }}"
+    uv run python -X faulthandler haxdex_cli/src/haxdex_cli/cli.py index "{{ CONFIG_FILE }}"
 
 profile_index:
     uv run py-spy record --rate 50 --format chrometrace -o /tmp/haxdex-perf-index.json -- \

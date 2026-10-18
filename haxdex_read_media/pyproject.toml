@@ -22,6 +22,7 @@ dependencies = [
   "jax[rocm7-local]",
   "einops",
   "openai",
+  "datasketch",
 ]
 
 [dependency-groups]
