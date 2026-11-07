@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "strong_id.hpp"
+#include <haxdex_cpp_build_stats/strong_id.hpp>
 
 using SetId = StrongId<struct SetIdTag>;
 

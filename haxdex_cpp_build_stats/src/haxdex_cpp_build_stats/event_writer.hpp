@@ -21,10 +21,10 @@
 #include <cpptrace/cpptrace.hpp>
 #include <duckdb.hpp>
 
-#include <perfetto_aux.hpp>
+#include "perfetto_aux.hpp"
 
-#include <name_tree.hpp>
-#include <string_interner.hpp>
+#include "name_tree.hpp"
+#include "string_interner.hpp"
 
 #include <cppdecl/declarations/parse_simple.h>
 

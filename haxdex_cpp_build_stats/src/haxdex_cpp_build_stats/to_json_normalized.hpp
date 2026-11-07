@@ -10,7 +10,7 @@
 
 #include <cppdecl/declarations/to_string.h>
 
-#include "to_json.hpp"
+#include <haxdex_cpp_build_stats/to_json.hpp>
 
 namespace cppdecl {
 

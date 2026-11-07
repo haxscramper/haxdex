@@ -1,6 +1,6 @@
-#include "cppdecl/declarations/parse.h"
-#include "cppdecl/declarations/to_string.h"
 #include <algorithm>
+#include <cppdecl/declarations/parse.h>
+#include <cppdecl/declarations/to_string.h>
 #include <cstdint>
 
 #include <filesystem>
@@ -13,9 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "event_writer.hpp"
 #include <CLI/CLI.hpp>
-#include <perfetto_aux_impl_template.hpp>
+#include <haxdex_cpp_build_stats/event_writer.hpp>
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 #include <ranges>
 
 static bool hasTraceEventsArray(std::filesystem::path const& filePath) {

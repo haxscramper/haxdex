@@ -9,8 +9,8 @@
 
 #include <rapidjson/document.h>
 
-#include "set_collection.hpp"
-#include "string_interner.hpp"
+#include <haxdex_cpp_build_stats/set_collection.hpp>
+#include <haxdex_cpp_build_stats/string_interner.hpp>
 
 using EventId = StrongId<struct EventIdTag>;
 

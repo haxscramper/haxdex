@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "name_tree.hpp"
+#include <haxdex_cpp_build_stats/name_tree.hpp>
 
 namespace {
 

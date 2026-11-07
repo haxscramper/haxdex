@@ -7,8 +7,8 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "strong_id.hpp"
 #include <boost/serialization/strong_typedef.hpp>
+#include <haxdex_cpp_build_stats/strong_id.hpp>
 
 
 using StrId = StrongId<struct StrIdTag>;

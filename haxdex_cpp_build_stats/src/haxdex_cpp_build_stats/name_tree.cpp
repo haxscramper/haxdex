@@ -1,5 +1,5 @@
 // name_tree.cpp
-#include "name_tree.hpp"
+#include <haxdex_cpp_build_stats/name_tree.hpp>
 
 #include <new>
 #include <string_view>

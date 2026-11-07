@@ -5,18 +5,19 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(RapidJSON REQUIRED)
-find_package(lexy REQUIRED)
-find_package(fmt REQUIRED)
-find_package(cpptrace REQUIRED)
-find_package(quill REQUIRED)
-find_package(SQLiteCpp REQUIRED)
-find_package(duckdb REQUIRED)
-find_package(roaring REQUIRED)
-find_package(GTest REQUIRED)
-find_package(benchmark REQUIRED)
-find_package(CLI11 REQUIRED)
-find_package(perfetto)
+find_package(RapidJSON REQUIRED QUIET)
+find_package(lexy REQUIRED QUIET)
+find_package(fmt REQUIRED QUIET)
+find_package(cpptrace REQUIRED QUIET)
+find_package(quill REQUIRED QUIET)
+find_package(SQLiteCpp REQUIRED QUIET)
+find_package(duckdb REQUIRED QUIET)
+find_package(roaring REQUIRED QUIET)
+find_package(GTest REQUIRED QUIET)
+find_package(benchmark REQUIRED QUIET)
+find_package(CLI11 REQUIRED QUIET)
+find_package(perfetto QUIET)
+find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
 
 add_library(
     trace_events_lib
@@ -29,6 +30,8 @@ add_library(
     src/haxdex_cpp_build_stats/name_tree.hpp
     src/haxdex_cpp_build_stats/name_tree.cpp
 )
+
+target_compile_definitions(trace_events_lib PUBLIC HSTD_CPP_BUILD_WITH_PERFETTO=1)
 
 add_executable(trace_event_cli src/haxdex_cpp_build_stats/main.cpp)
 add_executable(
@@ -60,6 +63,7 @@ target_link_libraries(
         duckdb::duckdb
         roaring::roaring
         perfetto::perfetto
+        hstd::hstd_cpp_lib
 )
 
 target_link_libraries(

@@ -90,3 +90,6 @@ conan_workspace_install_monorepo:
     --build=missing \
     {{CONAN_PYTHON_CONFIG}} \
     --profile:all={{CONAN_PROFILE}}
+
+run_to_output target *ARGS:
+  -just {{target}} {{ARGS}} > build/target_result.log 2>&1

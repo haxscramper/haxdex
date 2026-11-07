@@ -2,7 +2,9 @@ from conan import ConanFile  # type: ignore
 from conan.tools.cmake import cmake_layout  # type: ignore
 
 
-class ExampleRecipe(ConanFile):
+class HaxdexCppBuildStatsRecipe(ConanFile):
+    name = "haxdex_cpp_build_stats"
+    version = "0.1.0"
     settings = "os", "compiler", "build_type", "arch"
     generators = "CMakeDeps", "CMakeToolchain"
 
@@ -18,6 +20,7 @@ class ExampleRecipe(ConanFile):
         self.requires("gtest/1.17.0")
         self.requires("cli11/2.6.2")
         self.requires("perfetto/[>=46 <100]", transitive_headers=True)
+        self.requires("hstd_cpp_lib/0.1.0")
 
     def layout(self):
         cmake_layout(self)
