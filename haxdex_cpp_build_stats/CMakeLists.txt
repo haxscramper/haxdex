@@ -16,7 +16,7 @@ find_package(roaring REQUIRED QUIET)
 find_package(GTest REQUIRED QUIET)
 find_package(benchmark REQUIRED QUIET)
 find_package(CLI11 REQUIRED QUIET)
-find_package(perfetto QUIET)
+find_package(perfetto REQUIRED QUIET)
 find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
 
 add_library(

@@ -87,6 +87,7 @@ conan_validate target editable:
 conan_workspace_install_monorepo:
   conan workspace super-install \
     --output-folder=build/conan_super \
+    -c tools.build:skip_test=True \
     --build=missing \
     {{CONAN_PYTHON_CONFIG}} \
     --profile:all={{CONAN_PROFILE}}

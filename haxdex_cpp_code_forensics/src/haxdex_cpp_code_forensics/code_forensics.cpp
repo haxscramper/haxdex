@@ -21,9 +21,9 @@
 #include <hstd_cpp_lib/stdlib/serde/Json.hpp>
 #include <hstd_cpp_lib/stdlib/serde/JsonCLIParser.hpp>
 
-#include "repo_profile.hpp"
+#include <haxdex_cpp_code_forensics/repo_profile.hpp>
 
-#include <hstd_cpp_lib/logger/perfetto_aux_impl_template.hpp>
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 #include <hstd_cpp_lib/stdlib/serde/JsonSerde.hpp>
 // #include <hstd/stdlib/
 

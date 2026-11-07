@@ -6,9 +6,12 @@ set(CXX_STANDARD 23)
 
 find_package(OpenSSL CONFIG REQUIRED)
 find_package(ZLIB CONFIG REQUIRED)
+find_package(perfetto REQUIRED QUIET)
 find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
 
 add_executable(code_forensics)
+
+target_include_directories(code_forensics PUBLIC "${CMAKE_CURRENT_LIST_DIR}/src")
 
 set_target_properties(
     code_forensics
@@ -54,11 +57,3 @@ target_link_libraries(code_forensics PUBLIC "${LIBGIT2_LIBRARIES}")
 target_include_directories(code_forensics PUBLIC "${LIBGIT2_INCLUDE_DIRS}")
 target_link_directories(code_forensics PUBLIC ${LIBGIT2_LIBRARY_DIRS})
 target_link_options(code_forensics PUBLIC "-Wl,-rpath,${LIBGIT2_LIBRARY_DIRS}")
-
-target_include_directories(
-    code_forensics
-    PUBLIC
-        "${BASE}/thirdparty/immer"
-        "${BASE}/thirdparty/lager"
-        "${BASE}/thirdparty/libgit2/include"
-)

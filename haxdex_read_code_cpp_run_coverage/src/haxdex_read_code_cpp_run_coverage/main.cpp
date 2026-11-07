@@ -1,4 +1,6 @@
-#include <hstd_cpp_lib/logger/perfetto_aux_impl_template.hpp>
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 
 #include <haxdex_read_code_cpp_common/reflection_cli_parse.hpp>
 #include <haxdex_read_code_cpp_common/reflection_perf.hpp>

@@ -41,11 +41,13 @@
 #include <hstd_cpp_lib/system/aux_utils.hpp>
 #include <hstd_cpp_lib/system/macros.hpp>
 
-#include <haxdex_read_code_cpp/reflection_demangler.hpp>
-#include <haxdex_read_code_cpp/reflection_perf.hpp>
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+#include <haxdex_read_code_cpp_symbol/reflection_demangler.hpp>
+
+namespace lid = llvm::itanium_demangle;
 
 BinarySymComponentId demangle_to_db(
-    Node const*               node,
+    lid::Node const*          node,
     BinarySymbolVisitContext& ctx,
     BinaryFileDB&             db) {
     if (node == nullptr) { return BinarySymComponentId::Nil(); }
@@ -64,7 +66,7 @@ BinarySymComponentId demangle_to_db(
         },
         [&](std::string value, Met const& meta) -> Res { return BSF{value}; },
         [&](bool const& value, Met const& meta) -> Res { return BSF{hstd::fmt1(value)}; },
-        [&](Node const* value, Met const& meta) -> Res {
+        [&](lid::Node const* value, Met const& meta) -> Res {
             nested.push_back(demangle_to_db(value, ctx, db));
             if (meta && meta->head_node) {
                 return BSF{demangle_to_json(value, ctx, 0, meta->head_depth.value_or(1))};
@@ -72,25 +74,25 @@ BinarySymComponentId demangle_to_db(
                 return std::nullopt;
             }
         },
-        [&](NodeArray const& value, Met const& meta) -> Res {
+        [&](lid::NodeArray const& value, Met const& meta) -> Res {
             for (auto const& it : value) {
                 nested.push_back(demangle_to_db(it, ctx, db));
             }
             return std::nullopt;
         },
-        [&](Qualifiers const& value, Met const& meta) -> Res {
+        [&](lid::Qualifiers const& value, Met const& meta) -> Res {
             return BSF{hstd::fmt1(value)};
         },
-        [&](FunctionRefQual const& value, Met const& meta) -> Res {
+        [&](lid::FunctionRefQual const& value, Met const& meta) -> Res {
             return BSF{hstd::fmt1(value)};
         },
-        [&](Node::Prec const& value, Met const& meta) -> Res {
+        [&](lid::Node::Prec const& value, Met const& meta) -> Res {
             return BSF{hstd::fmt1(value)};
         },
-        [&](TemplateParamKind const& value, Met const& meta) -> Res {
+        [&](lid::TemplateParamKind const& value, Met const& meta) -> Res {
             return BSF{hstd::fmt1(value)};
         },
-        [&](SpecialSubKind const& value, Met const& meta) -> Res {
+        [&](lid::SpecialSubKind const& value, Met const& meta) -> Res {
             return BSF{hstd::fmt1(value)};
         },
         [&](llvm::itanium_demangle::ReferenceKind const& value, Met const& meta) -> Res {
@@ -118,8 +120,8 @@ BinarySymComponentId parseBinarySymbolName(
     std::string const&        name,
     BinaryFileDB&             db,
     BinarySymbolVisitContext& ctx) {
-    Demangler Parser(name.data(), name.data() + name.size());
-    Node*     AST = Parser.parse();
+    Demangler  Parser(name.data(), name.data() + name.size());
+    lid::Node* AST = Parser.parse();
     __perf_trace("sym", "Parse binary symbol");
     BinarySymComponentId res = BinarySymComponentId::Nil();
     {

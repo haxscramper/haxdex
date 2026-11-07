@@ -12,16 +12,11 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
-if(NOT TARGET hstd::hstd_cpp_lib)
-    find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
-endif()
-
-if(NOT TARGET haxdex::haxdex_read_code_cpp_common)
-    find_package(haxdex_read_code_cpp_common CONFIG REQUIRED QUIET)
-endif()
-
+find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
+find_package(haxdex_read_code_cpp_common CONFIG REQUIRED QUIET)
 find_package(SQLiteCpp CONFIG REQUIRED QUIET)
 find_package(LLVM REQUIRED CONFIG QUIET)
+find_package(perfetto REQUIRED QUIET)
 
 haxorg_add_executable(haxdex_read_code_cpp_symbol)
 add_executable(haxdex::haxdex_read_code_cpp_symbol ALIAS haxdex_read_code_cpp_symbol)
@@ -49,4 +44,5 @@ target_link_libraries(
         haxdex::haxdex_read_code_cpp_common
         SQLiteCpp
         LLVM
+        perfetto::perfetto
 )

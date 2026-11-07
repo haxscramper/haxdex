@@ -2,7 +2,7 @@
 
 #include <hstd_cpp_lib/logger/logger.hpp>
 #include <hstd_cpp_lib/logger/perfetto_aux.hpp>
-#include <hstd_cpp_lib/logger/perfetto_aux_impl_template.hpp>
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 #include <hstd_cpp_lib/stdlib/Filesystem.hpp>
 #include <hstd_cpp_lib/stdlib/serde/Json.hpp>
 #include <hstd_cpp_lib/stdlib/serde/JsonSerde.hpp>
@@ -117,13 +117,13 @@ NO_COVERAGE void build_build_coverage_merge(ReflectionCLI const& cli) {
                     json::parse(hstd::readFile(entry.path())));
                 file.path = entry.path().native();
                 collection.files.push_back(file);
-                LOG(INFO) << file.path << " OK";
+                HSLOG_INFO("{} OK", file.path);
             }
         }
     }
 
     auto report = generateInstantiateFunctionReport(collection);
-    LOG(INFO) << "\n" << report;
+    HSLOG_INFO("\n{}", report);
     hstd::writeFile(cli.output, report);
 }
 

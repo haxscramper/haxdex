@@ -12,13 +12,9 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
-if(NOT TARGET hstd::hstd_cpp_lib)
-    find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
-endif()
-
-if(NOT TARGET haxdex::haxdex_read_code_cpp_common)
-    find_package(haxdex_read_code_cpp_common CONFIG REQUIRED QUIET)
-endif()
+find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
+find_package(haxdex_read_code_cpp_common CONFIG REQUIRED QUIET)
+find_package(perfetto REQUIRED QUIET)
 
 haxorg_add_executable(haxdex_read_code_cpp_build_coverage)
 add_executable(
@@ -44,4 +40,5 @@ target_link_libraries(
     PRIVATE
         hstd::hstd_cpp_lib
         haxdex::haxdex_read_code_cpp_common
+        perfetto::perfetto
 )

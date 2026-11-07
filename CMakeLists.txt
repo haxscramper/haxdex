@@ -10,6 +10,8 @@ project(
 
 set(HSTD_CPP_BUILD_WITH_PERFETTO ON CACHE BOOL "")
 
+add_compile_definitions(HSTD_CPP_BUILD_WITH_PERFETTO=1)
+
 add_subdirectory(haxdex_cpp_code_forensics)
 add_subdirectory(haxdex_read_code_cpp_includes)
 add_subdirectory(haxdex_read_code_cpp_symbol)

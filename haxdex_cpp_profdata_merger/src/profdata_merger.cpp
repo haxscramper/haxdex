@@ -34,8 +34,8 @@
 #include <hstd/stdlib/OptFormatter.hpp>
 #include <hstd/stdlib/VariantSerde.hpp>
 
-#include "reflection_demangler.hpp"
-#include "reflection_perf.hpp"
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+#include <haxdex_read_code_cpp_symbol/reflection_demangler.hpp>
 
 #define NO_COVERAGE __attribute__((no_sanitize("coverage", "address", "thread")))
 
