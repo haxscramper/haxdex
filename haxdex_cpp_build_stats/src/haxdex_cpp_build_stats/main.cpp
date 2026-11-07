@@ -15,8 +15,10 @@
 
 #include <CLI/CLI.hpp>
 #include <haxdex_cpp_build_stats/event_writer.hpp>
-#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 #include <ranges>
+
+#include <haxdex_cpp_build_stats/perfetto_aux.hpp>
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 
 static bool hasTraceEventsArray(std::filesystem::path const& filePath) {
     std::FILE* file = std::fopen(filePath.string().c_str(), "rb");
