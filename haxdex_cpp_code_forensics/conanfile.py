@@ -12,7 +12,6 @@ class HaxdexCppCodeForensicsConan(ConanFile):
 
     default_options = {
         "hwloc/*:shared": True,
-        "hstd_cpp_lib/*:with_perfetto": True,
     }
 
     exports_sources = (

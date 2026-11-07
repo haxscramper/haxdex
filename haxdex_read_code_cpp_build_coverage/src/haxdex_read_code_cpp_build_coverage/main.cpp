@@ -1,5 +1,7 @@
 #include <filesystem>
 
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+
 #include <hstd_cpp_lib/logger/logger.hpp>
 #include <hstd_cpp_lib/logger/perfetto_aux.hpp>
 #include <hstd_cpp_lib/logger/perfetto_main.hpp>
@@ -9,7 +11,7 @@
 #include <hstd_cpp_lib/system/reflection.hpp>
 
 #include <haxdex_read_code_cpp_common/reflection_cli_parse.hpp>
-#include <haxdex_read_code_cpp_common/reflection_perf.hpp>
+
 
 struct BuildProfileEvent {
     int                  pid{};

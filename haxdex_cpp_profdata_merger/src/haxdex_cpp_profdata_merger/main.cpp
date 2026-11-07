@@ -1,25 +1,23 @@
-#include <hstd/stdlib/Filesystem.hpp>
+#include <hstd_cpp_lib/stdlib/Filesystem.hpp>
 
 #undef emit
 #undef slots
 
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <filesystem>
-#include <hstd/ext/logger.hpp>
-#include <hstd/stdlib/VecFormatter.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
+#include <hstd_cpp_lib/stdlib/formatting/specializations/VecFormatter.hpp>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/JSON.h>
 
-#include "reflection_perf.hpp" // IWYU pragma: keep
-#include <hstd/ext/perfetto_aux_impl_template.hpp>
+#include <haxdex_read_code_cpp_common/reflection_perf.hpp> // IWYU pragma: keep
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
 
 #include "profdata_merger.hpp"
 #include "reflection_collector.hpp"
 #include "reflection_collector_frontend.hpp"
+#include <haxdex_read_code_cpp_common/reflection_config.hpp>
 
-static clang::ParsedAttrInfoRegistry::Add<ReflAttrInfo> ReflectionCollectorDef(
-    "refl",
-    "reflection attribute");
 
 int main(int argc, char const** argv) {
     if (argc != 2) {
@@ -60,10 +58,8 @@ int main(int argc, char const** argv) {
         HSLOG_INFO("Log file message");
     }
 
-#ifdef ORG_BUILD_WITH_PERFETTO
     std::unique_ptr<perfetto::TracingSession> perfetto_session;
     if (cli.perf_path) { perfetto_session = StartProcessTracing("profdata_merger"); }
-#endif
 
     switch (cli.mode) {
         case ReflectionCLI::Mode::RunProfileMerge: build_run_coverage_merge(cli); break;
@@ -84,9 +80,7 @@ int main(int argc, char const** argv) {
 
     if (cli.perf_path) {
         hstd::fs::path out_path{cli.perf_path.value()};
-#ifdef ORG_BUILD_WITH_PERFETTO
         StopTracing(std::move(perfetto_session), out_path);
-#endif
     }
 
     return 0;

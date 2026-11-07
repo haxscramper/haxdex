@@ -12,3 +12,5 @@ packages:
     ref: haxdex_cpp_code_forensics/0.1.0
   - path: haxdex_cpp_build_stats
     ref: haxdex_cpp_build_stats/0.1.0
+  - path: haxdex_cpp_profdata_merger
+    ref: haxdex_cpp_profdata_merger/0.1.0
