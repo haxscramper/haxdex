@@ -572,3 +572,68 @@ for model in (
     NormalizedAmbiguousRoot,
 ):
     model.model_rebuild()
+
+
+@beartype
+class QualType(FrozenModel):
+    name: str
+    params: list[QualType] = Field(default_factory=list)
+    scopes: list[QualType] = Field(default_factory=list)
+    qualifiers: list[str] = Field(default_factory=list)
+
+    def format(self) -> str:
+        scopes = [it.format() for it in self.scopes]
+        params = [it.format() for it in self.params]
+
+        return "::".join(
+            [
+                *scopes,
+                " ".join([self.name, *self.qualifiers]),
+                *(["<{}>".format(", ".join(params))] if params else []),
+            ]
+        )
+
+
+_JUNK_QUALIFIERS = [
+    NormalizedQualifierTag.TEMPLATE_ARG,
+]
+
+
+@beartype
+def to_qual_type(value: NormalizedRoot | NormalizedName) -> QualType:
+    match value:
+        case NormalizedRoot():
+            return to_qual_type(value.names)
+
+        case NormalizedName():
+            qualifiers = [
+                qualifier.t.value
+                for qualifier in value.name.cvr
+                if qualifier.t not in _JUNK_QUALIFIERS
+            ]
+            params = [to_qual_type(param) for param in value.params]
+
+            if value.name.name == "<qualified>":
+                if not params:
+                    raise ValueError(
+                        "Cannot simplify '<qualified>': params is empty; "
+                        "expected scope components followed by a terminal name."
+                    )
+
+                terminal = params[-1]
+                return terminal.model_copy(
+                    update=dict(
+                        scopes=[*params[:-1], *terminal.scopes],
+                        qualifiers=[*qualifiers, *terminal.qualifiers],
+                    )
+                )
+
+            elif "lambda at" in value.name.name:
+                # logger.info(value.name.name)
+                return QualType(name="(lambda)")
+
+            return QualType(
+                name=value.name.name,
+                params=params,
+                qualifiers=qualifiers,
+            )

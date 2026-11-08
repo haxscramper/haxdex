@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import plumbum
@@ -9,10 +10,12 @@ from beartype.typing import Annotated, Literal, Optional
 from haxdex_read_logs.clang_error_model import ClangSegment, CompileLog, MessagePartKind
 from haxdex_read_logs.cppdecl_type_model import (
     FrozenModel,
-    NormalizedName,
     NormalizedRoot,
     QualifiedName,
+    QualType,
+    to_qual_type,
 )
+from haxdex_read_logs.qual_type_rewrite import QualTypeRewriter
 from pydantic import ConfigDict, Field, RootModel
 
 
@@ -46,46 +49,6 @@ class QualifiedNameParseResult(
 
 
 @beartype
-class QualType(FrozenModel):
-    name: str
-    params: list[QualType] = Field(default_factory=list)
-    scopes: list[QualType] = Field(default_factory=list)
-    qualifiers: list[str] = Field(default_factory=list)
-
-
-@beartype
-def to_qual_type(value: NormalizedRoot | NormalizedName) -> QualType:
-    match value:
-        case NormalizedRoot():
-            return to_qual_type(value.names)
-
-        case NormalizedName():
-            qualifiers = [qualifier.t.value for qualifier in value.name.cvr]
-            params = [to_qual_type(param) for param in value.params]
-
-            if value.name.name == "<qualified>":
-                if not params:
-                    raise ValueError(
-                        "Cannot simplify '<qualified>': params is empty; "
-                        "expected scope components followed by a terminal name."
-                    )
-
-                terminal = params[-1]
-                return terminal.model_copy(
-                    update=dict(
-                        scopes=[*params[:-1], *terminal.scopes],
-                        qualifiers=[*qualifiers, *terminal.qualifiers],
-                    )
-                )
-
-            return QualType(
-                name=value.name.name,
-                params=params,
-                qualifiers=qualifiers,
-            )
-
-
-@beartype
 def parse_types(types: list[str]) -> list[QualifiedNameParseResult]:
     input_seg = Path("/tmp/type_segments.json")
     res_seg = Path("/tmp/type_parsed.json")
@@ -101,10 +64,62 @@ def parse_types(types: list[str]) -> list[QualifiedNameParseResult]:
     return result
 
 
+type QualOrStr = QualType | str
+
+
+def configure_rewrite(r: QualTypeRewriter):
+    from haxdex_read_logs.qual_type_rewrite import T
+
+    # std::vector<Arg> -> vector<Arg>
+    r.rule(
+        (["std"], "vector", [T.bind("Arg")]),
+        ([], "vector", [T.get("Arg")]),
+    )
+
+    # std::variant<...> -> std::variant<>
+    r.rule(
+        (["std"], "variant", ...),
+        (["std"], "variant", []),
+    )
+
+    # std::tuple<Args...> -> Tuple<Args...>
+    r.rule(
+        (["std"], "tuple", [T.bind("Args", ...)]),
+        ([], "Tuple", [T.get("Args")]),
+    )
+
+    # First<Arg, ...> -> Arg
+    r.rule(
+        ([], "First", [T.bind("Arg"), ...]),
+        T.get("Arg"),
+    )
+
+    # hstd::unidata_dsl::test::Derived -> test::Derived
+    r.rule(
+        (["hstd", "unidata_dsl", "test"], T.bind("Type"), T.bind("Args", ...)),
+        (["test"], T.get("Type"), T.get("Args")),
+    )
+
+    r.rule(
+        (["hstd", "ext", "unidata"], T.bind("Type"), T.bind("Args", ...)),
+        (["ud"], T.get("Type"), T.get("Args")),
+    )
+
+    r.rule(
+        (..., ["UniValue"], [(..., "StaticT", [T.bind("Arg")])]),
+        ([], "UniStatic", [T.get("Arg")]),
+    )
+
+
 @beartype
 def simplify_types(types: list[str]) -> list[str]:
     noquote = [it.strip("'") for it in types]
     parsed = parse_types(noquote)
+
+    def map_qual_type[T](
+        items: list[QualOrStr], mapped: Callable[[QualType], T]
+    ) -> list[T | str]:
+        return [mapped(t) if isinstance(t, QualType) else t for t in items]
 
     qualified_list = [
         to_qual_type(t.root.normalized) if t.root.normalized else t.root.original
@@ -113,15 +128,32 @@ def simplify_types(types: list[str]) -> list[str]:
 
     Path("/tmp/intermediate.json").write_text(
         json.dumps(
-            [
-                t.model_dump(
-                    exclude_defaults=True,
-                )
-                if isinstance(t, QualType)
-                else t
-                for t in qualified_list
-            ],
+            map_qual_type(
+                qualified_list, lambda it: it.model_dump(exclude_defaults=True)
+            ),
             indent=2,
+        )
+    )
+
+    rewriter = QualTypeRewriter()
+    configure_rewrite(rewriter)
+
+    simplified_list = map_qual_type(qualified_list, lambda t: rewriter.rewrite(t))
+
+    Path("/tmp/simplified.json").write_text(
+        json.dumps(
+            map_qual_type(
+                simplified_list, lambda it: it.model_dump(exclude_defaults=True)
+            ),
+            indent=2,
+        )
+    )
+
+    result = map_qual_type(simplified_list, lambda it: it.format())
+
+    Path("/tmp/compare.json").write_text(
+        json.dumps(
+            [dict(before=t1, after=t2) for t1, t2 in zip(noquote, result)], indent=2
         )
     )
 
