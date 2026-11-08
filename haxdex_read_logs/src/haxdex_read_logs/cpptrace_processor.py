@@ -1,7 +1,9 @@
 import re
+from pathlib import Path
 
 from beartype import beartype
 from haxdex_read_logs.base_processor import (
+    ANSI_ESCAPE,
     EXCEPTION_SUFFIX,
     EventKind,
     Island,
@@ -9,6 +11,7 @@ from haxdex_read_logs.base_processor import (
     make_template,
     scan_lines,
 )
+from haxdex_read_logs.clang_simplify import simplify_types
 from haxdex_read_logs.clang_type_model import SourceLocation
 from haxdex_read_logs.top_types import (
     BlockBoundary,
@@ -32,6 +35,18 @@ LOCATION_PATTERN = re.compile(
     r"(?P<file>.+?)"
     r"(?::(?P<line>\d+)(?::(?P<column>\d+))?)?$"
 )
+
+
+@beartype
+def frame_column(frame: StackFrame) -> str:
+    if frame.location is None:
+        return frame.address
+
+    label = Path(frame.location.file).name
+    if frame.location.line is not None:
+        label = f"{label}:{frame.location.line}"
+
+    return label
 
 
 @beartype
@@ -185,12 +200,117 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
             text=text,
         )
 
-    def format_structured(self, value: StackTraceSegment) -> Text:
-        result = Text.from_ansi(value.text)
-        result.highlight_regex(
-            r"(?m)^\s*Stack trace \(most recent call first\):",
-            "bold yellow",
+    def format_structured(
+        self,
+        value: StackTraceSegment,
+        *,
+        show_original: bool = False,
+    ) -> Text:
+        return self.format_group(
+            [value],
+            show_original=show_original,
         )
-        result.highlight_regex(r"(?m)^\s*#\d+", "cyan")
-        result.highlight_regex(r"\b0x[0-9a-fA-F]+\b", "dim")
+
+    def format_group(
+        self,
+        values: list[StackTraceSegment],
+        *,
+        show_original: bool = True,
+    ) -> Text:
+
+        rewritten = [value.model_copy(deep=True) for value in values]
+        symbols = list(
+            dict.fromkeys(
+                frame.symbol
+                for value in rewritten
+                for frame in value.frames
+                if frame.symbol is not None
+            )
+        )
+
+        replacements: dict[str, str] = {}
+        if symbols:
+            replacements = dict(
+                zip(
+                    symbols,
+                    simplify_types(symbols),
+                    strict=True,
+                )
+            )
+
+        original_symbols = {
+            id(frame): frame.symbol for value in rewritten for frame in value.frames
+        }
+
+        for value in rewritten:
+            for frame in value.frames:
+                if frame.symbol is not None:
+                    frame.symbol = replacements[frame.symbol]
+
+        column_width = max(
+            (len(frame_column(frame)) for value in rewritten for frame in value.frames),
+            default=0,
+        )
+        index_width = max(
+            (len(f"#{frame.index}") for value in rewritten for frame in value.frames),
+            default=0,
+        )
+
+        result = Text()
+
+        for value in rewritten:
+            if value.header is not None:
+                header = Text.from_ansi(value.header)
+                header.stylize("bold yellow")
+                result.append(header)
+
+            for frame in value.frames:
+                index = f"#{frame.index}"
+                column = frame_column(frame)
+
+                result.append(
+                    f"{index:<{index_width}}",
+                    style="cyan",
+                )
+                result.append("  ")
+                result.append(
+                    f"{column:<{column_width}}",
+                    style=("yellow" if frame.location is not None else "dim"),
+                )
+
+                if frame.symbol:
+                    result.append(" in ")
+                    result.append(frame.symbol)
+
+                if frame.location is not None:
+                    location_text = frame.location.file
+                    if frame.location.line is not None:
+                        location_text = f"{location_text}:{frame.location.line}"
+                    if frame.location.column is not None:
+                        location_text = f"{location_text}:{frame.location.column}"
+
+                    result.append(
+                        f" in {location_text}",
+                        style="grey50",
+                    )
+
+                clean = ANSI_ESCAPE.sub("", frame.text)
+                suffix = EXCEPTION_SUFFIX.search(clean)
+                if suffix is not None:
+                    result.append(suffix.group().rstrip("\r\n"))
+
+                line_ending = frame.text[len(frame.text.rstrip("\r\n")) :]
+                original_symbol = original_symbols[id(frame)]
+
+                if show_original and original_symbol is not None:
+                    result.append(line_ending or "\n")
+                    symbol_offset = index_width + 2 + column_width + len(" in ")
+                    result.append(" " * symbol_offset)
+                    result.append(
+                        original_symbol,
+                        style="grey50",
+                    )
+
+                result.append(line_ending)
+
         return result

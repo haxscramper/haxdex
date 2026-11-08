@@ -60,14 +60,14 @@ def make_template(patterns: dict[EventKind, str]) -> str:
         r"Value RAW (.*)",
         *[f"Value {kind.name} {pattern}" for kind, pattern in patterns.items()],
     ]
-    rules = [f"  ^\\d+\\t${{{kind.name}}}$ -> Continue" for kind in patterns]
+    rules = [f"  ^\\d+\\t${{{kind.name}}}$$ -> Continue" for kind in patterns]
     return "\n".join(
         [
             *values,
             "",
             "Start",
             *rules,
-            r"  ^${LINE}\t${RAW}$ -> Record",
+            r"  ^${LINE}\t${RAW}$$ -> Record",
             "",
             "EOF",
             "",
