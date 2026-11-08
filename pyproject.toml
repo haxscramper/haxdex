@@ -18,6 +18,7 @@ dependencies = [
     "haxdex_read_code_tsitter",
     "haxdex_cli",
     "haxdex_action",
+    "haxdex_read_logs",
 ]
 
 [project.scripts]
@@ -50,8 +51,9 @@ members = [
     "haxdex_view_generation",
     "hstd_py_qt",
     "haxdex_read_code_tsitter",
-    "haxdex_cli", 
+    "haxdex_cli",
     "haxdex_action",
+    "haxdex_read_logs",
 ]
 
 [tool.uv.sources]
@@ -63,7 +65,7 @@ hstd_py_qt = { workspace = true }
 haxdex_read_code_tsitter = { workspace = true }
 haxdex_cli = { workspace = true }
 haxdex_action = { workspace = true }
+haxdex_read_logs = { workspace = true }
 
 
 hstd_py_lib = { path = "../../haxorg/dist/hstd_py_lib-0.1.0-py3-none-any.whl" }
-
