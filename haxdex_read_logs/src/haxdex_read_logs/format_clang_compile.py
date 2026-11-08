@@ -19,6 +19,7 @@ from haxdex_read_logs.clang_error_model import (
 )
 from rich.console import Console
 from rich.text import Text
+from rich.tree import Tree
 
 
 @beartype
@@ -112,55 +113,113 @@ def render_instantiation_subject(parts: list[MessagePart]) -> Text:
 
 
 @beartype
-def render_instantiation_stack(notes: list[DiagnosticNote]) -> Text:
+def render_instantiation_frames(
+    frames: list[list[DiagnosticNote]],
+    *,
+    annotation_column: int | None = None,
+) -> Text:
     sources = [
-        render_source(note.source).split("\n", allow_blank=True) for note in notes
+        render_source(frame[0].source).split("\n", allow_blank=True)
+        if frame[0].source
+        else []
+        for frame in frames
     ]
-    annotation_column = (
-        max(
-            (line.cell_len for source in sources for line in source),
-            default=0,
+
+    if annotation_column is None:
+        annotation_column = (
+            max(
+                (line.cell_len for source in sources for line in source),
+                default=0,
+            )
+            + 4
         )
-        + 4
-    )
 
     subject_label = "instantiated as "
     location_label = "in "
     location_indent = len(subject_label) - len(location_label)
     result = Text(no_wrap=True, overflow="ignore")
 
-    for note_index, (note, source) in enumerate(zip(notes, sources, strict=True)):
-        if note_index:
+    for frame_index, (frame, source) in enumerate(zip(frames, sources, strict=True)):
+        if frame_index:
             result.append("\n")
 
-        subject = Text(subject_label, style="dim")
-        subject.append_text(render_instantiation_subject(note.message))
-        annotations = [subject]
+        subjects: list[Text] = []
+        seen_subjects: set[str] = set()
 
-        if note.location is not None:
+        for note in frame:
+            subject = render_instantiation_subject(note.message)
+
+            if subject.plain in seen_subjects:
+                continue
+
+            seen_subjects.add(subject.plain)
+            subjects.append(subject)
+
+        rows: list[tuple[Text | None, Text | None]] = []
+
+        for subject_index, subject in enumerate(subjects):
+            annotation = Text(
+                subject_label if not subject_index else " " * len(subject_label),
+                style="dim",
+            )
+            annotation.append_text(subject)
+            rows.append(
+                (
+                    source[0] if source and not subject_index else None,
+                    annotation,
+                )
+            )
+
+        location: Text | None = None
+
+        if frame[0].location is not None:
             location = Text(
                 f"{' ' * location_indent}{location_label}",
                 style="dim",
             )
-            location.append_text(render_location(note.location))
-            annotations.append(location)
+            location.append_text(render_location(frame[0].location))
 
-        for row_index in range(max(len(source), len(annotations))):
+        remaining_source = source[1:]
+
+        for row_index in range(
+            max(len(remaining_source), 1 if location is not None else 0)
+        ):
+            rows.append(
+                (
+                    remaining_source[row_index]
+                    if row_index < len(remaining_source)
+                    else None,
+                    location if not row_index else None,
+                )
+            )
+
+        for row_index, (source_line, annotation) in enumerate(rows):
             if row_index:
                 result.append("\n")
 
             source_width = 0
 
-            if row_index < len(source):
-                source_line = source[row_index]
+            if source_line is not None:
                 result.append_text(source_line)
                 source_width = source_line.cell_len
 
-            if row_index < len(annotations):
+            if annotation is not None:
                 result.append(" " * (annotation_column - source_width))
-                result.append_text(annotations[row_index])
+                result.append_text(annotation)
 
     return result
+
+
+@beartype
+def render_instantiation_stack(
+    notes: list[DiagnosticNote],
+    *,
+    annotation_column: int | None = None,
+) -> Text:
+    return render_instantiation_frames(
+        [[note] for note in notes],
+        annotation_column=annotation_column,
+    )
 
 
 @beartype
@@ -229,17 +288,13 @@ def render_candidate(candidate: DiagnosticMessage) -> Text:
         result.append_text(indent_text(render_source(candidate.source), 2))
         result.append("\n")
 
-    result.append_text(
-        indent_text(
-            render_message_parts(candidate.message),
-            32,
-        )
-    )
+    message = render_message_parts(candidate.message)
 
     if candidate.location is not None:
-        result.append("\n")
-        result.append_text(indent_text(render_location(candidate.location), 36))
+        message.append(" ")
+        message.append_text(render_location(candidate.location))
 
+    result.append_text(indent_text(message, 32))
     return result
 
 
@@ -268,8 +323,248 @@ def render_include_context(
 
 
 @beartype
-def render_diagnostic(diagnostic: Diagnostic) -> Text:
+def location_key(
+    location: SourceLocation | None,
+) -> tuple[str, int | None, int | None] | None:
+    if location is None:
+        return None
+
+    return location.file, location.line, location.column
+
+
+@beartype
+def messages_equal(
+    left: DiagnosticMessage,
+    right: DiagnosticMessage,
+) -> bool:
+    return (
+        left.severity == right.severity
+        and location_key(left.location) == location_key(right.location)
+        and [(part.type, part.text) for part in left.message]
+        == [(part.type, part.text) for part in right.message]
+        and left.source == right.source
+    )
+
+
+@beartype
+def notes_equal(left: DiagnosticNote, right: DiagnosticNote) -> bool:
+    return left.kind == right.kind and messages_equal(left, right)
+
+
+@beartype
+def diagnostics_equal(left: Diagnostic, right: Diagnostic) -> bool:
+    if not messages_equal(left, right):
+        return False
+
+    left_notes = [note for note in left.notes if note.kind != NoteKind.INSTANTIATION]
+    right_notes = [note for note in right.notes if note.kind != NoteKind.INSTANTIATION]
+
+    return (
+        len(left_notes) == len(right_notes)
+        and all(
+            notes_equal(left_note, right_note)
+            for left_note, right_note in zip(
+                left_notes,
+                right_notes,
+                strict=True,
+            )
+        )
+        and [entry.text for entry in left.include_context]
+        == [entry.text for entry in right.include_context]
+    )
+
+
+@beartype
+def group_diagnostics(
+    diagnostics: list[Diagnostic],
+) -> list[list[Diagnostic]]:
+    groups: list[list[Diagnostic]] = []
+
+    for diagnostic in diagnostics:
+        for group in groups:
+            if diagnostics_equal(group[0], diagnostic):
+                group.append(diagnostic)
+                break
+        else:
+            groups.append([diagnostic])
+
+    return groups
+
+
+@beartype
+def collect_instantiation_stacks(
+    diagnostics: list[Diagnostic],
+) -> list[list[DiagnosticNote]]:
+    stacks: list[list[DiagnosticNote]] = []
+
+    for diagnostic in diagnostics:
+        stack = [
+            note for note in diagnostic.notes if note.kind == NoteKind.INSTANTIATION
+        ]
+
+        if any(
+            len(stack) == len(existing)
+            and all(
+                notes_equal(left, right)
+                for left, right in zip(stack, existing, strict=True)
+            )
+            for existing in stacks
+        ):
+            continue
+
+        stacks.append(stack)
+
+    return stacks
+
+
+@beartype
+def instantiation_context_equal(
+    left: DiagnosticNote,
+    right: DiagnosticNote,
+) -> bool:
+    return (
+        left.kind == right.kind
+        and left.severity == right.severity
+        and location_key(left.location) == location_key(right.location)
+        and left.source == right.source
+        and [
+            (
+                part.type,
+                part.text if part.type != MessagePartKind.TYPE else "",
+            )
+            for part in left.message
+        ]
+        == [
+            (
+                part.type,
+                part.text if part.type != MessagePartKind.TYPE else "",
+            )
+            for part in right.message
+        ]
+    )
+
+
+@beartype
+def build_instantiation_tree(
+    stacks: list[list[DiagnosticNote]],
+    annotation_column: int,
+) -> Tree:
+    prefix_length = 0
+
+    for index in range(min(len(stack) for stack in stacks)):
+        if not all(
+            instantiation_context_equal(stacks[0][index], stack[index])
+            for stack in stacks[1:]
+        ):
+            break
+
+        prefix_length += 1
+
+    frames = [[stack[index] for stack in stacks] for index in range(prefix_length)]
+    tree = Tree(
+        render_instantiation_frames(
+            frames,
+            annotation_column=annotation_column,
+        )
+        if frames
+        else Text(),
+        hide_root=not frames,
+        guide_style="dim",
+        highlight=False,
+    )
+
+    suffix_groups: list[list[list[DiagnosticNote]]] = []
+    has_ending = False
+
+    for stack in stacks:
+        suffix = stack[prefix_length:]
+
+        if not suffix:
+            has_ending = True
+            continue
+
+        for group in suffix_groups:
+            if instantiation_context_equal(group[0][0], suffix[0]):
+                group.append(suffix)
+                break
+        else:
+            suffix_groups.append([suffix])
+
+    if has_ending and suffix_groups:
+        tree.add(Text("Stack ends here", style="dim"))
+
+    for group in suffix_groups:
+        tree.add(build_instantiation_tree(group, annotation_column))
+
+    return tree
+
+
+@beartype
+def render_instantiation_stacks(
+    stacks: list[list[DiagnosticNote]],
+) -> Text:
+    if len(stacks) == 1:
+        return render_instantiation_stack(stacks[0])
+
+    annotation_column = (
+        max(
+            (
+                line.cell_len
+                for stack in stacks
+                for note in stack
+                for line in render_source(note.source).split(
+                    "\n",
+                    allow_blank=True,
+                )
+            ),
+            default=0,
+        )
+        + 4
+    )
+    tree = build_instantiation_tree(stacks, annotation_column)
+    label_width = max(
+        (
+            line.cell_len
+            for stack in stacks
+            for line in render_instantiation_stack(
+                stack,
+                annotation_column=annotation_column,
+            ).split("\n", allow_blank=True)
+        ),
+        default=0,
+    )
+    console = Console(
+        file=StringIO(),
+        width=max(
+            1,
+            label_width + 4 * (max(len(stack) for stack in stacks) + 1),
+        ),
+        markup=False,
+        highlight=False,
+        soft_wrap=True,
+    )
+    result = Text(no_wrap=True, overflow="ignore")
+
+    for segment in console.render(tree):
+        if not segment.control:
+            result.append(segment.text, style=segment.style)
+
+    if result.plain.endswith("\n"):
+        return result[:-1]
+
+    return result
+
+
+@beartype
+def render_diagnostic(
+    diagnostic: Diagnostic,
+    *,
+    duplicates: list[Diagnostic] | None = None,
+) -> Text:
     result = render_diagnostic_message(diagnostic)
+    stacks = collect_instantiation_stacks(
+        duplicates if duplicates is not None else [diagnostic]
+    )
 
     group_order = (
         NoteKind.CONTEXT,
@@ -281,26 +576,54 @@ def render_diagnostic(diagnostic: Diagnostic) -> Text:
 
     for kind in group_order:
         notes = [note for note in diagnostic.notes if note.kind == kind]
-        if not notes:
+
+        if kind == NoteKind.INSTANTIATION:
+            count = max((len(stack) for stack in stacks), default=0)
+        else:
+            count = len(notes)
+
+        if not count:
             continue
 
         result.append("\n\n")
         result.append(
-            f"{note_group_title(kind)} ({len(notes)})",
+            f"{note_group_title(kind)} ({count})",
             style="bold",
         )
 
         if kind == NoteKind.INSTANTIATION:
             result.append("\n")
-            result.append_text(indent_text(render_instantiation_stack(notes), 2))
+            result.append_text(indent_text(render_instantiation_stacks(stacks), 2))
             continue
 
         for index, note in enumerate(notes):
-            result.append("\n\n" if index else "\n")
+            compact = kind in (NoteKind.CONTEXT, NoteKind.CANDIDATE)
+            result.append("\n" if compact or not index else "\n\n")
 
             match kind:
                 case NoteKind.CANDIDATE:
                     result.append_text(render_candidate(note))
+
+                case NoteKind.CONTEXT:
+                    message = render_message_parts(note.message)
+
+                    if note.severity != Severity.NOTE:
+                        heading = Text(
+                            f"{note.severity.value}: ",
+                            style=severity_style(note.severity),
+                        )
+                        heading.append_text(message)
+                        message = heading
+
+                    if note.location is not None:
+                        message.append(" ")
+                        message.append_text(render_location(note.location))
+
+                    if note.source:
+                        message.append("\n")
+                        message.append_text(indent_text(render_source(note.source), 2))
+
+                    result.append_text(indent_text(message, 2))
 
                 case _:
                     result.append_text(
@@ -330,6 +653,7 @@ def format_clang_segment(
     segment: ClangSegment,
     *,
     color: bool,
+    diagnostic_groups: dict[int, list[Diagnostic]] | None = None,
 ) -> str:
     if (
         not segment.diagnostics
@@ -337,6 +661,13 @@ def format_clang_segment(
         and not segment.summaries
     ):
         return segment.text
+
+    if diagnostic_groups is None:
+        diagnostic_groups = {
+            id(diagnostic): group
+            for group in group_diagnostics(segment.diagnostics)
+            for diagnostic in group
+        }
 
     output = StringIO()
     console = Console(
@@ -348,15 +679,22 @@ def format_clang_segment(
         highlight=False,
         soft_wrap=True,
     )
+    rendered_count = 0
 
-    for index, diagnostic in enumerate(segment.diagnostics):
-        if index:
+    for diagnostic in segment.diagnostics:
+        group = diagnostic_groups[id(diagnostic)]
+
+        if group[0] is not diagnostic:
+            continue
+
+        if rendered_count:
             console.print()
 
-        console.print(render_diagnostic(diagnostic))
+        console.print(render_diagnostic(diagnostic, duplicates=group))
+        rendered_count += 1
 
     if segment.unattached_include_context:
-        if segment.diagnostics:
+        if rendered_count:
             console.print()
 
         console.print(
@@ -385,8 +723,19 @@ def format_compile_log(
     *,
     color: bool = False,
 ) -> str:
-    """Render Clang diagnostics without wrapping; preserve text segments verbatim."""
+    """Deduplicate diagnostics across the log; preserve text segments verbatim."""
     output = StringIO()
+    diagnostics = [
+        diagnostic
+        for segment in log.segments
+        if isinstance(segment, ClangSegment)
+        for diagnostic in segment.diagnostics
+    ]
+    diagnostic_groups = {
+        id(diagnostic): group
+        for group in group_diagnostics(diagnostics)
+        for diagnostic in group
+    }
 
     for segment in log.segments:
         match segment:
@@ -398,6 +747,7 @@ def format_compile_log(
                     format_clang_segment(
                         segment,
                         color=color,
+                        diagnostic_groups=diagnostic_groups,
                     )
                 )
 
