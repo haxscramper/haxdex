@@ -1,3 +1,4 @@
+#include <CLI/CLI.hpp>
 #include <cppdecl/declarations/parse.h>
 #include <fstream>
 #include <haxdex_cpp_build_stats/to_json.hpp>
@@ -18,7 +19,8 @@
 
 rapidjson::Value parseQualifiedName(
     std::string_view                    original,
-    rapidjson::Document::AllocatorType& allocator) {
+    rapidjson::Document::AllocatorType& allocator,
+    bool                                with_full_qualified) {
     rapidjson::Value output{rapidjson::kObjectType};
     output.AddMember("ok", false, allocator);
     output.AddMember("normalized", rapidjson::Value{}, allocator);
@@ -37,25 +39,28 @@ rapidjson::Value parseQualifiedName(
 
     if (std::get_if<cppdecl::ParseError>(&result) != nullptr) { return output; }
 
-    const auto& parsed   = std::get<0>(result);
-    output["parsed"]     = cppdecl::ToJson(parsed, allocator);
+    const auto& parsed = std::get<0>(result);
+    if (with_full_qualified) { output["parsed"] = cppdecl::ToJson(parsed, allocator); }
     output["normalized"] = cppdecl::ToJsonNormalized(parsed, allocator);
     output["ok"].SetBool(true);
 
     return output;
 }
 
-int main(int argc, char** argv) {
-    if (argc != 3) {
-        throw std::runtime_error{fmt::format(
-            "Usage: {} <input.json> <output.json>; expected two "
-            "positional arguments, received {}",
-            argv[0],
-            argc - 1)};
-    }
 
-    const std::string inputPath{argv[1]};
-    const std::string outputPath{argv[2]};
+int main(int argc, char** argv) {
+    CLI::App app{"Process a JSON file"};
+
+    std::string inputPath;
+    std::string outputPath;
+    bool        with_full_qualified = false;
+
+    app.add_option("input", inputPath, "Input JSON path")->required();
+    app.add_option("output", outputPath, "Output JSON path")->required();
+    app.add_flag(
+        "--with-full-qualfied", with_full_qualified, "Use fully qualified names");
+
+    CLI11_PARSE(app, argc, argv);
 
     std::ifstream inputFile{};
     inputFile.exceptions(std::ios::failbit | std::ios::badbit);
@@ -94,7 +99,7 @@ int main(int argc, char** argv) {
         }
 
         const std::string_view original{value.GetString(), value.GetStringLength()};
-        auto                   parsed = parseQualifiedName(original, allocator);
+        auto parsed = parseQualifiedName(original, allocator, with_full_qualified);
         outputDocument.PushBack(parsed, allocator);
         ++index;
     }
