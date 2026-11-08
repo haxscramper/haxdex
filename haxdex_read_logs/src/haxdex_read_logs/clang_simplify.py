@@ -113,8 +113,7 @@ def configure_rewrite(r: QualTypeRewriter):
 
 @beartype
 def simplify_types(types: list[str]) -> list[str]:
-    noquote = [it.strip("'") for it in types]
-    parsed = parse_types(noquote)
+    parsed = parse_types(types)
 
     def map_qual_type[T](
         items: list[QualOrStr], mapped: Callable[[QualType], T]
@@ -153,11 +152,11 @@ def simplify_types(types: list[str]) -> list[str]:
 
     Path("/tmp/compare.json").write_text(
         json.dumps(
-            [dict(before=t1, after=t2) for t1, t2 in zip(noquote, result)], indent=2
+            [dict(before=t1, after=t2) for t1, t2 in zip(types, result)], indent=2
         )
     )
 
-    return types
+    return result
 
 
 @beartype

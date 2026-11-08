@@ -84,7 +84,7 @@ class ClangSegment(BaseModel):
     kind: Literal[SegmentKind.CLANG] = SegmentKind.CLANG
     start_line: int
     end_line: int
-    text: str
+    text: str = ""
     diagnostics: list[Diagnostic] = Field(default_factory=list)
     summaries: list[str] = Field(default_factory=list)
     unattached_include_context: list[IncludeContext] = Field(

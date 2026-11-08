@@ -22,6 +22,7 @@ from haxdex_read_logs.clang_error_model import (
     TokenKind,
 )
 from haxdex_read_logs.clang_simplify import rewrite_compile_log_types
+from haxdex_read_logs.format_clang_compile import format_compile_log
 
 TEXTFSM_TEMPLATE = r"""Value LOG_LINE (\d+)
 Value RAW (.*)
@@ -72,7 +73,7 @@ def split_message(message: str) -> list[MessagePart]:
         parts.append(
             MessagePart(
                 type=MessagePartKind.TYPE,
-                text=match.group(),
+                text=match.group().strip("'"),
             )
         )
         position = match.end()
@@ -240,7 +241,7 @@ def segment_compile_logs(text: str) -> CompileLog:
             diagnostic = None
             source_owner = None
 
-        current.text += token.raw
+        # current.text += token.raw
         current.end_line = token.log_line
 
         match token.kind:
@@ -328,8 +329,13 @@ def main() -> None:
 
     result = rewrite_compile_log_types(result)
 
-    arguments.output.write_text(
+    Path("/tmp/simplified_rewrite.json").write_text(
         result.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    arguments.output.write_text(
+        format_compile_log(result) + "\n",
         encoding="utf-8",
     )
 
