@@ -8,6 +8,7 @@ find_package(OpenSSL CONFIG REQUIRED)
 find_package(ZLIB CONFIG REQUIRED)
 find_package(perfetto REQUIRED QUIET)
 find_package(hstd_cpp_lib CONFIG REQUIRED QUIET)
+find_package(libgit2 CONFIG REQUIRED)
 
 add_executable(code_forensics)
 
@@ -45,6 +46,7 @@ target_link_libraries(
         absl::base
         absl::flags
         perfetto::perfetto
+        libgit2::libgit2
         ${ZLIB_LIBRARIES}
         ${PCRE_LIBRARIES}
 )
@@ -52,8 +54,3 @@ target_link_libraries(
 if(TARGET Boost::process)
     target_link_libraries(code_forensics PUBLIC Boost::process)
 endif()
-
-target_link_libraries(code_forensics PUBLIC "${LIBGIT2_LIBRARIES}")
-target_include_directories(code_forensics PUBLIC "${LIBGIT2_INCLUDE_DIRS}")
-target_link_directories(code_forensics PUBLIC ${LIBGIT2_LIBRARY_DIRS})
-target_link_options(code_forensics PUBLIC "-Wl,-rpath,${LIBGIT2_LIBRARY_DIRS}")

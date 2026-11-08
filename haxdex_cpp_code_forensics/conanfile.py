@@ -23,7 +23,7 @@ class HaxdexCppCodeForensicsConan(ConanFile):
 
     def requirements(self):
         self.requires("zlib/1.3.2")
-        self.requires("openssl/4.0.3")
+        self.requires("libgit2/1.9.1")
         self.requires(
             "hstd_cpp_lib/0.1.0", transitive_headers=True, transitive_libs=True
         )

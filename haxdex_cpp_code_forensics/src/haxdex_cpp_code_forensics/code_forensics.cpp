@@ -276,8 +276,12 @@ int main(int argc, char** argv) {
     Vec<ir::CommitId> commits{};
     CommitGraph       result = build_repo_graph(oid, state.get());
     if (config->cli.out.graphviz) {
+#warning TODO re-enable
+        assert(false);
+#if false
         auto graph_repr = result.toGraphviz();
         graph_repr->render(fs::path(*config->cli.out.graphviz));
+#endif
     }
 
     for_each_commit(result, state.get());

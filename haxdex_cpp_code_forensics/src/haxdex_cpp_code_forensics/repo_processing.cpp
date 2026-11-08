@@ -195,7 +195,8 @@ void line_edit_action(
     Vec<Action>&         add_actions,
     ir::CommitId         id_commit) {
     ir::StringId string_id = state->content->add(
-        String{hstd::Str{strip(StrView{line->content, line->content_len}, {}, {'\n'})}});
+        String{hstd::Str{strip(
+            StrView{line->content, static_cast<int>(line->content_len)}, {}, {'\n'})}});
 
     switch (line->origin) {
         case GIT_DIFF_LINE_ADDITION: {
