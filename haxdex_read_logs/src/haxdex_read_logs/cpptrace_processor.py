@@ -32,8 +32,9 @@ FRAME_PATTERN = re.compile(
     r"(?P<address>0x[0-9a-fA-F]+)(?P<tail>.*)$"
 )
 LOCATION_PATTERN = re.compile(
-    r"(?P<file>.+?)"
-    r"(?::(?P<line>\d+)(?::(?P<column>\d+))?)?$"
+    r"(?P<file>\S+?)"
+    r"(?::(?P<line>\d+)(?::(?P<column>\d+))?)?"
+    r"(?P<trailing>[ \t]+.*)?"
 )
 
 
@@ -140,6 +141,7 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
                         symbol = tail
 
                     location: SourceLocation | None = None
+                    trailing_text = ""
                     if location_text:
                         location_match = LOCATION_PATTERN.fullmatch(location_text)
                         if location_match is None:
@@ -150,6 +152,7 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
                                 f"optionally followed by line and column"
                             )
 
+                        trailing_text = location_match["trailing"] or ""
                         location = SourceLocation(
                             file=location_match["file"],
                             line=(
@@ -171,6 +174,7 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
                             address=match["address"],
                             symbol=symbol,
                             location=location,
+                            trailing_text=trailing_text,
                             text=event.raw,
                         )
                     )
@@ -294,6 +298,7 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
                         style="grey50",
                     )
 
+                result.append(frame.trailing_text)
                 clean = ANSI_ESCAPE.sub("", frame.text)
                 suffix = EXCEPTION_SUFFIX.search(clean)
                 if suffix is not None:

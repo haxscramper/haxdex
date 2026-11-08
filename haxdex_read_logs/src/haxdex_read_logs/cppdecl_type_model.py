@@ -582,16 +582,13 @@ class QualType(FrozenModel):
     qualifiers: list[str] = Field(default_factory=list)
 
     def format(self) -> str:
-        scopes = [it.format() for it in self.scopes]
-        params = [it.format() for it in self.params]
+        name = self.name
+        if self.params:
+            params = ", ".join(param.format() for param in self.params)
+            name = f"{name}<{params}>"
 
-        return "::".join(
-            [
-                *scopes,
-                " ".join([self.name, *self.qualifiers]),
-                *(["<{}>".format(", ".join(params))] if params else []),
-            ]
-        )
+        qualified = "::".join([*(scope.format() for scope in self.scopes), name])
+        return " ".join([qualified, *self.qualifiers])
 
 
 _JUNK_QUALIFIERS = [

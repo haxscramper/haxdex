@@ -31,6 +31,7 @@ class StackFrame(BaseModel):
     address: str
     symbol: str | None = None
     location: SourceLocation | None = None
+    trailing_text: str = ""
     text: str
 
 
