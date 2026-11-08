@@ -34,6 +34,7 @@ add_library(
 target_compile_definitions(trace_events_lib PUBLIC HSTD_CPP_BUILD_WITH_PERFETTO=1)
 
 add_executable(trace_event_cli src/haxdex_cpp_build_stats/main.cpp)
+add_executable(type_parsing_cli src/haxdex_cpp_build_stats/type_parse_main.cpp)
 add_executable(
     trace_event_test
     tests/tSubsetCollection.cpp
@@ -68,6 +69,13 @@ target_link_libraries(
 
 target_link_libraries(
     trace_event_cli
+    PUBLIC
+        trace_events_lib
+        CLI11::CLI11
+)
+
+target_link_libraries(
+    type_parsing_cli
     PUBLIC
         trace_events_lib
         CLI11::CLI11

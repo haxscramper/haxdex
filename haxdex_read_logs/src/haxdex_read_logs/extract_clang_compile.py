@@ -21,6 +21,7 @@ from haxdex_read_logs.clang_error_model import (
     TextSegment,
     TokenKind,
 )
+from haxdex_read_logs.clang_simplify import rewrite_compile_log_types
 
 TEXTFSM_TEMPLATE = r"""Value LOG_LINE (\d+)
 Value RAW (.*)
@@ -324,6 +325,8 @@ def main() -> None:
         newline="",
     ) as stream:
         result = segment_compile_logs(stream.read())
+
+    result = rewrite_compile_log_types(result)
 
     arguments.output.write_text(
         result.model_dump_json(indent=2) + "\n",
