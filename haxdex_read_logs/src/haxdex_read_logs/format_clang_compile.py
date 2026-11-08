@@ -1,4 +1,6 @@
+import re
 from io import StringIO
+from textwrap import dedent
 
 from beartype import beartype
 from haxdex_read_logs.clang_error_model import (
@@ -6,6 +8,7 @@ from haxdex_read_logs.clang_error_model import (
     CompileLog,
     Diagnostic,
     DiagnosticMessage,
+    DiagnosticNote,
     IncludeContext,
     MessagePart,
     MessagePartKind,
@@ -60,11 +63,104 @@ def render_message_parts(parts: list[MessagePart]) -> Text:
 
 @beartype
 def render_source(source: list[str]) -> Text:
-    # Preserve source indentation and caret alignment within each original line.
-    return Text.from_ansi(
-        "".join(source).rstrip("\r\n"),
-        overflow="fold",
+    content = Text.from_ansi("".join(source)).plain.expandtabs(8)
+    content = re.sub(
+        r"^[ \t]*(?:\d+[ \t]*)?\| ?",
+        "",
+        content,
+        flags=re.MULTILINE,
     )
+
+    return Text(
+        dedent(content).rstrip("\r\n"),
+        no_wrap=True,
+        overflow="ignore",
+    )
+
+
+@beartype
+def render_instantiation_subject(parts: list[MessagePart]) -> Text:
+    message = render_message_parts(parts)
+    start: int | None = None
+    end = 0
+    offset = 0
+
+    for part in parts:
+        if part.type == MessagePartKind.TYPE:
+            if start is None:
+                start = offset
+            end = offset + len(part.text)
+
+        offset += len(part.text)
+
+    if start is not None:
+        return message[start:end]
+
+    prefix = re.match(
+        r"^in instantiation of "
+        r"(?:(?:.+? template specialization)|"
+        r"(?:member function)|(?:member class)|"
+        r"(?:static data member)|(?:function)|(?:class))\s+",
+        message.plain,
+    )
+    start = prefix.end() if prefix is not None else 0
+
+    suffix = re.search(r"\s+requested here\s*$", message.plain)
+    end = suffix.start() if suffix is not None else len(message)
+
+    return message[start:end]
+
+
+@beartype
+def render_instantiation_stack(notes: list[DiagnosticNote]) -> Text:
+    sources = [
+        render_source(note.source).split("\n", allow_blank=True) for note in notes
+    ]
+    annotation_column = (
+        max(
+            (line.cell_len for source in sources for line in source),
+            default=0,
+        )
+        + 4
+    )
+
+    subject_label = "instantiated as "
+    location_label = "in "
+    location_indent = len(subject_label) - len(location_label)
+    result = Text(no_wrap=True, overflow="ignore")
+
+    for note_index, (note, source) in enumerate(zip(notes, sources, strict=True)):
+        if note_index:
+            result.append("\n")
+
+        subject = Text(subject_label, style="dim")
+        subject.append_text(render_instantiation_subject(note.message))
+        annotations = [subject]
+
+        if note.location is not None:
+            location = Text(
+                f"{' ' * location_indent}{location_label}",
+                style="dim",
+            )
+            location.append_text(render_location(note.location))
+            annotations.append(location)
+
+        for row_index in range(max(len(source), len(annotations))):
+            if row_index:
+                result.append("\n")
+
+            source_width = 0
+
+            if row_index < len(source):
+                source_line = source[row_index]
+                result.append_text(source_line)
+                source_width = source_line.cell_len
+
+            if row_index < len(annotations):
+                result.append(" " * (annotation_column - source_width))
+                result.append_text(annotations[row_index])
+
+    return result
 
 
 @beartype
@@ -194,6 +290,11 @@ def render_diagnostic(diagnostic: Diagnostic) -> Text:
             style="bold",
         )
 
+        if kind == NoteKind.INSTANTIATION:
+            result.append("\n")
+            result.append_text(indent_text(render_instantiation_stack(notes), 2))
+            continue
+
         for index, note in enumerate(notes):
             result.append("\n\n" if index else "\n")
 
@@ -301,3 +402,39 @@ def format_compile_log(
                 )
 
     return output.getvalue()
+
+
+from rich.terminal_theme import MONOKAI, TerminalTheme
+
+
+@beartype
+def format_compile_log_html(
+    log: CompileLog,
+    *,
+    theme: TerminalTheme = MONOKAI,
+) -> str:
+    console = Console(
+        file=StringIO(),
+        record=True,
+        force_terminal=True,
+        color_system="truecolor",
+        no_color=False,
+        markup=False,
+        highlight=False,
+        soft_wrap=True,
+    )
+
+    console.print(
+        Text.from_ansi(
+            format_compile_log(log, color=True),
+            no_wrap=True,
+            overflow="ignore",
+        ),
+        end="",
+    )
+
+    return console.export_html(
+        theme=theme,
+        inline_styles=True,
+        clear=False,
+    )

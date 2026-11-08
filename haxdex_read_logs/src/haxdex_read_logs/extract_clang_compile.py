@@ -22,7 +22,10 @@ from haxdex_read_logs.clang_error_model import (
     TokenKind,
 )
 from haxdex_read_logs.clang_simplify import rewrite_compile_log_types
-from haxdex_read_logs.format_clang_compile import format_compile_log
+from haxdex_read_logs.format_clang_compile import (
+    format_compile_log,
+    format_compile_log_html,
+)
 
 TEXTFSM_TEMPLATE = r"""Value LOG_LINE (\d+)
 Value RAW (.*)
@@ -322,22 +325,18 @@ def main() -> None:
 
     with arguments.input.open(
         "r",
-        encoding="utf-8",
         newline="",
     ) as stream:
         result = segment_compile_logs(stream.read())
 
     result = rewrite_compile_log_types(result)
 
-    Path("/tmp/simplified_rewrite.json").write_text(
-        result.model_dump_json(indent=2) + "\n",
-        encoding="utf-8",
-    )
+    Path("/tmp/simplified_rewrite.json").write_text(result.model_dump_json(indent=2))
 
-    arguments.output.write_text(
-        format_compile_log(result) + "\n",
-        encoding="utf-8",
-    )
+    if str(arguments.output).endswith(".html"):
+        arguments.output.write_text(format_compile_log_html(result))
+    else:
+        arguments.output.write_text(format_compile_log(result))
 
 
 if __name__ == "__main__":
