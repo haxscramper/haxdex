@@ -16,7 +16,6 @@ from haxdex_read_logs.cppdecl_type_model import (
     to_qual_type,
 )
 from haxdex_read_logs.qual_type_rewrite import QualTypeRewriter
-from haxdex_read_logs.top_types import CompileLog
 from pydantic import ConfigDict, Field, RootModel
 
 
@@ -161,18 +160,21 @@ def simplify_types(types: list[str]) -> list[str]:
 
 
 @beartype
-def rewrite_compile_log_types(compile_log: CompileLog) -> CompileLog:
-    result = compile_log.model_copy(deep=True)
-
+def rewrite_clang_segment_types(
+    segments: list[ClangSegment],
+) -> list[ClangSegment]:
+    result = [segment.model_copy(deep=True) for segment in segments]
     type_parts = [
         part
-        for segment in result.segments
-        if isinstance(segment, ClangSegment)
+        for segment in result
         for diagnostic in segment.diagnostics
         for message in (diagnostic, *diagnostic.notes)
         for part in message.message
         if part.type == MessagePartKind.TYPE
     ]
+
+    if not type_parts:
+        return result
 
     simplified = simplify_types([part.text for part in type_parts])
 

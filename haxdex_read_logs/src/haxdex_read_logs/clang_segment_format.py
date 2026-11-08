@@ -721,12 +721,14 @@ def format_clang_segment_group(
     *,
     output: StringIO,
     color: bool,
-):
+) -> None:
+    from haxdex_read_logs.clang_simplify import (
+        rewrite_clang_segment_types,
+    )
+
+    rewritten = rewrite_clang_segment_types(segment_list)
     diagnostics = [
-        diagnostic
-        for segment in segment_list
-        if isinstance(segment, ClangSegment)
-        for diagnostic in segment.diagnostics
+        diagnostic for segment in rewritten for diagnostic in segment.diagnostics
     ]
     diagnostic_groups = {
         id(diagnostic): group
@@ -734,7 +736,7 @@ def format_clang_segment_group(
         for diagnostic in group
     }
 
-    for segment in segment_list:  # noqa
+    for segment in rewritten:  # noqa
         output.write(
             format_clang_segment(
                 segment,

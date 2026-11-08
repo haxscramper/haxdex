@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field
 class SegmentKind(StrEnum):
     CLANG = "clang"
     TEXT = "text"
+    CPPTRACE = "cpptrace"
+    EXCEPTION = "exception"
+    GOOGLE_TEST = "google_test"
+    ASSERTION = "assertion"
 
 
 class MessagePartKind(StrEnum):
