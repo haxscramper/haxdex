@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from beartype.typing import Annotated, Literal
+from beartype.typing import Literal
 from pydantic import BaseModel, Field
 
 
@@ -73,13 +73,6 @@ class Diagnostic(DiagnosticMessage):
     notes: list[DiagnosticNote] = Field(default_factory=list)
 
 
-class TextSegment(BaseModel):
-    kind: Literal[SegmentKind.TEXT] = SegmentKind.TEXT
-    start_line: int
-    end_line: int
-    text: str
-
-
 class ClangSegment(BaseModel):
     kind: Literal[SegmentKind.CLANG] = SegmentKind.CLANG
     start_line: int
@@ -91,15 +84,6 @@ class ClangSegment(BaseModel):
         default_factory=list,
         description="Include lines not yet associated with a diagnostic.",
     )
-
-
-class CompileLog(BaseModel):
-    segments: list[
-        Annotated[
-            ClangSegment | TextSegment,
-            Field(discriminator="kind"),
-        ]
-    ] = Field(default_factory=list)
 
 
 @dataclass

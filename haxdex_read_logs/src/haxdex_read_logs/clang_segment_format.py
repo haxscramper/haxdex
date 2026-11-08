@@ -3,9 +3,8 @@ from io import StringIO
 from textwrap import dedent
 
 from beartype import beartype
-from haxdex_read_logs.clang_error_model import (
+from haxdex_read_logs.clang_type_model import (
     ClangSegment,
-    CompileLog,
     Diagnostic,
     DiagnosticMessage,
     DiagnosticNote,
@@ -15,7 +14,6 @@ from haxdex_read_logs.clang_error_model import (
     NoteKind,
     Severity,
     SourceLocation,
-    TextSegment,
 )
 from rich.console import Console
 from rich.text import Text
@@ -718,16 +716,15 @@ def format_clang_segment(
 
 
 @beartype
-def format_compile_log(
-    log: CompileLog,
+def format_clang_segment_group(
+    segment_list: list[ClangSegment],
     *,
-    color: bool = False,
-) -> str:
-    """Deduplicate diagnostics across the log; preserve text segments verbatim."""
-    output = StringIO()
+    output: StringIO,
+    color: bool,
+):
     diagnostics = [
         diagnostic
-        for segment in log.segments
+        for segment in segment_list
         if isinstance(segment, ClangSegment)
         for diagnostic in segment.diagnostics
     ]
@@ -737,54 +734,11 @@ def format_compile_log(
         for diagnostic in group
     }
 
-    for segment in log.segments:
-        match segment:
-            case TextSegment():
-                output.write(segment.text)
-
-            case ClangSegment():
-                output.write(
-                    format_clang_segment(
-                        segment,
-                        color=color,
-                        diagnostic_groups=diagnostic_groups,
-                    )
-                )
-
-    return output.getvalue()
-
-
-from rich.terminal_theme import MONOKAI, TerminalTheme
-
-
-@beartype
-def format_compile_log_html(
-    log: CompileLog,
-    *,
-    theme: TerminalTheme = MONOKAI,
-) -> str:
-    console = Console(
-        file=StringIO(),
-        record=True,
-        force_terminal=True,
-        color_system="truecolor",
-        no_color=False,
-        markup=False,
-        highlight=False,
-        soft_wrap=True,
-    )
-
-    console.print(
-        Text.from_ansi(
-            format_compile_log(log, color=True),
-            no_wrap=True,
-            overflow="ignore",
-        ),
-        end="",
-    )
-
-    return console.export_html(
-        theme=theme,
-        inline_styles=True,
-        clear=False,
-    )
+    for segment in segment_list:  # noqa
+        output.write(
+            format_clang_segment(
+                segment,
+                color=color,
+                diagnostic_groups=diagnostic_groups,
+            )
+        )

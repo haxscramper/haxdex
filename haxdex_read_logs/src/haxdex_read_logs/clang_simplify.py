@@ -7,7 +7,7 @@ from pathlib import Path
 import plumbum
 from beartype import beartype
 from beartype.typing import Annotated, Literal, Optional
-from haxdex_read_logs.clang_error_model import ClangSegment, CompileLog, MessagePartKind
+from haxdex_read_logs.clang_type_model import ClangSegment, MessagePartKind
 from haxdex_read_logs.cppdecl_type_model import (
     FrozenModel,
     NormalizedRoot,
@@ -16,6 +16,7 @@ from haxdex_read_logs.cppdecl_type_model import (
     to_qual_type,
 )
 from haxdex_read_logs.qual_type_rewrite import QualTypeRewriter
+from haxdex_read_logs.top_types import CompileLog
 from pydantic import ConfigDict, Field, RootModel
 
 

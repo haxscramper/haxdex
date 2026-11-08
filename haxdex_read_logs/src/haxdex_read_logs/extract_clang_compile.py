@@ -5,9 +5,9 @@ from pathlib import Path
 
 import textfsm
 from beartype import beartype
-from haxdex_read_logs.clang_error_model import (
+from haxdex_read_logs.clang_simplify import rewrite_compile_log_types
+from haxdex_read_logs.clang_type_model import (
     ClangSegment,
-    CompileLog,
     Diagnostic,
     DiagnosticMessage,
     DiagnosticNote,
@@ -18,14 +18,14 @@ from haxdex_read_logs.clang_error_model import (
     NoteKind,
     Severity,
     SourceLocation,
-    TextSegment,
     TokenKind,
 )
-from haxdex_read_logs.clang_simplify import rewrite_compile_log_types
-from haxdex_read_logs.format_clang_compile import (
+from haxdex_read_logs.format_log_general import (
     format_compile_log,
     format_compile_log_html,
 )
+from haxdex_read_logs.top_types import CompileLog, TextSegment
+from loguru import logger
 
 TEXTFSM_TEMPLATE = r"""Value LOG_LINE (\d+)
 Value RAW (.*)
@@ -337,6 +337,8 @@ def main() -> None:
         arguments.output.write_text(format_compile_log_html(result))
     else:
         arguments.output.write_text(format_compile_log(result))
+
+    logger.info(f"Wrote result to {arguments.output}")
 
 
 if __name__ == "__main__":
