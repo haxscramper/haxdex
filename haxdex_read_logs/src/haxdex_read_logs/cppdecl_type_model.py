@@ -542,6 +542,7 @@ class NormalizedName(FrozenModel):
 
 class NormalizedRoot(FrozenModel):
     names: NormalizedName
+    ambiguous_alternatives: JsonArray[NormalizedName]
 
 
 class NormalizedAmbiguousRoot(NormalizedRoot):
@@ -593,6 +594,12 @@ class QualType(FrozenModel):
 
 _JUNK_QUALIFIERS = [
     NormalizedQualifierTag.TEMPLATE_ARG,
+    NormalizedQualifierTag.NUMBER,
+    NormalizedQualifierTag.INTEGER,
+    NormalizedQualifierTag.BASE10,
+    NormalizedQualifierTag.BASE16,
+    NormalizedQualifierTag.BASE2,
+    NormalizedQualifierTag.BASE8,
 ]
 
 

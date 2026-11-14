@@ -219,7 +219,7 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
         self,
         values: list[StackTraceSegment],
         *,
-        show_original: bool = True,
+        show_original: bool = False,
     ) -> Text:
 
         rewritten = [value.model_copy(deep=True) for value in values]
@@ -298,11 +298,13 @@ class CpptraceProcessor(LogProcessor[StackTraceSegment]):
                         style="grey50",
                     )
 
-                result.append(frame.trailing_text)
+                if frame.trailing_text:
+                    result.append("\n")
+                    result.append(frame.trailing_text.lstrip(), style="bold green")
                 clean = ANSI_ESCAPE.sub("", frame.text)
                 suffix = EXCEPTION_SUFFIX.search(clean)
                 if suffix is not None:
-                    result.append(suffix.group().rstrip("\r\n"))
+                    result.append(suffix.group().rstrip("\r\n"), style="bold green")
 
                 line_ending = frame.text[len(frame.text.rstrip("\r\n")) :]
                 original_symbol = original_symbols[id(frame)]

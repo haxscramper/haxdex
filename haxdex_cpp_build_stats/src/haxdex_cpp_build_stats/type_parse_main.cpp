@@ -1,8 +1,11 @@
 #include <CLI/CLI.hpp>
 #include <cppdecl/declarations/parse.h>
+#include <cppdecl/declarations/parse_simple.h>
 #include <fstream>
+#include <haxdex_cpp_build_stats/event_writer.hpp>
 #include <haxdex_cpp_build_stats/to_json.hpp>
 #include <haxdex_cpp_build_stats/to_json_normalized.hpp>
+#include <hstd_cpp_lib/logger/logger.hpp>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -14,6 +17,10 @@
 #include <rapidjson/error/en.h>
 #include <rapidjson/ostreamwrapper.h>
 #include <rapidjson/prettywriter.h>
+
+#include <haxdex_cpp_build_stats/perfetto_aux.hpp>
+#include <hstd_cpp_lib/logger/perfetto_main.hpp>
+
 
 // Add the project headers declaring cppdecl's parser and JSON converters.
 
@@ -33,9 +40,41 @@ rapidjson::Value parseQualifiedName(
             allocator},
         allocator);
 
-    cppdecl::ParseQualifiedNameFlags flags{};
-    std::string_view                 input{original};
-    auto                             result = cppdecl::ParseQualifiedName(input, flags);
+    cppdecl::ParseDeclFlags flags{cppdecl::ParseDeclFlags::accept_everything};
+    std::string_view        input{original};
+    auto                    result = cppdecl::ParseDecl(input, flags);
+
+    if (input.size() != 0) {
+        HSLOG_WARNING_DEPTH_SCOPE_ANON(
+            "Could not finish parsing everything: {} left", input);
+
+        try {
+            auto name   = cppdecl::ParseQualifiedName_Simple(input);
+            std::ignore = cppdecl::ToJson(name, allocator);
+            std::ignore = cppdecl::ToJsonNormalized(name, allocator);
+            HSLOG_INFO("Parsed as qualified name OK");
+        } catch (std::exception const& e) {
+            HSLOG_ERROR("Value cannot be parsed as type: {}", e.what());
+        }
+
+        try {
+            auto type   = cppdecl::ParseType_Simple(input);
+            std::ignore = cppdecl::ToJson(type, allocator);
+            std::ignore = cppdecl::ToJsonNormalized(type, allocator);
+            HSLOG_INFO("Parsed as type OK");
+        } catch (std::exception const& e) {
+            HSLOG_ERROR("Value cannot be parsed as type: {}", e.what());
+        }
+
+        try {
+            auto decl   = cppdecl::ParseDecl_Simple(input);
+            std::ignore = cppdecl::ToJson(decl, allocator);
+            std::ignore = cppdecl::ToJsonNormalized(decl, allocator);
+            HSLOG_INFO("Parsed as decl OK");
+        } catch (std::exception const& e) {
+            HSLOG_ERROR("Value cannot be parsed as decl: {}", e.what());
+        }
+    }
 
     if (std::get_if<cppdecl::ParseError>(&result) != nullptr) { return output; }
 
@@ -59,6 +98,8 @@ int main(int argc, char** argv) {
     app.add_option("output", outputPath, "Output JSON path")->required();
     app.add_flag(
         "--with-full-qualfied", with_full_qualified, "Use fully qualified names");
+
+    hstd::log::push_sink(hstd::log::init_stdout_sink(false));
 
     CLI11_PARSE(app, argc, argv);
 
