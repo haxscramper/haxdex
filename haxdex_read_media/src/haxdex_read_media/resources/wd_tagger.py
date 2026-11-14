@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import flax
 import jax
@@ -26,9 +26,9 @@ jax.config.update("jax_persistent_cache_min_compile_time_secs", 0)
 
 
 class WdTag(BaseModel, extra="forbid"):
-    category: str
     name: str
     probability: float
+    category: Optional[str] = None
 
 
 class WdTaggerRequest(BaseModel, extra="forbid"):
