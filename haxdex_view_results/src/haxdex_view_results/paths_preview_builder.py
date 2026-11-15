@@ -5,9 +5,9 @@ from pathlib import Path
 
 import magic
 from beartype import beartype
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_handler import ActionResult
+from haxdex_core.db import IndexDatabase
+from haxdex_core.types import FileHash
 from haxdex_core.utils import format_timestamp_relative
 from haxdex_view_results.builder import WidgetBuilder
 from hstd_py_qt.file_view.file_content_builder import (

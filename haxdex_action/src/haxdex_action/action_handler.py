@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 from beartype.typing import Any, ClassVar, Mapping
-from haxdex.gui.file_tree.actions.action_db import OperationRow
-from haxdex.gui.file_tree.columns.file_tree_column import FileTreeNode
+from haxdex_action.action_db import OperationRow
+from haxdex_view_tree.columns.file_tree_column import FileTreeNode
 from pydantic import BaseModel, model_validator
 from pydantic_core import PydanticCustomError
 

@@ -1,27 +1,24 @@
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-    FFProbeIndexerResult,
-    FFProbeInfoModel,
-)
+from haxdex_read_media.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeInfo
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
     FileTreeNode,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 class VideoResolutionData(BaseModel, extra="forbid"):
-    probe: FFProbeInfoModel
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    probe: FFProbeInfo
 
 
 @beartype
-def format_resolution(probe: FFProbeInfoModel) -> str:
+def format_resolution(probe: FFProbeInfo) -> str:
     if probe.width is None or probe.height is None:
         return ""
 
@@ -40,9 +37,8 @@ class VideoResolutionColumnSpec(FileTreeColumnSpec):
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
         if FFProbeIndexer.asset_name in assets:
-            result = cast(FFProbeIndexerResult, assets[FFProbeIndexer.asset_name])
-            if result.probe:
-                return VideoResolutionData(probe=result.probe)
+            result = cast(FFProbeInfo, assets[FFProbeIndexer.asset_name])
+            return VideoResolutionData(probe=result)
 
         return None
 

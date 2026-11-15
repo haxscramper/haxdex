@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import List, Optional, Sequence
 
 from beartype import beartype
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_handler import ActionResult
+from haxdex_core.db import IndexDatabase
+from haxdex_core.types import FileHash
 from haxdex_view_results.builder import WidgetBuilder
 from haxdex_view_results.json_preview_builder import JsonWidgetBuilder
 from haxdex_view_results.paths_preview_builder import PathsWidgetBuilder

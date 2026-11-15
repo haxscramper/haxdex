@@ -1,27 +1,24 @@
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-    FFProbeIndexerResult,
-    FFProbeInfoModel,
-)
+from haxdex_read_media.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeInfo
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
     FileTreeNode,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 class VideoBitrateData(BaseModel, extra="forbid"):
-    probe: FFProbeInfoModel
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    probe: FFProbeInfo
 
 
 @beartype
-def format_bitrate(probe: FFProbeInfoModel) -> str:
+def format_bitrate(probe: FFProbeInfo) -> str:
     if probe.bitrate_bps is None:
         return ""
 

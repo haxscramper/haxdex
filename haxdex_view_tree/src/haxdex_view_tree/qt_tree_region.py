@@ -3,12 +3,12 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_handler import ActionResult
 from haxdex_action.action_video_convert import (
     VideoConvertAction,
     VideoConvertActionHandler,
 )
+from haxdex_core.types import FileHash
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeNode,

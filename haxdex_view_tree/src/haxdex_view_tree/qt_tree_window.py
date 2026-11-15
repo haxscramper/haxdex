@@ -1,8 +1,5 @@
 from beartype import beartype
 from beartype.typing import Sequence, cast
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_execute import ActionExecutor
 from haxdex_action.action_list_model import (
     ActionListModel,
@@ -11,6 +8,9 @@ from haxdex_action.action_list_view import (
     ActionListView,
 )
 from haxdex_cli.cli_config import AppConfig
+from haxdex_core.db import IndexDatabase
+from haxdex_core.job_types import BaseIndexer, RunContext
+from haxdex_core.types import FileHash
 from haxdex_view_results.builder import WidgetBuilder
 from haxdex_view_results.preview_pane import FilePreviewPane
 from haxdex_view_tree.columns.file_duplicate_column import (

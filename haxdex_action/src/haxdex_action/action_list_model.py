@@ -16,6 +16,7 @@ from haxdex_view_tree.columns.file_tree_column import FileTreeNode
 from haxdex_view_tree.columns.video_convert_column import (
     VideoConvertData,
 )
+from hstd_py_lib.pydantic_utils import model_from_json_data
 from hstd_py_qt.file_view.column_model import (
     AbstractColumnItemModel,
     ColumnSpec,
@@ -27,7 +28,6 @@ from PyQt6.QtCore import (
 )
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.services.pydantic_utils import model_from_json_data
 
 
 def to_action_handler_map(handlers: list[ActionHandler]) -> dict[str, ActionHandler]:

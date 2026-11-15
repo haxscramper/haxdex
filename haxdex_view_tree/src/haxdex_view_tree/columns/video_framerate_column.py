@@ -1,32 +1,29 @@
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-    FFProbeIndexerResult,
-    FFProbeInfoModel,
-)
+from haxdex_read_media.indexers.ffprobe_indexer import FFProbeIndexer, FFProbeInfo
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
     FileTreeNode,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from PyQt6.QtCore import QModelIndex, Qt
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
 
 
 class VideoFramerateData(BaseModel, extra="forbid"):
-    probe: FFProbeInfoModel
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    probe: FFProbeInfo
 
 
 @beartype
-def format_framerate(probe: FFProbeInfoModel) -> str:
+def format_framerate(probe: FFProbeInfo) -> str:
     if probe.fps is None:
         return ""
 
     if abs(probe.fps - round(probe.fps)) < 1e-6:
-        return f"{int(round(probe.fps))} fps"
+        return f"{round(probe.fps)} fps"
 
     return f"{probe.fps:.3f} fps"
 
@@ -43,9 +40,9 @@ class VideoFramerateColumnSpec(FileTreeColumnSpec):
         nested: list[FileTreeNode],
     ) -> Optional[BaseModel]:
         if FFProbeIndexer.asset_name in assets:
-            result = cast(FFProbeIndexerResult, assets[FFProbeIndexer.asset_name])
-            if result.probe:
-                return VideoFramerateData(probe=result.probe)
+            result = cast(FFProbeInfo, assets[FFProbeIndexer.asset_name])
+            if result:
+                return VideoFramerateData(probe=result)
 
         return None
 

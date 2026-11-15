@@ -4,11 +4,12 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, Callable
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_handler import BaseAction
 from haxdex_action.action_list_model import (
     ActionListModel,
 )
+from haxdex_core.types import FileHash
+from hstd_py_lib.pydantic_utils import model_to_json_data
 from hstd_py_qt.file_view.column_sort_filter_proxy import (
     ColumnSortFilterProxyModel,
 )
@@ -26,7 +27,6 @@ from PyQt6.QtWidgets import (
 )
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.services.pydantic_utils import model_to_json_data
 
 
 @beartype

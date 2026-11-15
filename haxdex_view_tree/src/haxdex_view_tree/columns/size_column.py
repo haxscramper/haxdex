@@ -1,10 +1,7 @@
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
 from haxdex_core.utils import format_size
-from haxdex_read_media.indexers.file_stats import (
-    FileStatsIndexer,
-    FileStatsIndexerResult,
-)
+from haxdex_read_media.indexers.file_stats import FileStatsIndexer
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,

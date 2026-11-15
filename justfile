@@ -67,10 +67,14 @@ run_arango:
         --vector-index
 
 
+
 HAXDEX_ROOT := source_directory()
 CONAN_PROFILE := env("CONAN_PROFILE")
-CONAN_PYTHON_CONFIG := shell("uv run python -m hstd_py_lib.project_utils.get_python_config") \
+# justfile triggers evaluation lazily, so this garbage here is necessary to ensure the
+# hstd py lib is force-synced even if the hash/version mismatches in some place. 
+CONAN_PYTHON_CONFIG := shell("uv lock --refresh-package hstd-py-lib --upgrade-package hstd-py-lib && uv run python -m hstd_py_lib.project_utils.get_python_config") \
     + " -c " + quote("user.haxorg:uv_project=" + HAXDEX_ROOT)
+
 
 SUPPRESSION_FILE := HAXDEX_ROOT / "clang_suppressions.supp"
 
@@ -95,6 +99,7 @@ py_validate target *args:
         {{args}}
 
 validate_all *args:
+    just py_validate haxdex_view_tree {{args}}
     just py_validate haxdex_action {{args}}
     just py_validate haxdex_cli {{args}}
     just py_validate haxdex_core {{args}}
@@ -103,7 +108,6 @@ validate_all *args:
     just py_validate haxdex_read_media {{args}}
     just py_validate haxdex_view_generation {{args}}
     just py_validate haxdex_view_results {{args}}
-    just py_validate haxdex_view_tree {{args}}
     just py_validate hstd_py_qt {{args}}
 
 conan_workspace_install_monorepo:

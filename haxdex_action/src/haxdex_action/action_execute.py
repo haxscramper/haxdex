@@ -22,12 +22,11 @@ from haxdex_action.action_video_convert import (
     VideoConvertActionHandler,
 )
 from haxdex_core.utils import dump_with_type
+from hstd_py_lib.pydantic_utils import model_from_json_data, model_to_json_data
 from loguru import logger
 from pydantic import BaseModel, field_validator
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
-
-from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 
 T = TypeVar("T", bound=BaseModel)
 

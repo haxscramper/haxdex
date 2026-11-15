@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import FileHash
+from haxdex_core.db import IndexDatabase
 from haxdex_core.file_iteration import RootFilter, match_root
+from haxdex_core.job_types import BaseIndexer, RunContext
+from haxdex_core.types import FileHash
 from loguru import logger
 from pydantic import BaseModel
 
@@ -99,7 +99,7 @@ def fetch_indexer_assets(
             available_hashes = [
                 file_hash
                 for file_hash in hash_objs
-                if db.has_indexer_result(file_hash, indexer)
+                if db.has_indexer_result(file_hash, indexer.asset_name)
             ]
 
             if not available_hashes:

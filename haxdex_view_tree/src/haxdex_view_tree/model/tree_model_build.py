@@ -7,11 +7,11 @@ from pprint import pformat
 from typing import Optional
 
 from beartype import beartype
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.job_types import BaseIndexer, RunContext
-from haxdex.services.core.types import FileHash
 from haxdex_cli.cli_config import DirConfig
+from haxdex_core.db import IndexDatabase
 from haxdex_core.file_iteration import RootFilter, match_root, prepare_root_filters
+from haxdex_core.job_types import BaseIndexer, RunContext
+from haxdex_core.types import FileHash
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
@@ -28,6 +28,7 @@ from haxdex_view_tree.model.tree_model_user_edits import (
     apply_user_edits,
     load_user_edits,
 )
+from hstd_py_lib.pydantic_utils import model_from_json_data, model_to_json_data
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import (
@@ -35,8 +36,6 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import Engine
-
-from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 
 
 def _load_flat_file_nodes(

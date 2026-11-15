@@ -10,6 +10,13 @@ dependencies = [
     "pydantic>=2",
     "sqlalchemy>=2",
     "hstd_py_qt",
+    "haxdex_action",
+    "haxdex_core",
+    "haxdex_read_media",
+    "haxdex_cli",
+    "haxdex_view_results",
+    "jedi",
+    "hstd_py_lib",
 ]
 
 [dependency-groups]
@@ -17,6 +24,7 @@ dev = [
   "pytest",
   "pytest-xdist",
   "pytest-reportlog",
+  "pytest-cov",
 ]
 
 

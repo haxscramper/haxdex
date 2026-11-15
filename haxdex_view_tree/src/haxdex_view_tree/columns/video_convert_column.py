@@ -2,9 +2,7 @@ import enum
 
 from beartype import beartype
 from beartype.typing import Any, Optional, cast
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
+from haxdex_read_media.indexers.ffprobe_indexer import FFProbeIndexer
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,

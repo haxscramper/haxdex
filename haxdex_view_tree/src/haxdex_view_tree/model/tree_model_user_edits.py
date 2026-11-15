@@ -9,11 +9,10 @@ from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeNode,
 )
+from hstd_py_lib.pydantic_utils import model_from_json_data, model_to_json_data
 from pydantic import BaseModel
 from sqlalchemy import Column, MetaData, Table, Text, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-
-from haxdex.services.pydantic_utils import model_from_json_data, model_to_json_data
 
 CACHE_USER_EDIT_TABLE = "file_tree_user_edits"
 

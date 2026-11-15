@@ -4,10 +4,7 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, Literal, Optional, cast
-from haxdex_read_media.indexers.file_stats import (
-    FileStatsIndexer,
-    FileStatsIndexerResult,
-)
+from haxdex_read_media.indexers.file_stats import FileStatsIndexer
 from haxdex_view_tree.columns.file_tree_column import (
     FileTreeColumnSpec,
     FileTreeInitArgs,
@@ -89,8 +86,7 @@ class SizeShareDelegate(QStyledItemDelegate):
             return
 
         progress = int(round(share * 1000))
-        if progress < 0:
-            progress = 0
+        progress = max(progress, 0)
         if 1000 < progress:
             progress = 1000
 

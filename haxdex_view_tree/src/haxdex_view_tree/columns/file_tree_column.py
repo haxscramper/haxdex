@@ -4,7 +4,7 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any, ClassVar, Optional, cast
-from haxdex.services.core.types import AnyModel, FileHash
+from haxdex_core.types import FileHash
 from hstd_py_qt.file_view.column_model import ColumnSpec
 from pydantic import BaseModel, Field
 from PyQt6.QtCore import QModelIndex, Qt
@@ -42,7 +42,7 @@ class FileTreeColumnSpec(ColumnSpec, ABC):
     def __init__(self, title: str) -> None:
         self.title = title
 
-    column_type: ClassVar[type[AnyModel]]
+    column_type: ClassVar[type[BaseModel]]
     column_name: ClassVar[str]
 
     @abstractmethod

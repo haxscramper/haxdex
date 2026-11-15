@@ -1,9 +1,8 @@
 import json
 
-from arango import DocumentGetError
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
 from haxdex_action.action_handler import ActionResult
+from haxdex_core.db import IndexDatabase
+from haxdex_core.types import FileHash
 from haxdex_view_results.builder import WidgetBuilder
 from haxdex_view_results.json_preview_widget import JsonPreviewWidget
 from PyQt6.QtWidgets import QWidget
