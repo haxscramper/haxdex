@@ -11,10 +11,16 @@ dependencies = [
     "sqlalchemy>=2",
     "platformdirs",
     "pathspec",
+    "hstd_py_lib",
 ]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+  "pytest",
+  "pytest-xdist",
+  "pytest-reportlog",
+]
+
 
 [build-system]
 requires = ["hatchling"]

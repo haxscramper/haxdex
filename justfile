@@ -84,6 +84,28 @@ conan_validate target editable:
     --warning-suppressions "{{SUPPRESSION_FILE}}" \
     --log-dir "{{HAXDEX_ROOT}}/build/logs/{{target}}"
 
+py_validate target *args:
+    rm -rf {{HAXDEX_ROOT}}/build/logs/{{target}}
+    mkdir -p {{HAXDEX_ROOT}}/build/logs/{{target}}
+    uv run --project "{{HAXDEX_ROOT}}" \
+        python -m "hstd_py_lib.project_utils.test_uv_install" \
+        {{HAXDEX_ROOT}}/{{target}} \
+        --conan-profile={{CONAN_PROFILE}} \
+        --output-dir={{HAXDEX_ROOT}}/build/logs/{{target}} \
+        {{args}}
+
+validate_all *args:
+    just py_validate haxdex_action {{args}}
+    just py_validate haxdex_cli {{args}}
+    just py_validate haxdex_core {{args}}
+    just py_validate haxdex_read_code_tsitter {{args}}
+    just py_validate haxdex_read_logs {{args}}
+    just py_validate haxdex_read_media {{args}}
+    just py_validate haxdex_view_generation {{args}}
+    just py_validate haxdex_view_results {{args}}
+    just py_validate haxdex_view_tree {{args}}
+    just py_validate hstd_py_qt {{args}}
+
 conan_workspace_install_monorepo:
   conan workspace super-install \
     --output-folder=build/conan_super \
@@ -93,4 +115,6 @@ conan_workspace_install_monorepo:
     --profile:all={{CONAN_PROFILE}}
 
 run_to_output target *ARGS:
-  -just {{target}} {{ARGS}} > build/target_result.log 2>&1
+    -just {{target}} {{ARGS}} > build/target_result.log 2>&1
+    echo "execution OK"
+    
