@@ -97,7 +97,7 @@ class CaptionPreviewConfig(BaseModel, extra="forbid"):
     image_loading_text: str = "loading…"
 
     caption_font_family: str | None = None
-    caption_font_size: int = Field(default=18, gt=0)
+    caption_font_size: int = Field(default=14, gt=0)
     caption_editor_margin: int = Field(default=4, ge=0)
     highlight_box_width: int = Field(default=2, gt=0)
 

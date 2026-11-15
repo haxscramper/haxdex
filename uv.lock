@@ -22,6 +22,7 @@ members = [
     "haxdex-read-logs",
     "haxdex-read-media",
     "haxdex-view-generation",
+    "haxdex-view-results",
     "haxdex-view-tree",
     "hstd-py-qt",
 ]
@@ -807,6 +808,7 @@ dependencies = [
     { name = "haxdex-read-logs" },
     { name = "haxdex-read-media" },
     { name = "haxdex-view-generation" },
+    { name = "haxdex-view-results" },
     { name = "haxdex-view-tree" },
     { name = "hstd-py-lib" },
     { name = "hstd-py-qt" },
@@ -822,6 +824,7 @@ requires-dist = [
     { name = "haxdex-read-logs", editable = "haxdex_read_logs" },
     { name = "haxdex-read-media", editable = "haxdex_read_media" },
     { name = "haxdex-view-generation", editable = "haxdex_view_generation" },
+    { name = "haxdex-view-results", editable = "haxdex_view_results" },
     { name = "haxdex-view-tree", editable = "haxdex_view_tree" },
     { name = "hstd-py-lib", path = "../../haxorg/dist/hstd_py_lib-0.1.0-py3-none-any.whl" },
     { name = "hstd-py-qt", editable = "hstd_py_qt" },
@@ -1025,6 +1028,39 @@ dev = [{ name = "pytest" }]
 name = "haxdex-view-generation"
 version = "0.1.0"
 source = { editable = "haxdex_view_generation" }
+dependencies = [
+    { name = "beartype" },
+    { name = "duckdb" },
+    { name = "duckdb-engine" },
+    { name = "hstd-py-qt" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "sqlalchemy" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beartype" },
+    { name = "duckdb" },
+    { name = "duckdb-engine" },
+    { name = "hstd-py-qt", editable = "hstd_py_qt" },
+    { name = "loguru" },
+    { name = "pydantic", specifier = ">=2" },
+    { name = "sqlalchemy", specifier = ">=2" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest" }]
+
+[[package]]
+name = "haxdex-view-results"
+version = "0.1.0"
+source = { editable = "haxdex_view_results" }
 dependencies = [
     { name = "beartype" },
     { name = "duckdb" },

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from beartype import beartype
+from haxdex.services.core.db import IndexDatabase
+from haxdex.services.core.types import FileHash
 from PyQt6.QtCore import (
     QAbstractListModel,
     QModelIndex,
@@ -11,8 +13,6 @@ from PyQt6.QtCore import (
 )
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.services.core.db import IndexDatabase
-from haxdex.services.core.types import FileHash
 
 
 @beartype
