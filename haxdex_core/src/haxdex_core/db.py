@@ -68,7 +68,7 @@ class IndexDatabase:
         self,
         asset_name: str,
         result_schema: MetaData,
-        reset_db: bool,
+        reset_db: bool = False,
     ) -> IndexerStore:
         existing = self._indexer_databases.get(asset_name)
         if existing is not None:

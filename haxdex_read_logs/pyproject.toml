@@ -13,3 +13,10 @@ dependencies = [
     "textfsm",
     "matchpy",
 ]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "pytest-xdist",
+  "pytest-reportlog",
+]
