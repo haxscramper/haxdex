@@ -1,7 +1,7 @@
 from beartype import beartype
 from beartype.typing import Callable
 from pydantic import BaseModel, ValidationError
-from PyQt6.Qsci import QsciLexerJSON, QsciScintilla
+from PyQt6.Qsci import QsciLexerJSON
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from hstd_py_qt.file_view.sci_editor import SciEditor
 
 
 @beartype
@@ -30,13 +32,9 @@ class ConfigDialog[ConfigT: BaseModel](QDialog):
         self.setModal(False)
         self.resize(800, 600)
 
-        self.editor = QsciScintilla(self)
+        self.editor = SciEditor(self)
         self.lexer = QsciLexerJSON(self.editor)
-        self.editor.setLexer(self.lexer)
-        self.editor.setUtf8(True)
-        self.editor.setAutoIndent(True)
-        self.editor.setMarginLineNumbers(0, True)
-        self.editor.setMarginWidth(0, "00000")
+        self.editor.set_editor_lexer(self.lexer)
 
         self.status = QLabel(self)
         self.status.setWordWrap(True)

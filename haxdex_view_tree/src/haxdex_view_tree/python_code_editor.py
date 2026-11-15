@@ -1,13 +1,14 @@
 import traceback
 from dataclasses import dataclass
-from typing import Callable, Mapping
 
 import jedi
 from beartype import beartype
+from beartype.typing import Callable, Mapping
+from hstd_py_qt.file_view.sci_editor import SciEditor
 from loguru import logger
 from PyQt6.Qsci import QsciLexerPython, QsciScintilla
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFontDatabase, QKeyEvent
+from PyQt6.QtGui import QColor, QKeyEvent
 from PyQt6.QtWidgets import QWidget
 
 QUERY_FILENAME = "<glom-query>"
@@ -61,16 +62,8 @@ def as_query_error(exc: Exception) -> QueryError | None:
 
 
 @beartype
-class PythonQueryEditor(QsciScintilla):
-    """Python editor with common IDE-style editing behavior."""
-
-    _DELIMITER_PAIRS = {
-        "(": ")",
-        "[": "]",
-        "{": "}",
-        "'": "'",
-        '"': '"',
-    }
+class PythonQueryEditor(SciEditor):
+    """Python editor with Jedi completion and query error annotations."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -78,7 +71,20 @@ class PythonQueryEditor(QsciScintilla):
         self._jedi_runtime_namespace_provider: (
             Callable[[], Mapping[str, object]] | None
         ) = None
-        self._configure_editor()
+
+        self.python_lexer = QsciLexerPython(self)
+        self.set_editor_lexer(self.python_lexer)
+
+        self.indicatorDefine(
+            QsciScintilla.IndicatorStyle.SquiggleIndicator,
+            QUERY_ERROR_INDICATOR,
+        )
+        self.setIndicatorForegroundColor(
+            QColor("#d73a49"),
+            QUERY_ERROR_INDICATOR,
+        )
+
+        self.SCN_CHARADDED.connect(self._on_char_added)
 
     def set_jedi_runtime_namespaces(
         self, namespaces: list[Mapping[str, object]]
@@ -91,78 +97,10 @@ class PythonQueryEditor(QsciScintilla):
     ) -> None:
         self._jedi_runtime_namespace_provider = provider
 
-    def _configure_editor(self) -> None:
-        font = QFontDatabase.systemFont(
-            QFontDatabase.SystemFont.FixedFont,
-        )
-        font.setFixedPitch(True)
-
-        self.python_lexer = QsciLexerPython(self)
-        self.python_lexer.setDefaultFont(font)
-
-        for style in range(1 << self.python_lexer.styleBitsNeeded()):
-            self.python_lexer.setFont(font, style)
-
-        self.setFont(font)
-        self.setLexer(self.python_lexer)
-        self.setUtf8(True)
-
-        self.setAutoIndent(True)
-        self.setIndentationsUseTabs(False)
-        self.setIndentationWidth(4)
-        self.setTabWidth(4)
-        self.setIndentationGuides(True)
-
-        self.setBraceMatching(
-            QsciScintilla.BraceMatch.SloppyBraceMatch,
-        )
-        self.setCaretLineVisible(True)
-
-        self.setMarginType(
-            0,
-            QsciScintilla.MarginType.NumberMargin,
-        )
-        self.setMarginLineNumbers(0, True)
-        self.setMarginWidth(0, "00000")
-
-        self.setWrapMode(QsciScintilla.WrapMode.WrapNone)
-
-        self.indicatorDefine(
-            QsciScintilla.IndicatorStyle.SquiggleIndicator,
-            QUERY_ERROR_INDICATOR,
-        )
-
-        self.setIndicatorForegroundColor(
-            QColor("#d73a49"),
-            QUERY_ERROR_INDICATOR,
-        )
-
-        self.setAnnotationDisplay(QsciScintilla.AnnotationDisplay.AnnotationBoxed)
-        self.SCN_CHARADDED.connect(self._on_char_added)
-
-        self.SendScintilla(QsciScintilla.SCI_AUTOCSETMAXHEIGHT, 12)
-
-        current_width = self.SendScintilla(QsciScintilla.SCI_AUTOCGETMAXWIDTH)
-        base_width = current_width if current_width > 0 else 40
-        self.SendScintilla(QsciScintilla.SCI_AUTOCSETMAXWIDTH, int(base_width * 1.5))
-
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        modifiers = event.modifiers()
-        key = event.key()
-
-        match (key, modifiers):
+        match (event.key(), event.modifiers()):
             case (Qt.Key.Key_Space, Qt.KeyboardModifier.ControlModifier):
                 self._show_jedi_completions()
-                event.accept()
-                return
-
-            case (Qt.Key.Key_Backspace, Qt.KeyboardModifier.NoModifier):
-                if not self.hasSelectedText() and self._delete_blank_line_indentation():
-                    event.accept()
-                    return
-
-            case (Qt.Key.Key_Delete, Qt.KeyboardModifier.ShiftModifier):
-                self.SendScintilla(QsciScintilla.SCI_LINEDELETE)
                 event.accept()
                 return
 
@@ -170,41 +108,6 @@ class PythonQueryEditor(QsciScintilla):
                 self._toggle_current_line_comment()
                 event.accept()
                 return
-
-            case (Qt.Key.Key_Up, Qt.KeyboardModifier.AltModifier):
-                self.SendScintilla(QsciScintilla.SCI_MOVESELECTEDLINESUP)
-                event.accept()
-                return
-
-            case (Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier):
-                self.SendScintilla(QsciScintilla.SCI_MOVESELECTEDLINESDOWN)
-                event.accept()
-                return
-
-            case (
-                Qt.Key.Key_Z,
-                Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
-            ):
-                self.SendScintilla(QsciScintilla.SCI_UNDO)
-                event.accept()
-                return
-
-        opening = event.text()
-        if (
-            self.hasSelectedText()
-            and opening in self._DELIMITER_PAIRS
-            and not modifiers
-            & (
-                Qt.KeyboardModifier.ControlModifier
-                | Qt.KeyboardModifier.AltModifier
-                | Qt.KeyboardModifier.MetaModifier
-            )
-        ):
-            selected = self.selectedText()
-            closing = self._DELIMITER_PAIRS[opening]
-            self.replaceSelectedText(f"{opening}{selected}{closing}")
-            event.accept()
-            return
 
         super().keyPressEvent(event)
 
@@ -218,7 +121,7 @@ class PythonQueryEditor(QsciScintilla):
 
     def _cursor_in_comment(self) -> bool:
         position = self.SendScintilla(QsciScintilla.SCI_GETCURRENTPOS)
-        if position > 0:
+        if 0 < position:
             position -= 1
         return self._is_position_in_comment(position)
 
@@ -245,7 +148,7 @@ class PythonQueryEditor(QsciScintilla):
         left = self.text(line)[:column]
         idx = len(left)
 
-        while idx > 0 and (left[idx - 1].isalnum() or left[idx - 1] == "_"):
+        while 0 < idx and (left[idx - 1].isalnum() or left[idx - 1] == "_"):
             idx -= 1
 
         return len(left) - idx
@@ -278,21 +181,6 @@ class PythonQueryEditor(QsciScintilla):
             " ".join(names).encode("utf-8"),
         )
 
-    def _delete_blank_line_indentation(self) -> bool:
-        line, column = self.getCursorPosition()
-        content = self.text(line).rstrip("\r\n")
-
-        if column == 0 or content.strip():
-            return False
-
-        width = self.indentationWidth()
-        delete_count = column % width or width
-        start_column = max(0, column - delete_count)
-
-        self.setSelection(line, start_column, line, column)
-        self.replaceSelectedText("")
-        return True
-
     def _toggle_current_line_comment(self) -> None:
         line, column = self.getCursorPosition()
         content = self.text(line).rstrip("\r\n")
@@ -303,13 +191,13 @@ class PythonQueryEditor(QsciScintilla):
             marker_length = 2
             updated = content[:indentation_length] + remainder[marker_length:]
             updated_column = (
-                column - marker_length if column > indentation_length else column
+                column - marker_length if indentation_length < column else column
             )
         elif remainder.startswith("#"):
             marker_length = 1
             updated = content[:indentation_length] + remainder[marker_length:]
             updated_column = (
-                column - marker_length if column > indentation_length else column
+                column - marker_length if indentation_length < column else column
             )
         else:
             marker = "# "
@@ -317,7 +205,7 @@ class PythonQueryEditor(QsciScintilla):
                 content[:indentation_length] + marker + content[indentation_length:]
             )
             updated_column = (
-                column + len(marker) if column >= indentation_length else column
+                column + len(marker) if indentation_length <= column else column
             )
 
         self.setSelection(line, 0, line, len(content))
