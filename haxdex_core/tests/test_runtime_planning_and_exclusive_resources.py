@@ -4,9 +4,6 @@ import threading
 import time
 from pathlib import Path
 
-from pydantic import BaseModel
-from sqlalchemy import Engine
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import (
@@ -17,6 +14,8 @@ from haxdex.services.core.job_types import (
     RunContext,
 )
 from haxdex.services.core.types import FileRef, IndexDocument, IndexerOutput
+from pydantic import BaseModel
+from sqlalchemy import Engine
 
 
 def _make_refs(db: IndexDatabase, stable_test_dir: Path, n: int) -> list[FileRef]:

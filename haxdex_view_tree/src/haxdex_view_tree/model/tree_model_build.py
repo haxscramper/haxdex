@@ -7,9 +7,12 @@ from pprint import pformat
 from typing import Optional
 
 from beartype import beartype
-from haxdex_cli.cli_config import DirConfig
 from haxdex_core.db import IndexDatabase
-from haxdex_core.file_iteration import RootFilter, match_root, prepare_root_filters
+from haxdex_core.file_iteration import (
+    RootFilter,
+    match_root,
+    prepare_root_filters,
+)
 from haxdex_core.job_types import BaseIndexer, RunContext
 from haxdex_core.types import FileHash
 from haxdex_view_tree.columns.file_tree_column import (
@@ -217,7 +220,7 @@ def load_file_tree_from_cache(
 def build_file_tree(
     ctx: RunContext,
     db: IndexDatabase,
-    root_directories: Sequence[DirConfig],
+    root_directories: Sequence[zDirConfig],
     indexers: Sequence[BaseIndexer],
     columns: Sequence[FileTreeColumnSpec],
     cache_path: Path,

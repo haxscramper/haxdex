@@ -5,9 +5,9 @@ from time import perf_counter
 
 from beartype import beartype
 from beartype.typing import Any, Sequence
-from haxdex_cli.cli_config import IndexConfig, IndexPathConfig
 from loguru import logger
 
+from haxdex_core.core_config import IndexConfig, IndexPathConfig
 from haxdex_core.db import IndexDatabase
 from haxdex_core.file_iteration import DirConfig, RootFilter, prepare_root_filters
 from haxdex_core.job_runtime import IndexRuntime

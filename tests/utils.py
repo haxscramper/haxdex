@@ -10,163 +10,30 @@ import glom
 import pandas as pd
 from beartype import beartype
 from beartype.typing import Any, Iterator, cast
-from haxdex_action.action_execute import (
-    ActionExecutionConfig,
-    ActionExecutor,
-)
-from haxdex_cli.cli import IndexService
-from haxdex_cli.cli_config import (
-    ActionConfig,
-    AppConfig,
-    DatabaseConfig,
-    FileTreeViewConfig,
-    IndexConfig,
-    IndexPathConfig,
-    LoggingConfig,
-)
+from haxdex_action.action_execute import ActionExecutor
+from haxdex_core.core_config import IndexServiceConfig
+from haxdex_core.core_tests import IndexServiceTestState
 from haxdex_core.file_iteration import DirConfig
-from haxdex_read_media.indexers.exif_metadata import (
-    ExifMetadataIndexer,
-)
-from haxdex_read_media.indexers.ffprobe_indexer import (
-    FFProbeIndexer,
-)
-from haxdex_read_media.indexers.file_stats import FileStatsIndexer
-from haxdex_read_media.indexers.mime_indexer import (
-    FileMimeIndexer,
-)
-from haxdex_view_tree.columns.file_duplicate_column import (
-    FileDuplicateColumnSpec,
-)
-from haxdex_view_tree.columns.file_mime_column import (
-    FileMimeColumnSpec,
-)
-from haxdex_view_tree.columns.file_name_column import (
-    FileNameColumnSpec,
-)
-from haxdex_view_tree.columns.file_tree_column import (
-    FileTreeColumnSpec,
-    FileTreeNode,
-)
-from haxdex_view_tree.columns.known_actions_column import (
-    KnownActionColumnSpec,
-)
-from haxdex_view_tree.columns.size_column import (
-    EntrySizeColumnSpec,
-)
-from haxdex_view_tree.columns.size_share_column import (
-    SizeShareColumnSpec,
-)
-from haxdex_view_tree.columns.trivial_data_column import (
-    TrivialDataColumnSpec,
-)
-from haxdex_view_tree.columns.video_bitrate_columns import (
-    VideoBitrateColumnSpec,
-)
-from haxdex_view_tree.columns.video_framerate_column import (
-    VideoFramerateColumnSpec,
-)
-from haxdex_view_tree.columns.video_resolution_column import (
-    VideoResolutionColumnSpec,
-)
+from haxdex_core.indexer_service import IndexService
+from haxdex_view_tree.columns.file_duplicate_column import FileDuplicateColumnSpec
+from haxdex_view_tree.columns.file_mime_column import FileMimeColumnSpec
+from haxdex_view_tree.columns.file_name_column import FileNameColumnSpec
+from haxdex_view_tree.columns.file_tree_column import FileTreeColumnSpec, FileTreeNode
+from haxdex_view_tree.columns.known_actions_column import KnownActionColumnSpec
+from haxdex_view_tree.columns.size_column import EntrySizeColumnSpec
+from haxdex_view_tree.columns.size_share_column import SizeShareColumnSpec
+from haxdex_view_tree.columns.trivial_data_column import TrivialDataColumnSpec
+from haxdex_view_tree.columns.video_bitrate_columns import VideoBitrateColumnSpec
+from haxdex_view_tree.columns.video_framerate_column import VideoFramerateColumnSpec
+from haxdex_view_tree.columns.video_resolution_column import VideoResolutionColumnSpec
+from haxdex_view_tree.file_tree_config import FileTreeViewConfig
 from loguru import logger
 from PyQt6.QtCore import QAbstractItemModel, QModelIndex
 
 
 @beartype
-@dataclass
-class IndexServiceConfig:
-    service: IndexService
-    data_dir: Path
-    root_dirs: list[Path]
-    root_names: list[str]
-    cfg: AppConfig
-    stable_test_dir: Path
-
-
-@beartype
-def init_index_service(
-    stable_test_dir: Path,
-    root_names: list[str] | None = None,
-    reset: bool = True,
-) -> IndexServiceConfig:
-    data_dir = stable_test_dir.joinpath("data")
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    if root_names is None:
-        root_names = []
-        root_dirs = [data_dir]
-    else:
-        root_dirs = [data_dir.joinpath(root_name) for root_name in root_names]
-        for root_dir in root_dirs:
-            root_dir.mkdir(parents=True, exist_ok=True)
-
-    act_conf = ActionExecutionConfig(
-        trash_root=stable_test_dir.joinpath("trash"),
-        sqlite_path=stable_test_dir.joinpath("actions.sqlite"),
-        output_directory=stable_test_dir.joinpath("action_output"),
-        dry_run=False,
-    )
-
-    act_conf.trash_root.mkdir(parents=True, exist_ok=True)
-    act_conf.output_directory.mkdir(parents=True, exist_ok=True)
-
-    if root_names:
-        index_paths = tuple(
-            IndexPathConfig(
-                name=root_name,
-                root_path=root_dir,
-                paths=[DirConfig(path=root_dir)],
-            )
-            for root_name, root_dir in zip(root_names, root_dirs)
-        )
-    else:
-        index_paths = (
-            IndexPathConfig(
-                name="data",
-                root_path=data_dir,
-                paths=[DirConfig(path=data_dir)],
-            ),
-        )
-
-    cfg = AppConfig(
-        index=IndexConfig(
-            paths=index_paths,
-            reset=True,
-        ),
-        indexers={
-            FFProbeIndexer.asset_name: FFProbeIndexer.config_model(),
-            ExifMetadataIndexer.asset_name: ExifMetadataIndexer.config_model(),
-            FileStatsIndexer.asset_name: FileStatsIndexer.config_model(),
-            FileMimeIndexer.asset_name: FileMimeIndexer.config_model(),
-        },
-        resources={},
-        index_cache=stable_test_dir.joinpath("index_cache.sqlite"),
-        hash_cache=stable_test_dir.joinpath("hash_cache.sqlite"),
-        db=DatabaseConfig(db_name=f"service_{stable_test_dir.stem}"),
-        action_file=stable_test_dir.joinpath("actions.jsonl"),
-        act=ActionConfig(execution=act_conf),
-        logging=LoggingConfig(),
-    )
-
-    if reset:
-        IndexService.reset_for_config(cfg)
-
-    service = IndexService(cfg=cfg, only_short_curcuit_checks=False)
-
-    return IndexServiceConfig(
-        service=service,
-        data_dir=data_dir,
-        root_dirs=root_dirs,
-        root_names=root_names,
-        cfg=cfg,
-        stable_test_dir=stable_test_dir,
-    )
-
-
-@beartype
 def init_file_tree_columns(
-    index: IndexServiceConfig, reference_tree: FileTreeNode | None = None
+    index: IndexServiceTestState, reference_tree: FileTreeNode | None = None
 ) -> list[FileTreeColumnSpec]:
     specs = cast(
         list[FileTreeColumnSpec],
@@ -201,11 +68,11 @@ class FileTreeServiceConfig:
     data_dir: Path
     root_dirs: list[Path]
     root_names: list[str]
-    cfg: AppConfig
+    cfg: IndexServiceConfig
     stable_test_dir: Path
 
 
-def init_file_tree_config(index: IndexServiceConfig) -> FileTreeServiceConfig:
+def init_file_tree_config(index: IndexServiceTestState) -> FileTreeServiceConfig:
     assert index.cfg.index
     all_root_dirs = [
         dir_cfg for path_cfg in index.cfg.index.paths for dir_cfg in path_cfg.paths

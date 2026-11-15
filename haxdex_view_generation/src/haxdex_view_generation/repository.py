@@ -2,12 +2,12 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Any
+from haxdex_core.types import FileHash
 from haxdex_view_tree.model.tree_model_fetch import (
     AQL_FILE_PATHS,
     FilePathRow,
 )
 
-from ....src.haxdex.services.core.types import FileHash
 from .constants import IMAGE_EXTS
 from .models import (
     GenerationParamsIndexerResult,

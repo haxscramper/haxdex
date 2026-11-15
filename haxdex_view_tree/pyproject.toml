@@ -17,6 +17,7 @@ dependencies = [
     "haxdex_view_results",
     "jedi",
     "hstd_py_lib",
+    "hypothesis",
 ]
 
 [dependency-groups]

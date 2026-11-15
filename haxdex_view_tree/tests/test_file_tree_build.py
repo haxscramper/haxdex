@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from haxdex_core.core_tests import init_core_index_service
 from haxdex_view_tree.columns.file_tree_column import FileTreeNode
 from haxdex_view_tree.columns.size_column import (
     EntrySizeColumnSpec,
@@ -10,13 +11,12 @@ from PyQt6.QtCore import QModelIndex
 from tests.utils import (
     init_file_tree_columns,
     init_file_tree_config,
-    init_index_service,
     sub_row_by_name,
 )
 
 
 def test_e2e_tree_build(stable_test_dir: Path):
-    index = init_index_service(stable_test_dir)
+    index = init_core_index_service(stable_test_dir)
 
     dir = index.root_dirs[0]
     dir.joinpath("a.txt").write_text("random_content")
@@ -35,7 +35,7 @@ def test_e2e_tree_build(stable_test_dir: Path):
     core = FileTreeQueryCore(
         ctx=tree_config.service.ctx,
         db=tree_config.service.db,
-        cfg=tree_config.cfg,
+        index_cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
         columns=init_file_tree_columns(index),
     )

@@ -21,14 +21,14 @@ from beartype.typing import (
     get_args,
     get_origin,
 )
+from haxdex.services.core.job_types import META_SUFFIX, BaseIndexer
 from hypothesis import assume
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import BaseModel
 
-from haxdex.services.core.job_types import META_SUFFIX, BaseIndexer
 from haxdex.services.pydantic_utils import model_to_json_data
-from tests.generation_full_file import (
+from haxdex_view_tree.tests.generation_full_file import (
     _MIME_SUFFIXES,
     CorpusFileEntry,
     CorpusManifest,

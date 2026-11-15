@@ -1,12 +1,3 @@
-class FileTreeViewConfig(BaseModel, extra="forbid"):
-    root_dirs: list[DirConfig]
-    reference_dir: Optional[DirConfig] = None
-    reference_tree_cache_path: OutputFile = Path("/tmp/reference_tree_cache.sqlite")
-    visual_tree_cache_path: OutputFile = Path("/tmp/input_tree_cache.sqlite")
-    drop_cache_files: bool = False
-    user_edit_path: OutputFile = Path("~/tmp/user_actions.sqlite").expanduser()
-
-
 def run_tree_view(self) -> None:
     if cfg.act:
         executor = ActionExecutor(cfg.act.execution)

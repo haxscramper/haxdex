@@ -6,6 +6,7 @@ from pathlib import Path
 
 from beartype import beartype
 from beartype.typing import Optional, Sequence, TypeVar
+from haxdex_action.action_cfg import ActionExecutionConfig
 from haxdex_action.action_db import OperationRow
 from haxdex_action.action_handler import ActionHandler
 from haxdex_action.action_list_model import (
@@ -24,7 +25,7 @@ from haxdex_action.action_video_convert import (
 from haxdex_core.utils import dump_with_type
 from hstd_py_lib.pydantic_utils import model_from_json_data, model_to_json_data
 from loguru import logger
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
@@ -32,35 +33,6 @@ T = TypeVar("T", bound=BaseModel)
 
 _PENDING_STR = "pending"
 _DONE_STR = "done"
-
-
-class ActionExecutionConfig(BaseModel, extra="forbid", frozen=True):
-    trash_root: Path
-    sqlite_path: Path
-    output_directory: Path
-    dry_run: bool = True
-    max_actions: int | None = None
-
-    @field_validator("output_directory")
-    @classmethod
-    def _normalize_output_directory_file(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
-
-    @field_validator("trash_root")
-    @classmethod
-    def _normalize_trash_root_file(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
-
-    @field_validator("sqlite_path")
-    @classmethod
-    def _normalize_sqlite_path_file(cls, value: Path | None) -> Path | None:
-        if value is None:
-            return None
-        return value.expanduser().resolve().absolute()
 
 
 @beartype

@@ -27,14 +27,6 @@ from haxdex_action.action_list_model import (
 from haxdex_action.action_list_view import (
     ActionListView,
 )
-from haxdex_cli.cli import IndexService, main_impl
-from haxdex_cli.cli_config import (
-    AppConfig,
-    DatabaseConfig,
-    IndexConfig,
-    IndexPathConfig,
-    LoggingConfig,
-)
 from haxdex_core.file_iteration import DirConfig, prepare_root_filters
 from haxdex_core.hash_cache import HashCache
 from haxdex_read_media.indexers.exif_metadata import (
@@ -94,15 +86,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from haxdex.gui.common.qt_model_roles import CustomModelRole
-from haxdex.gui.common.qt_utils import qt_model_to_dataframe
-from haxdex.services.pydantic_utils import (
-    format_json_with_fjson,
-    model_from_json_data,
-    to_json_safe,
-)
-from hstd_py_qt import model_dump
-from tests.generation import (
-    META_SUFFIX,
+from haxdex_view_tree.tests.generation import (
     GeneratedDirectory,
     GeneratedIndexerEntry,
     MaterializedDirectory,
@@ -112,14 +96,13 @@ from tests.generation import (
     directory_structure,
     write_generated_directory,
 )
+from hstd_py_qt import model_dump
 from tests.utils import (
     FileTreeServiceConfig,
-    IndexServiceConfig,
     capture_logs,
     clean_test_dir,
     init_file_tree_columns,
     init_file_tree_config,
-    init_index_service,
     split_columns_by_rules,
     sub_row_by_name,
 )
@@ -531,7 +514,7 @@ def run_video_file_filtering(
 def run_remove_duplicate_action(
     df: pd.DataFrame,
     core: FileTreeQueryCore,
-    cfg: AppConfig,
+    cfg: IndexServiceConfig,
     data_dir: Path,
     stable_test_dir: Path,
 ):
@@ -770,7 +753,7 @@ def run_initial_index_collection(
     reference_tree = FileTreeQueryCore.build_reference_tree(
         ctx=tree_config.service.ctx,
         db=tree_config.service.db,
-        cfg=tree_config.cfg,
+        index_cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
     )
 
@@ -779,7 +762,7 @@ def run_initial_index_collection(
     core = FileTreeQueryCore(
         ctx=tree_config.service.ctx,
         db=tree_config.service.db,
-        cfg=tree_config.cfg,
+        index_cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
         columns=init_file_tree_columns(index=index, reference_tree=reference_tree[0]),
     )
@@ -891,7 +874,7 @@ def run_action_column_validation(
     core = FileTreeQueryCore(
         ctx=tree_config.service.ctx,
         db=tree_config.service.db,
-        cfg=tree_config.cfg,
+        index_cfg=tree_config.cfg,
         indexer_instances=tree_config.service.indexer_instances,
         columns=columns,
     )
@@ -1022,7 +1005,7 @@ def test_cli_index_rerun(
         root_names=root_names,
     )
 
-    cfg = AppConfig(
+    cfg = IndexServiceConfig(
         index=IndexConfig(
             paths=[
                 IndexPathConfig(

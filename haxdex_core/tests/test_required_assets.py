@@ -2,13 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel
-from sqlalchemy import Engine
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import IndexRuntime
 from haxdex.services.core.job_types import BaseIndexer, BaseResource, RunContext
 from haxdex.services.core.types import IndexDocument, IndexerOutput
+from pydantic import BaseModel
+from sqlalchemy import Engine
 
 
 def _touch(path: Path) -> None:

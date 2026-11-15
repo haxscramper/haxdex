@@ -2,6 +2,16 @@ import json
 import random
 import urllib.request
 
+from haxdex_core.db import IndexDatabase
+from haxdex_read_media.indexers.image_generation import (
+    GenerationParamsIndexer,
+)
+from haxdex_read_media.indexers.safetensor_indexer import (
+    SafetensorIndexer,
+)
+from haxdex_read_media.indexers.wd_indexer import (
+    WdTagIndexer,
+)
 from PyQt6.QtCore import QModelIndex, QSortFilterProxyModel, Qt
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -14,16 +24,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ....haxdex_read_media.indexers.image_generation import (
-    GenerationParamsIndexer,
-)
-from ....haxdex_read_media.indexers.safetensor_indexer import (
-    SafetensorIndexer,
-)
-from ....haxdex_read_media.indexers.wd_indexer import (
-    WdTagIndexer,
-)
-from ....src.haxdex.services.core.db import IndexDatabase
 from .constants import (
     EDITOR_H,
     MIN_W_CHECKPOINT,

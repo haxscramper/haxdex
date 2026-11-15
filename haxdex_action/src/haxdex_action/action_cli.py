@@ -1,7 +1,3 @@
-class ActionConfig(BaseModel, extra="forbid", frozen=True):
-    execution: ActionExecutionConfig
-
-
 def main():
     def register_db_actions() -> ActionExecutor:
         assert cfg.act

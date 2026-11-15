@@ -4,9 +4,6 @@ import threading
 import time
 from pathlib import Path
 
-from pydantic import BaseModel
-from sqlalchemy import Engine
-
 from haxdex.services.core.db import IndexDatabase
 from haxdex.services.core.job_runtime import (
     IndexRuntime,
@@ -23,6 +20,8 @@ from haxdex.services.core.types import (
     IndexerOutput,
     IndexerRequest,
 )
+from pydantic import BaseModel
+from sqlalchemy import Engine
 
 
 class _DummyResult(IndexDocument):

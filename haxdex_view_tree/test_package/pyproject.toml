@@ -3,13 +3,13 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "haxdex_read_media_test_package"
+name = "haxdex_view_tree_test_package"
 version = "0.1.0"
 requires-python = ">=3.13,<3.14"
-dependencies = ["haxdex_read_media==0.1.0"]
+dependencies = ["haxdex_view_tree==0.1.0"]
 
 [tool.uv.sources]
-haxdex_read_media = { path = ".." }
+haxdex_view_tree = { path = ".." }
 
 [tool.hatch.build.targets.wheel]
 bypass-selection = true
