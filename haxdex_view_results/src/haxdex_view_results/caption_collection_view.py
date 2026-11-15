@@ -8,7 +8,9 @@ from haxdex_read_media.resources.wd_tagger import WdTaggerResult
 from hstd_py_qt.file_view.column_model import AbstractColumnItemModel, ColumnSpec
 from hstd_py_qt.file_view.column_sort_filter_proxy import ColumnSortFilterProxyModel
 from hstd_py_qt.file_view.configurable_widget import Configurable
+from hstd_py_qt.file_view.sci_editor import SciEditor
 from pydantic import BaseModel, Field
+from PyQt6.Qsci import QsciLexerCustom, QsciScintilla
 from PyQt6.QtCore import (
     QAbstractItemModel,
     QEvent,
@@ -32,11 +34,7 @@ from PyQt6.QtGui import (
     QImage,
     QImageReader,
     QPainter,
-    QPaintEvent,
-    QPen,
-    QSyntaxHighlighter,
     QTextCharFormat,
-    QTextDocument,
     QWheelEvent,
 )
 from PyQt6.QtWidgets import (
@@ -45,7 +43,6 @@ from PyQt6.QtWidgets import (
     QApplication,
     QHeaderView,
     QMainWindow,
-    QPlainTextEdit,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableView,
@@ -341,115 +338,166 @@ class ImageDelegate(QStyledItemDelegate):
 
 
 @beartype
-class CaptionEditor(QPlainTextEdit):
+class CaptionHighlighter(QsciLexerCustom):
+    """Apply regex text formats and matching colored box indicators."""
+
+    first_indicator = 8
+    available_indicators = 24
+
+    def __init__(
+        self,
+        editor: QsciScintilla,
+        patterns: list[tuple[QRegularExpression, QTextCharFormat]],
+    ) -> None:
+        super().__init__(editor)
+
+        if self.available_indicators < len(patterns):
+            raise ValueError(
+                f"Caption highlighting received {len(patterns)} patterns, "
+                f"but only {self.available_indicators} box indicators are available "
+                f"(IDs {self.first_indicator} through 31)."
+            )
+
+        self.editor = editor
+        self.patterns = patterns
+
+    def language(self) -> str:
+        return "Caption"
+
+    def description(self, style: int) -> str:
+        if style == 0:
+            return "Default caption text"
+        if 1 <= style <= len(self.patterns):
+            return f"Caption pattern {style}"
+        return ""
+
+    def configure_formats(self, font: QFont) -> None:
+        self.setDefaultFont(font)
+        self.setDefaultColor(self.editor.color())
+        self.setDefaultPaper(self.editor.paper())
+
+        self.setFont(font, 0)
+        self.setColor(self.editor.color(), 0)
+        self.setPaper(self.editor.paper(), 0)
+
+        for index, (expression, text_format) in enumerate(self.patterns):
+            style = index + 1
+            indicator = self.first_indicator + index
+            color = text_format.foreground().color()
+
+            self.setFont(text_format.font().resolve(font), style)
+            self.setColor(color, style)
+
+            if text_format.background().style() != Qt.BrushStyle.NoBrush:
+                self.setPaper(text_format.background().color(), style)
+            else:
+                self.setPaper(self.editor.paper(), style)
+
+            self.editor.indicatorDefine(
+                QsciScintilla.IndicatorStyle.BoxIndicator,
+                indicator,
+            )
+            self.editor.setIndicatorForegroundColor(color, indicator)
+            self.editor.setIndicatorDrawUnder(True, indicator)
+
+    def styleText(self, start: int, end: int) -> None:
+        source = self.editor.text()
+        styles = bytearray(len(source.encode("utf-8")))
+        line_offset = 0
+
+        for line in source.splitlines(keepends=True):
+            content = line.rstrip("\r\n")
+
+            # Qt regex offsets use UTF-16; Scintilla positions use UTF-8 bytes.
+            byte_offsets = [0]
+            byte_offset = 0
+            for character in content:
+                if 0xFFFF < ord(character):
+                    byte_offsets.append(byte_offset)
+                byte_offset += len(character.encode("utf-8"))
+                byte_offsets.append(byte_offset)
+
+            for index, (expression, text_format) in enumerate(self.patterns):
+                matches = expression.globalMatch(content)
+                while matches.hasNext():
+                    match = matches.next()
+                    match_start = line_offset + byte_offsets[match.capturedStart()]
+                    match_end = line_offset + byte_offsets[match.capturedEnd()]
+                    styles[match_start:match_end] = bytes([index + 1]) * (
+                        match_end - match_start
+                    )
+
+            line_offset += len(line.encode("utf-8"))
+
+        for index in range(len(self.patterns)):
+            self.editor.SendScintilla(
+                QsciScintilla.SCI_SETINDICATORCURRENT,
+                self.first_indicator + index,
+            )
+            self.editor.SendScintilla(
+                QsciScintilla.SCI_INDICATORCLEARRANGE,
+                0,
+                len(styles),
+            )
+
+        self.startStyling(0)
+        position = 0
+
+        # Styling final runs preserves the original "later patterns win" behavior.
+        while position < len(styles):
+            style = styles[position]
+            run_end = position + 1
+            while run_end < len(styles) and styles[run_end] == style:
+                run_end += 1
+
+            self.setStyling(run_end - position, style)
+
+            if style != 0:
+                self.editor.SendScintilla(
+                    QsciScintilla.SCI_SETINDICATORCURRENT,
+                    self.first_indicator + style - 1,
+                )
+                self.editor.SendScintilla(
+                    QsciScintilla.SCI_INDICATORFILLRANGE,
+                    position,
+                    run_end - position,
+                )
+
+            position = run_end
+
+
+@beartype
+class CaptionEditor(SciEditor):
     editingFinished = pyqtSignal()
 
     def __init__(
         self,
         config: CaptionPreviewConfig,
+        patterns: list[tuple[QRegularExpression, QTextCharFormat]],
         parent: QWidget,
     ) -> None:
         super().__init__(parent)
-        self.box_width = config.highlight_box_width
+
+        font = QFont()
+        if config.caption_font_family is not None:
+            font.setFamily(config.caption_font_family)
+        font.setPointSize(config.caption_font_size)
+
+        self.editor_font = font
+        self.setFont(font)
+        self.setMargins(0)
+        self.setWrapMode(QsciScintilla.WrapMode.WrapWord)
+        self.setCaretLineVisible(False)
+        self.setIndentationGuides(False)
+        self.setBraceMatching(QsciScintilla.BraceMatch.NoBraceMatch)
+
+        self.highlighter = CaptionHighlighter(self, patterns)
+        self.set_editor_lexer(self.highlighter)
+        self.highlighter.configure_formats(font)
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
         super().focusOutEvent(event)
         self.editingFinished.emit()
-
-    def paintEvent(self, event: QPaintEvent) -> None:
-        super().paintEvent(event)
-
-        painter = QPainter(self.viewport())
-        painter.setClipRect(event.rect())
-
-        block = self.firstVisibleBlock()
-        viewport_bottom = self.viewport().height()
-
-        while block.isValid():
-            block_rect = self.blockBoundingGeometry(block).translated(
-                self.contentOffset()
-            )
-
-            if viewport_bottom < block_rect.top():
-                break
-
-            if block.isVisible() and 0 <= block_rect.bottom():
-                layout = block.layout()
-
-                for format_range in layout.formats():
-                    color = format_range.format.property(CAPTION_BOX_COLOR_PROPERTY)
-                    if color is None:
-                        continue
-
-                    pen = QPen(color)
-                    pen.setWidth(self.box_width)
-                    painter.setPen(pen)
-
-                    match_start = format_range.start
-                    match_end = match_start + format_range.length
-
-                    for line_index in range(layout.lineCount()):
-                        line = layout.lineAt(line_index)
-                        start = max(match_start, line.textStart())
-                        end = min(
-                            match_end,
-                            line.textStart() + line.textLength(),
-                        )
-
-                        if end <= start:
-                            continue
-
-                        start_x = line.cursorToX(start)[0]
-                        end_x = line.cursorToX(end)[0]
-
-                        rect = QRectF(
-                            block_rect.left() + min(start_x, end_x),
-                            block_rect.top() + line.y(),
-                            abs(end_x - start_x),
-                            line.height(),
-                        )
-
-                        # Keep the configured stroke inside the line's bounds.
-                        if (
-                            self.box_width < rect.width()
-                            and self.box_width < rect.height()
-                        ):
-                            inset = self.box_width / 2
-                            painter.drawRect(
-                                rect.adjusted(inset, inset, -inset, -inset)
-                            )
-
-            block = block.next()
-
-        painter.end()
-
-
-@beartype
-class CaptionHighlighter(QSyntaxHighlighter):
-    def __init__(
-        self,
-        document: QTextDocument,
-        patterns: list[tuple[QRegularExpression, QTextCharFormat]],
-    ) -> None:
-        super().__init__(document)
-        self.patterns = patterns
-
-    def highlightBlock(self, text: str) -> None:
-        for expression, text_format in self.patterns:
-            boxed_format = QTextCharFormat(text_format)
-            boxed_format.setProperty(
-                CAPTION_BOX_COLOR_PROPERTY,
-                text_format.foreground().color(),
-            )
-
-            matches = expression.globalMatch(text)
-            while matches.hasNext():
-                match = matches.next()
-                self.setFormat(
-                    match.capturedStart(),
-                    match.capturedLength(),
-                    boxed_format,
-                )
 
 
 @beartype
@@ -470,26 +518,15 @@ class CaptionDelegate(QStyledItemDelegate):
         option: QStyleOptionViewItem,
         index: QModelIndex,
     ) -> CaptionEditor:
-        editor = CaptionEditor(self.config, parent)
-        font = QFont()
-        if self.config.caption_font_family is not None:
-            font.setFamily(self.config.caption_font_family)
-        font.setPointSize(self.config.caption_font_size)
-        editor.setFont(font)
-
-        editor.highlighter = CaptionHighlighter(
-            editor.document(),
-            self.patterns,
-        )
-        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        editor = CaptionEditor(self.config, self.patterns, parent)
         editor.editingFinished.connect(lambda: self.commitData.emit(editor))
         return editor
 
     def setEditorData(self, editor: QWidget, index: QModelIndex) -> None:
         if isinstance(editor, CaptionEditor):
             text = index.data(Qt.ItemDataRole.EditRole)
-            if editor.toPlainText() != text:
-                editor.setPlainText(text)
+            if editor.text() != text:
+                editor.setText(text)
 
     def setModelData(
         self,
@@ -500,7 +537,7 @@ class CaptionDelegate(QStyledItemDelegate):
         if isinstance(editor, CaptionEditor):
             model.setData(
                 index,
-                editor.toPlainText(),
+                editor.text(),
                 Qt.ItemDataRole.EditRole,
             )
 

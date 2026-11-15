@@ -1,5 +1,4 @@
 from beartype import beartype
-from loguru import logger
 from PyQt6.Qsci import QsciLexer, QsciScintilla
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontDatabase, QKeyEvent
@@ -188,7 +187,6 @@ class SciEditor(QsciScintilla):
 
         match (key, modifiers):
             case (Qt.Key.Key_D, Qt.KeyboardModifier.ControlModifier):
-                logger.info("Registered CTRL D event")
                 self.select_next_occurrence()
                 event.accept()
                 return
